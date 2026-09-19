@@ -1,0 +1,3243 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avacha Race — Public API (Swagger UI)</title>
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+<style>body{margin:0}#swagger{max-width:1400px;margin:0 auto;padding:24px}</style>
+</head><body><div id="swagger"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+<script>
+window.ui = SwaggerUIBundle({spec:{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Avacha Race — Public API (for VK Mini App frontend)",
+    "version": "1.1.0",
+    "description": "Публичное API мини-приложения ВКонтакте «Авача» (гонка на собачьих упряжках, Камчатка).\n\n**Базовый URL**: `/api/v1`\n\nКлючевые инварианты:\n- Официальное время — только судейские отметки (`OfficialMark`). Точки трека — для визуализации.\n- Положение участника — последняя подтверждённая точка с `recorded_at`.\n- Свежесть: `fresh / delayed / stale / no_data` (stale — пропущено ≥2 интервалов).\n- **В публичном API НЕТ полей `sos`/`battery_percent`** (только в админке).\n- Интервал передачи — параметр этапа `tracker_interval_seconds`, не константа.\n- Формат дат: ISO 8601 с таймзоной.\n- **Профиль высот трассы**: эндпоинт `GET /stages/{stage_id}/track` возвращает нитку маршрута с `elevation_m` и накопленным `km_from_start`. По этим же данным клиент строит и линию трека на карте, и график профиля высот экрана «Маршрут».\n\nАвторизация: JWT в `Authorization: Bearer <token>` после `/auth/vk`."
+  },
+  "paths": {
+    "/api/v1/auth/vk": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Auth Vk",
+        "operationId": "auth_vk_api_v1_auth_vk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VKAuthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Me",
+        "operationId": "me_api_v1_auth_me_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/state": {
+      "get": {
+        "tags": [
+          "state"
+        ],
+        "summary": "Get State",
+        "operationId": "get_state_api_v1_state_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/races/current": {
+      "get": {
+        "tags": [
+          "race"
+        ],
+        "summary": "Current Race",
+        "operationId": "current_race_api_v1_races_current_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RaceCurrent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stages/{stage_id}": {
+      "get": {
+        "tags": [
+          "race"
+        ],
+        "summary": "Get Stage",
+        "operationId": "get_stage_api_v1_stages__stage_id__get",
+        "parameters": [
+          {
+            "name": "stage_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Stage Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stages/{stage_id}/checkpoints": {
+      "get": {
+        "tags": [
+          "race"
+        ],
+        "summary": "Stage Checkpoints",
+        "operationId": "stage_checkpoints_api_v1_stages__stage_id__checkpoints_get",
+        "parameters": [
+          {
+            "name": "stage_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Stage Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CheckpointOut"
+                  },
+                  "title": "Response Stage Checkpoints Api V1 Stages  Stage Id  Checkpoints Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stages/{stage_id}/track": {
+      "get": {
+        "tags": [
+          "race"
+        ],
+        "summary": "Stage Track",
+        "description": "Нитка маршрута этапа.\n\nИспользуется клиентом:\n  - для отрисовки линии маршрута на карте,\n  - для построения графика профиля высот (elevation_m по km_from_start),\n  - для клиентской интерполяции положения между двумя подтверждёнными точками.",
+        "operationId": "stage_track_api_v1_stages__stage_id__track_get",
+        "parameters": [
+          {
+            "name": "stage_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Stage Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoutePointOut"
+                  },
+                  "title": "Response Stage Track Api V1 Stages  Stage Id  Track Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/map/participants": {
+      "get": {
+        "tags": [
+          "map"
+        ],
+        "summary": "Map Participants",
+        "operationId": "map_participants_api_v1_map_participants_get",
+        "parameters": [
+          {
+            "name": "stage_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage Id"
+            }
+          },
+          {
+            "name": "only_favorites",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Only Favorites"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ParticipantPosition"
+                  },
+                  "title": "Response Map Participants Api V1 Map Participants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/map/entry/{participant_id}/track": {
+      "get": {
+        "tags": [
+          "map"
+        ],
+        "summary": "Participant Track",
+        "operationId": "participant_track_api_v1_map_entry__participant_id__track_get",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "stage_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrackPointOut"
+                  },
+                  "title": "Response Participant Track Api V1 Map Entry  Participant Id  Track Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/map/checkpoints": {
+      "get": {
+        "tags": [
+          "map"
+        ],
+        "summary": "Map Checkpoints",
+        "operationId": "map_checkpoints_api_v1_map_checkpoints_get",
+        "parameters": [
+          {
+            "name": "stage_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CheckpointOut"
+                  },
+                  "title": "Response Map Checkpoints Api V1 Map Checkpoints Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/participants": {
+      "get": {
+        "tags": [
+          "participants"
+        ],
+        "summary": "List Participants",
+        "operationId": "list_participants_api_v1_participants_get",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Поиск по имени",
+              "title": "Search"
+            },
+            "description": "Поиск по имени"
+          },
+          {
+            "name": "discipline",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Discipline"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ParticipantStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(bib|name|supporters)$",
+              "default": "bib",
+              "title": "Sort"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ParticipantListItem"
+                  },
+                  "title": "Response List Participants Api V1 Participants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/participants/{participant_id}": {
+      "get": {
+        "tags": [
+          "participants"
+        ],
+        "summary": "Get Participant",
+        "operationId": "get_participant_api_v1_participants__participant_id__get",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Participant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipantDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/participants/{participant_id}/supporters": {
+      "get": {
+        "tags": [
+          "participants"
+        ],
+        "summary": "Get Supporters",
+        "operationId": "get_supporters_api_v1_participants__participant_id__supporters_get",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipantSupporters"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/participants/{participant_id}/favorite": {
+      "post": {
+        "tags": [
+          "participants"
+        ],
+        "summary": "Favorite Add",
+        "operationId": "favorite_add_api_v1_participants__participant_id__favorite_post",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "participants"
+        ],
+        "summary": "Favorite Remove",
+        "operationId": "favorite_remove_api_v1_participants__participant_id__favorite_delete",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/participants/supporters/rating": {
+      "get": {
+        "tags": [
+          "participants"
+        ],
+        "summary": "Supporters Rating",
+        "operationId": "supporters_rating_api_v1_participants_supporters_rating_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SupporterRatingEntry"
+                  },
+                  "title": "Response Supporters Rating Api V1 Participants Supporters Rating Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/results": {
+      "get": {
+        "tags": [
+          "results"
+        ],
+        "summary": "Recent Marks",
+        "operationId": "recent_marks_api_v1_results_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "stage_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OfficialMarkOut"
+                  },
+                  "title": "Response Recent Marks Api V1 Results Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/results/stage/{stage_id}": {
+      "get": {
+        "tags": [
+          "results"
+        ],
+        "summary": "Stage Protocol",
+        "operationId": "stage_protocol_api_v1_results_stage__stage_id__get",
+        "parameters": [
+          {
+            "name": "stage_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Stage Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StageProtocolEntry"
+                  },
+                  "title": "Response Stage Protocol Api V1 Results Stage  Stage Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/results/leaderboard": {
+      "get": {
+        "tags": [
+          "results"
+        ],
+        "summary": "Leaderboard",
+        "operationId": "leaderboard_api_v1_results_leaderboard_get",
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LeaderboardMode",
+              "default": "official"
+            }
+          },
+          {
+            "name": "stage_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeaderboardEntry"
+                  },
+                  "title": "Response Leaderboard Api V1 Results Leaderboard Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/news": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "List News",
+        "operationId": "list_news_api_v1_news_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NewsPostOut"
+                  },
+                  "type": "array",
+                  "title": "Response List News Api V1 News Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/news/{news_id}": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Get News",
+        "operationId": "get_news_api_v1_news__news_id__get",
+        "parameters": [
+          {
+            "name": "news_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "News Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewsPostOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedule": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "List Schedule",
+        "operationId": "list_schedule_api_v1_schedule_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ScheduleEventOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Schedule Api V1 Schedule Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/viewer-locations": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Viewer Locations",
+        "operationId": "viewer_locations_api_v1_viewer_locations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ViewerLocationOut"
+                  },
+                  "type": "array",
+                  "title": "Response Viewer Locations Api V1 Viewer Locations Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/faq": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "List Faq",
+        "operationId": "list_faq_api_v1_faq_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FAQItemOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Faq Api V1 Faq Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contacts": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Contacts",
+        "operationId": "contacts_api_v1_contacts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/favorites": {
+      "get": {
+        "tags": [
+          "engagement"
+        ],
+        "summary": "My Favorites",
+        "operationId": "my_favorites_api_v1_me_favorites_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shares": {
+      "post": {
+        "tags": [
+          "engagement"
+        ],
+        "summary": "Register Share",
+        "description": "Регистрация шера. Пишем в лог — аналитику можно будет подключить позже.",
+        "operationId": "register_share_api_v1_shares_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/events": {
+      "post": {
+        "tags": [
+          "engagement"
+        ],
+        "summary": "Analytics Event",
+        "operationId": "analytics_event_api_v1_analytics_events_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/feedback": {
+      "post": {
+        "tags": [
+          "engagement"
+        ],
+        "summary": "Feedback",
+        "operationId": "feedback_api_v1_feedback_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdminLoginRequest": {
+        "properties": {
+          "login": {
+            "type": "string",
+            "title": "Login"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "login",
+          "password"
+        ],
+        "title": "AdminLoginRequest"
+      },
+      "AdminMe": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "login": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "title": "AdminMe"
+      },
+      "AdminTokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "admin_id": {
+            "type": "integer",
+            "title": "Admin Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in",
+          "admin_id",
+          "display_name"
+        ],
+        "title": "AdminTokenResponse"
+      },
+      "AssignDeviceRequest": {
+        "properties": {
+          "imei": {
+            "type": "string",
+            "title": "Imei"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          },
+          "stage_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "imei"
+        ],
+        "title": "AssignDeviceRequest"
+      },
+      "Body_upload_stage_track_api_v1_admin_stages__stage_id__track_post": {
+        "properties": {
+          "gpx": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Gpx"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gpx"
+        ],
+        "title": "Body_upload_stage_track_api_v1_admin_stages__stage_id__track_post"
+      },
+      "BroadcastRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id",
+            "description": "Если указано — только болельщикам этого участника"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "body"
+        ],
+        "title": "BroadcastRequest"
+      },
+      "CheckpointOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "stage_id": {
+            "type": "integer",
+            "title": "Stage Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "order_index": {
+            "type": "integer",
+            "title": "Order Index"
+          },
+          "has_judge": {
+            "type": "boolean",
+            "title": "Has Judge"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "stage_id",
+          "name",
+          "lat",
+          "lon",
+          "order_index",
+          "has_judge"
+        ],
+        "title": "CheckpointOut"
+      },
+      "CorrectMarkRequest": {
+        "properties": {
+          "mark_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mark Time"
+          },
+          "penalty_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Penalty Minutes"
+          },
+          "mandatory_stop_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mandatory Stop Minutes"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Причина корректировки (обязательно)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "CorrectMarkRequest"
+      },
+      "CreateMarkRequest": {
+        "properties": {
+          "participant_id": {
+            "type": "integer",
+            "title": "Participant Id"
+          },
+          "checkpoint_id": {
+            "type": "integer",
+            "title": "Checkpoint Id"
+          },
+          "mark_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Mark Time"
+          },
+          "penalty_minutes": {
+            "type": "integer",
+            "title": "Penalty Minutes",
+            "default": 0
+          },
+          "mandatory_stop_minutes": {
+            "type": "integer",
+            "title": "Mandatory Stop Minutes",
+            "default": 0
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "checkpoint_id",
+          "mark_time"
+        ],
+        "title": "CreateMarkRequest"
+      },
+      "DashboardStats": {
+        "properties": {
+          "race_status": {
+            "type": "string",
+            "title": "Race Status"
+          },
+          "active_participants": {
+            "type": "integer",
+            "title": "Active Participants"
+          },
+          "devices_online": {
+            "type": "integer",
+            "title": "Devices Online"
+          },
+          "devices_sos": {
+            "type": "integer",
+            "title": "Devices Sos"
+          },
+          "users_total": {
+            "type": "integer",
+            "title": "Users Total"
+          },
+          "subscriptions_total": {
+            "type": "integer",
+            "title": "Subscriptions Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "race_status",
+          "active_participants",
+          "devices_online",
+          "devices_sos",
+          "users_total",
+          "subscriptions_total"
+        ],
+        "title": "DashboardStats"
+      },
+      "DataFreshness": {
+        "type": "string",
+        "enum": [
+          "fresh",
+          "delayed",
+          "stale",
+          "no_data"
+        ],
+        "title": "DataFreshness"
+      },
+      "DeviceHealth": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "imei": {
+            "type": "string",
+            "title": "Imei"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "battery_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Percent"
+          },
+          "sos_active": {
+            "type": "boolean",
+            "title": "Sos Active",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "imei",
+          "is_active"
+        ],
+        "title": "DeviceHealth"
+      },
+      "EquipmentAlertOut": {
+        "properties": {
+          "device_id": {
+            "type": "integer",
+            "title": "Device Id"
+          },
+          "imei": {
+            "type": "string",
+            "title": "Imei"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          },
+          "alert_type": {
+            "type": "string",
+            "title": "Alert Type"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "sos_active": {
+            "type": "boolean",
+            "title": "Sos Active",
+            "default": false
+          },
+          "battery_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "imei",
+          "alert_type"
+        ],
+        "title": "EquipmentAlertOut"
+      },
+      "EventRequest": {
+        "properties": {
+          "event_name": {
+            "type": "string",
+            "title": "Event Name"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_name"
+        ],
+        "title": "EventRequest"
+      },
+      "FAQItemOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "order_index": {
+            "type": "integer",
+            "title": "Order Index"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "question",
+          "answer",
+          "category",
+          "order_index"
+        ],
+        "title": "FAQItemOut"
+      },
+      "FavoriteList": {
+        "properties": {
+          "participant_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Participant Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_ids"
+        ],
+        "title": "FavoriteList"
+      },
+      "FeedbackRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "FeedbackRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LeaderboardEntry": {
+        "properties": {
+          "participant_id": {
+            "type": "integer",
+            "title": "Participant Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "last_checkpoint_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checkpoint Name"
+          },
+          "last_mark_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Mark Time"
+          },
+          "km_from_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Km From Start"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "number",
+          "name",
+          "rank"
+        ],
+        "title": "LeaderboardEntry"
+      },
+      "LeaderboardMode": {
+        "type": "string",
+        "enum": [
+          "live",
+          "official"
+        ],
+        "title": "LeaderboardMode"
+      },
+      "NewsPostOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "cover_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Url"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "vk_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vk Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "body",
+          "published_at",
+          "source"
+        ],
+        "title": "NewsPostOut"
+      },
+      "NotificationQueueItem": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "status": {
+            "$ref": "#/components/schemas/NotificationStatus"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Scheduled At"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "error_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "event_type",
+          "title",
+          "body",
+          "status",
+          "attempts",
+          "scheduled_at"
+        ],
+        "title": "NotificationQueueItem"
+      },
+      "NotificationStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "sent",
+          "skipped",
+          "failed"
+        ],
+        "title": "NotificationStatus"
+      },
+      "OK": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "OK"
+      },
+      "OfficialMarkOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "participant_id": {
+            "type": "integer",
+            "title": "Participant Id"
+          },
+          "checkpoint_id": {
+            "type": "integer",
+            "title": "Checkpoint Id"
+          },
+          "mark_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Mark Time"
+          },
+          "penalty_minutes": {
+            "type": "integer",
+            "title": "Penalty Minutes"
+          },
+          "mandatory_stop_minutes": {
+            "type": "integer",
+            "title": "Mandatory Stop Minutes"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "participant_id",
+          "checkpoint_id",
+          "mark_time",
+          "penalty_minutes",
+          "mandatory_stop_minutes"
+        ],
+        "title": "OfficialMarkOut"
+      },
+      "ParticipantDetail": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "discipline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ParticipantStatus"
+          },
+          "dogs_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dogs Count"
+          },
+          "supporters_count": {
+            "type": "integer",
+            "title": "Supporters Count",
+            "default": 0
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "number",
+          "status"
+        ],
+        "title": "ParticipantDetail"
+      },
+      "ParticipantListItem": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "discipline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ParticipantStatus"
+          },
+          "dogs_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dogs Count"
+          },
+          "supporters_count": {
+            "type": "integer",
+            "title": "Supporters Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "number",
+          "status"
+        ],
+        "title": "ParticipantListItem"
+      },
+      "ParticipantPosition": {
+        "properties": {
+          "participant_id": {
+            "type": "integer",
+            "title": "Participant Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/DataFreshness"
+          },
+          "position_kind": {
+            "$ref": "#/components/schemas/PositionKind"
+          },
+          "speed_kmh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed Kmh"
+          },
+          "km_from_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Km From Start"
+          },
+          "is_favorite": {
+            "type": "boolean",
+            "title": "Is Favorite",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "number",
+          "name",
+          "lat",
+          "lon",
+          "recorded_at",
+          "freshness",
+          "position_kind"
+        ],
+        "title": "ParticipantPosition"
+      },
+      "ParticipantStatus": {
+        "type": "string",
+        "enum": [
+          "registered",
+          "active",
+          "finished",
+          "withdrawn",
+          "dsq"
+        ],
+        "title": "ParticipantStatus"
+      },
+      "ParticipantSupporters": {
+        "properties": {
+          "participant_id": {
+            "type": "integer",
+            "title": "Participant Id"
+          },
+          "supporters_count": {
+            "type": "integer",
+            "title": "Supporters Count"
+          },
+          "is_favorite": {
+            "type": "boolean",
+            "title": "Is Favorite",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "supporters_count"
+        ],
+        "title": "ParticipantSupporters"
+      },
+      "PositionKind": {
+        "type": "string",
+        "enum": [
+          "confirmed",
+          "interpolated"
+        ],
+        "title": "PositionKind"
+      },
+      "RaceCurrent": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RaceState"
+          },
+          "current_stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StageOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "RaceCurrent"
+      },
+      "RaceState": {
+        "type": "string",
+        "enum": [
+          "upcoming",
+          "live",
+          "finished"
+        ],
+        "title": "RaceState"
+      },
+      "RaceStatusUpdate": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RaceState"
+          },
+          "current_stage_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Stage Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "RaceStatusUpdate"
+      },
+      "RoutePointOut": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "elevation_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevation M"
+          },
+          "km_from_start": {
+            "type": "number",
+            "title": "Km From Start"
+          },
+          "order_index": {
+            "type": "integer",
+            "title": "Order Index"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon",
+          "km_from_start",
+          "order_index"
+        ],
+        "title": "RoutePointOut"
+      },
+      "ScheduleEventOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ScheduleKind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "starts_at",
+          "kind"
+        ],
+        "title": "ScheduleEventOut"
+      },
+      "ScheduleKind": {
+        "type": "string",
+        "enum": [
+          "race",
+          "cultural",
+          "other"
+        ],
+        "title": "ScheduleKind"
+      },
+      "StageOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "distance_km": {
+            "type": "number",
+            "title": "Distance Km"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "finish_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Time"
+          },
+          "order_index": {
+            "type": "integer",
+            "title": "Order Index"
+          },
+          "tracker_interval_seconds": {
+            "type": "integer",
+            "title": "Tracker Interval Seconds"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StageStatus"
+          },
+          "has_route": {
+            "type": "boolean",
+            "title": "Has Route",
+            "default": false
+          },
+          "has_elevation_profile": {
+            "type": "boolean",
+            "title": "Has Elevation Profile",
+            "default": false
+          },
+          "route_point_count": {
+            "type": "integer",
+            "title": "Route Point Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "distance_km",
+          "order_index",
+          "tracker_interval_seconds",
+          "status"
+        ],
+        "title": "StageOut"
+      },
+      "StagePatch": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "finish_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Time"
+          },
+          "tracker_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracker Interval Seconds"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StageStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "StagePatch"
+      },
+      "StageProtocolEntry": {
+        "properties": {
+          "participant_id": {
+            "type": "integer",
+            "title": "Participant Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "checkpoint_marks": {
+            "items": {
+              "$ref": "#/components/schemas/OfficialMarkOut"
+            },
+            "type": "array",
+            "title": "Checkpoint Marks"
+          },
+          "total_time_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Time Seconds"
+          },
+          "total_penalty_minutes": {
+            "type": "integer",
+            "title": "Total Penalty Minutes",
+            "default": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/ParticipantStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "number",
+          "name",
+          "checkpoint_marks",
+          "status"
+        ],
+        "title": "StageProtocolEntry"
+      },
+      "StageStatus": {
+        "type": "string",
+        "enum": [
+          "planned",
+          "active",
+          "finished"
+        ],
+        "title": "StageStatus"
+      },
+      "StateResponse": {
+        "properties": {
+          "server_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Server Time"
+          },
+          "race_status": {
+            "$ref": "#/components/schemas/RaceState"
+          },
+          "current_stage_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Stage Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "server_time",
+          "race_status"
+        ],
+        "title": "StateResponse"
+      },
+      "SupporterRatingEntry": {
+        "properties": {
+          "participant_id": {
+            "type": "integer",
+            "title": "Participant Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "supporters_count": {
+            "type": "integer",
+            "title": "Supporters Count"
+          },
+          "delta_24h": {
+            "type": "integer",
+            "title": "Delta 24H",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "name",
+          "number",
+          "supporters_count"
+        ],
+        "title": "SupporterRatingEntry"
+      },
+      "SupporterStatsRow": {
+        "properties": {
+          "participant_id": {
+            "type": "integer",
+            "title": "Participant Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "supporters_count": {
+            "type": "integer",
+            "title": "Supporters Count"
+          },
+          "delta_24h": {
+            "type": "integer",
+            "title": "Delta 24H"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "name",
+          "number",
+          "supporters_count",
+          "delta_24h"
+        ],
+        "title": "SupporterStatsRow"
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in"
+        ],
+        "title": "TokenResponse"
+      },
+      "TrackPointOut": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          },
+          "speed_kmh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed Kmh"
+          },
+          "km_from_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Km From Start"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lat",
+          "lon",
+          "recorded_at"
+        ],
+        "title": "TrackPointOut"
+      },
+      "UserProfile": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "vk_user_id": {
+            "type": "integer",
+            "title": "Vk User Id"
+          },
+          "first_name": {
+            "type": "string",
+            "title": "First Name"
+          },
+          "last_name": {
+            "type": "string",
+            "title": "Last Name"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "notifications_allowed": {
+            "type": "boolean",
+            "title": "Notifications Allowed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "vk_user_id",
+          "first_name",
+          "last_name",
+          "notifications_allowed"
+        ],
+        "title": "UserProfile"
+      },
+      "VKAuthRequest": {
+        "properties": {
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params",
+            "description": "Все launch_params VK, включая sign"
+          }
+        },
+        "type": "object",
+        "required": [
+          "params"
+        ],
+        "title": "VKAuthRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ViewerLocationOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "how_to_get_there": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "How To Get There"
+          },
+          "eta_first_participant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta First Participant"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "lat",
+          "lon"
+        ],
+        "title": "ViewerLocationOut"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://<host>/api/v1",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:8000/api/v1",
+      "description": "Local development"
+    }
+  ]
+},dom_id:'#swagger',deepLinking:true,
+presets:[SwaggerUIBundle.presets.apis,SwaggerUIStandalonePreset],
+layout:"StandaloneLayout",docExpansion:"list",filter:true,persistAuthorization:true});
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3d80c435ca6e1e2',t:'MTc4OTgxNTIxOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body></html>
