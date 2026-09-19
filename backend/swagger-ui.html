@@ -12,8 +12,8 @@ window.ui = SwaggerUIBundle({spec:{
   "openapi": "3.1.0",
   "info": {
     "title": "Avacha Race — Public API (for VK Mini App frontend)",
-    "version": "1.1.0",
-    "description": "Публичное API мини-приложения ВКонтакте «Авача» (гонка на собачьих упряжках, Камчатка).\n\n**Базовый URL**: `/api/v1`\n\nКлючевые инварианты:\n- Официальное время — только судейские отметки (`OfficialMark`). Точки трека — для визуализации.\n- Положение участника — последняя подтверждённая точка с `recorded_at`.\n- Свежесть: `fresh / delayed / stale / no_data` (stale — пропущено ≥2 интервалов).\n- **В публичном API НЕТ полей `sos`/`battery_percent`** (только в админке).\n- Интервал передачи — параметр этапа `tracker_interval_seconds`, не константа.\n- Формат дат: ISO 8601 с таймзоной.\n- **Профиль высот трассы**: эндпоинт `GET /stages/{stage_id}/track` возвращает нитку маршрута с `elevation_m` и накопленным `km_from_start`. По этим же данным клиент строит и линию трека на карте, и график профиля высот экрана «Маршрут».\n\nАвторизация: JWT в `Authorization: Bearer <token>` после `/auth/vk`."
+    "version": "1.2.0",
+    "description": "Публичное API мини-приложения ВКонтакте «Авача».\n\n**Базовый URL**: `/api/v1`\n\n**Безопасность**:\n- Ошибки валидации (HTTP 422) отдаются по схеме `HTTPValidationErrorSafe`: в каждом элементе `detail` присутствуют ТОЛЬКО поля `loc`, `msg`, `type`. Поля `input` и `ctx`, содержащие данные пользователя целиком, категорически исключены из всех ответов и из этой документации.\n- Телá запросов не логируются по умолчанию ни в middleware, ни в обработчиках, ни в воркерах — даже в dev-режиме. Флаг `LOG_VALIDATION_ERROR_BODY=true` (только для локальной отладки!) добавляет в лог только пути к ошибочным полям, но не значения.\n\nКлючевые инварианты:\n- Официальное время — только судейские отметки (`OfficialMark`).\n- Положение участника — последняя подтверждённая точка с `recorded_at`.\n- Свежесть: `fresh / delayed / stale / no_data`.\n- **В публичном API НЕТ** `sos`/`battery_percent`.\n- Интервал передачи — `tracker_interval_seconds` этапа.\n- Даты — ISO 8601 с таймзоной.\n- Профиль высот: `GET /stages/{id}/track` (lat, lon, elevation_m, km_from_start).\n\nАвторизация: `Authorization: Bearer <jwt>` после `/auth/vk`."
   },
   "paths": {
     "/api/v1/auth/vk": {
@@ -49,7 +49,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -98,7 +98,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -182,7 +182,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -228,7 +228,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -275,7 +275,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -354,7 +354,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -416,7 +416,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -469,7 +469,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -567,7 +567,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -609,7 +609,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -667,7 +667,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -723,7 +723,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -777,7 +777,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -826,7 +826,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -891,7 +891,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -937,7 +937,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -999,7 +999,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -1066,7 +1066,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -1209,7 +1209,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -1223,7 +1223,6 @@ window.ui = SwaggerUIBundle({spec:{
           "engagement"
         ],
         "summary": "Register Share",
-        "description": "Регистрация шера. Пишем в лог — аналитику можно будет подключить позже.",
         "operationId": "register_share_api_v1_shares_post",
         "parameters": [
           {
@@ -1269,7 +1268,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -1328,7 +1327,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -1387,7 +1386,7 @@ window.ui = SwaggerUIBundle({spec:{
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/HTTPValidationErrorSafe"
                 }
               }
             }
@@ -1978,19 +1977,6 @@ window.ui = SwaggerUIBundle({spec:{
           "text"
         ],
         "title": "FeedbackRequest"
-      },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
       },
       "LeaderboardEntry": {
         "properties": {
@@ -3129,46 +3115,6 @@ window.ui = SwaggerUIBundle({spec:{
         ],
         "title": "VKAuthRequest"
       },
-      "ValidationError": {
-        "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
-          }
-        },
-        "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError"
-      },
       "ViewerLocationOut": {
         "properties": {
           "id": {
@@ -3224,6 +3170,79 @@ window.ui = SwaggerUIBundle({spec:{
           "lon"
         ],
         "title": "ViewerLocationOut"
+      },
+      "ValidationErrorItem": {
+        "additionalProperties": false,
+        "example": {
+          "loc": [
+            "body",
+            "params"
+          ],
+          "msg": "Field required",
+          "type": "missing"
+        },
+        "properties": {
+          "loc": {
+            "description": "Путь к полю с ошибкой (например ['body','params'], может содержать строки и индексы массивов)",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Loc",
+            "type": "array"
+          },
+          "msg": {
+            "description": "Человекоочитаемое сообщение об ошибке",
+            "title": "Msg",
+            "type": "string"
+          },
+          "type": {
+            "description": "Код типа ошибки (Pydantic error type)",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationErrorItem",
+        "type": "object"
+      },
+      "HTTPValidationErrorSafe": {
+        "example": {
+          "detail": [
+            {
+              "loc": [
+                "body",
+                "params"
+              ],
+              "msg": "Field required",
+              "type": "missing"
+            }
+          ]
+        },
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationErrorItem"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "HTTPValidationErrorSafe",
+        "type": "object"
       }
     }
   },
@@ -3240,4 +3259,4 @@ window.ui = SwaggerUIBundle({spec:{
 },dom_id:'#swagger',deepLinking:true,
 presets:[SwaggerUIBundle.presets.apis,SwaggerUIStandalonePreset],
 layout:"StandaloneLayout",docExpansion:"list",filter:true,persistAuthorization:true});
-</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3d80c435ca6e1e2',t:'MTc4OTgxNTIxOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body></html>
+</script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3d848885a92ce1a',t:'MTc4OTgxNzY4OA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body></html>
