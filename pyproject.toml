@@ -6,6 +6,7 @@ authors = [
     {name = "Stepan Obukhov",email = "stepanobukhov2009@gmail.com"}
 ]
 requires-python = ">=3.12"
+type = "app"
 dependencies = [
 ]
 
