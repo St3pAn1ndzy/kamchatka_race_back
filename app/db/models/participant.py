@@ -1,17 +1,18 @@
-from typing import Optional
-
+from typing import TYPE_CHECKING, Optional
 from sqlalchemy import Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.enums import ParticipantStatus
 
 
-# TODO: Раскоментировать по ходу создания моделей (1)
-# if TYPE_CHECKING:
-#     from app.db.models.engagement import FanSubscription
-#     from app.db.models.results import OfficialMark
-#     from app.db.models.tracking import Device, TrackPoint
+if TYPE_CHECKING:
+    from app.db.models.tracking.device import Device
+
+    # TODO: Раскоментировать по ходу создания моделей (1)
+    # from app.db.models.engagement import FanSubscription
+    # from app.db.models.results import OfficialMark
+    # from app.db.models.tracking import TrackPoint
 
 
 class Participant(Base):
@@ -32,8 +33,9 @@ class Participant(Base):
         index=True,
     )
 
+    devices: Mapped[list["Device"]] = relationship(back_populates="participant")
+
     # TODO: Раскоментировать по ходу создания моделей (2)
-    # devices: Mapped[list["Device"]] = relationship(back_populates="participant")
     # track_points: Mapped[list["TrackPoint"]] = relationship(back_populates="participant")
     # official_marks: Mapped[list["OfficialMark"]] = relationship(back_populates="participant")
     # fans: Mapped[list["FanSubscription"]] = relationship(back_populates="participant")
