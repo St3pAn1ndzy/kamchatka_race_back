@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -43,6 +43,10 @@ class Device(Base):
     is_active: Mapped[bool] = mapped_column(Boolean,
                                             default=True,
                                             nullable=False)
+
+    battery_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    sos_active: Mapped[bool] = mapped_column(Boolean, default=False)
 
     last_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True),
                                                                 nullable=True)

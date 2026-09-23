@@ -7,7 +7,7 @@ from app.enums import ParticipantStatus
 
 
 if TYPE_CHECKING:
-    from app.db.models.tracking.device import Device
+    from app.db.models.device import Device
 
     # TODO: Раскоментировать по ходу создания моделей (1)
     # from app.db.models.engagement import FanSubscription

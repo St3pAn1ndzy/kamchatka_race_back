@@ -9,7 +9,7 @@ from app.enums import StageStatus
 
 
 if TYPE_CHECKING:
-    from app.db.models.tracking.device import Device
+    from app.db.models.device import Device
 
     # TODO: Раскомментировать когда появятся модели (1)
     # from app.db.models.results import OfficialMark
