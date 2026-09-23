@@ -56,6 +56,10 @@ class Settings(BaseSettings):
 
     IRIDIUM_BASE_URL: str = "https://api.iridium360.ru"
     IRIDIUM_API_KEY: str = ""
+    IRIDIUM_DEVICES_PATH: str = "/devices"
+    IRIDIUM_REQUEST_TIMEOUT_SECONDS: float = 15.0
+    IRIDIUM_MAX_RETRIES: int = 3
+    IRIDIUM_RETRY_BACKOFF_SECONDS: float = 2.0
     TRACKING_POLL_INTERVAL_SECONDS: int = 900
     TRACKING_STALE_MISSED_INTERVALS: int = 2
 
