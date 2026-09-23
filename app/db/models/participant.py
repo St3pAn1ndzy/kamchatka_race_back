@@ -8,17 +8,18 @@ from app.enums import ParticipantStatus
 
 if TYPE_CHECKING:
     from app.db.models.device import Device
+    from app.db.models.track_point import TrackPoint
 
-    # TODO: Раскоментировать по ходу создания моделей (1)
+    # TODO: Раскомментировать по ходу создания моделей (1)
     # from app.db.models.engagement import FanSubscription
     # from app.db.models.results import OfficialMark
-    # from app.db.models.tracking import TrackPoint
+
 
 
 class Participant(Base):
     __tablename__ = "participants"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[Optional[int]] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
     number: Mapped[int] = mapped_column(Integer, unique=True, index=True)
     region: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -35,7 +36,9 @@ class Participant(Base):
 
     devices: Mapped[list["Device"]] = relationship(back_populates="participant")
 
-    # TODO: Раскоментировать по ходу создания моделей (2)
-    # track_points: Mapped[list["TrackPoint"]] = relationship(back_populates="participant")
+    track_points: Mapped[list["TrackPoint"]] = relationship(back_populates="participant",
+                                                            order_by="TrackPoint.recorded_at")
+
+    # TODO: Раскомментировать по ходу создания моделей (2)
     # official_marks: Mapped[list["OfficialMark"]] = relationship(back_populates="participant")
     # fans: Mapped[list["FanSubscription"]] = relationship(back_populates="participant")

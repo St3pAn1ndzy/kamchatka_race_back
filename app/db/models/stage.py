@@ -10,10 +10,10 @@ from app.enums import StageStatus
 
 if TYPE_CHECKING:
     from app.db.models.device import Device
+    from app.db.models.track_point import TrackPoint
 
     # TODO: Раскомментировать когда появятся модели (1)
     # from app.db.models.results import OfficialMark
-    # from app.db.models.tracking import TrackPoint
 
 
 class Stage(Base):
@@ -34,12 +34,14 @@ class Stage(Base):
     )
 
     devices: Mapped[list["Device"]] = relationship(back_populates="stage")
+    track_points: Mapped[list["TrackPoint"]] = relationship(back_populates="stage",
+                                                            order_by="TrackPoint.recorded_at")
 
     # TODO: Раскомментировать когда появяться модели (2)
     # checkpoints: Mapped[list["Checkpoint"]] = relationship(
     #     back_populates="stage", order_by="Checkpoint.order_index"
     # )
-    # track_points: Mapped[list["TrackPoint"]] = relationship(back_populates="stage")
+
     # official_marks: Mapped[list["OfficialMark"]] = relationship(back_populates="stage")
     # route_points: Mapped[list["RoutePoint"]] = relationship(
     #     back_populates="stage", order_by="RoutePoint.order_index",
