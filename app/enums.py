@@ -7,3 +7,9 @@ class ParticipantStatus(StrEnum):
     FINISHED = "finished"
     WITHDRAWN = "withdrawn"
     DISQUALIFIED = "disqualified"
+
+
+class StageStatus(StrEnum):
+    PLANNED = "planned"
+    ACTIVE = "active"
+    FINISHED = "finished"
