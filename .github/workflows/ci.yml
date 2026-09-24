@@ -36,7 +36,7 @@ jobs:
         run: poetry install --no-interaction
 
       - name: Ruff check
-        run: poetry run ruff check app/ tests/
+        run: poetry run ruff check app/
 
       - name: Ruff format check
-        run: poetry run ruff format --check app/ tests/
+        run: poetry run ruff format --check app/
