@@ -18,7 +18,9 @@ class PushSubscription(Base):
         ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True
     )
     notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    subscribed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    subscribed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

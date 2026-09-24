@@ -1,11 +1,8 @@
-from typing import Optional
-
 from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.enums import ParticipantStatus
-
 
 # TODO: Раскоментировать по ходу создания моделей (1)
 # if TYPE_CHECKING:
@@ -20,11 +17,11 @@ class Participant(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
     number: Mapped[int] = mapped_column(Integer, unique=True, index=True)
-    region: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(255), nullable=True)
     discipline: Mapped[str] = mapped_column(String(100), nullable=False)
-    photo_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
-    bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    dogs_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    photo_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dogs_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(
         String(32),
         default=ParticipantStatus.REGISTERED.value,
