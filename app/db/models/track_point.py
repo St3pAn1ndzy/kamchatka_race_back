@@ -34,13 +34,11 @@ class TrackPoint(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    #id точки, которое возращает устройство
+    # id точки, которое возращает устройство
     iridium_point_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    #Проверка, чтобы устройство не возращало одинаковые точки по прошествие какого-то времени
-    deduplication_key: Mapped[str] = mapped_column(
-        String(64), unique=True, nullable=False
-    )
+    # Проверка, чтобы устройство не возращало одинаковые точки по прошествие какого-то времени
+    deduplication_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
 
     device_id: Mapped[int] = mapped_column(
         ForeignKey("devices.id", ondelete="CASCADE"), nullable=False
@@ -60,10 +58,10 @@ class TrackPoint(Base):
 
     altitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    #Курс, который возвращается iridium
+    # Курс, который возвращается iridium
     course_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    #Скорость, которая возвращается iridium
+    # Скорость, которая возвращается iridium
     source_speed: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     average_speed_kmh: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -71,9 +69,7 @@ class TrackPoint(Base):
     km_from_start: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Время получения точки gps и время записи точки gps на устройстве могут отличаться, поэтому я сделал два поля
-    recorded_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
