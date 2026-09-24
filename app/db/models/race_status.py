@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, func, String
+from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -21,7 +21,7 @@ class RaceStatus(Base):
         nullable=False,
         index=True,
     )
-    current_stage_id: Mapped[Optional[int]] = mapped_column(
+    current_stage_id: Mapped[int | None] = mapped_column(
         ForeignKey("stages.id", ondelete="SET NULL"), nullable=True
     )
     updated_at: Mapped[datetime] = mapped_column(
