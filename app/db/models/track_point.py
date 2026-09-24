@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Boolean,
@@ -84,6 +84,6 @@ class TrackPoint(Base):
 
     device: Mapped["Device"] = relationship(back_populates="track_points")
 
-    participant: Mapped["Participant" | None] = relationship(back_populates="track_points")
+    participant: Mapped[Optional["Participant"]] = relationship(back_populates="track_points")
 
-    stage: Mapped["Stage" | None] = relationship(back_populates="track_points")
+    stage: Mapped[Optional["Stage"]] = relationship(back_populates="track_points")
