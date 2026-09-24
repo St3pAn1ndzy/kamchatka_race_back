@@ -13,3 +13,9 @@ class StageStatus(StrEnum):
     PLANNED = "planned"
     ACTIVE = "active"
     FINISHED = "finished"
+
+
+class RaceState(StrEnum):
+    UPCOMING = "upcoming"
+    LIVE = "live"
+    FINISHED = "finished"

@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -74,7 +73,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "https://vk.com,https://m.vk.com,https://prod-apps.vkusercontent.com"
 
     @property
-    def cors_origins_list(self) -> List[str]:
+    def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
 
