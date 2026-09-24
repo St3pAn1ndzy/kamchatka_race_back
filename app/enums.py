@@ -19,3 +19,9 @@ class RaceState(StrEnum):
     UPCOMING = "upcoming"
     LIVE = "live"
     FINISHED = "finished"
+
+
+class CheckpointKind(StrEnum):
+    START = "start"
+    FINISH = "finish"
+    CHECKPOINT = "checkpoint"
