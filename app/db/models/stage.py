@@ -1,9 +1,10 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, Float, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.models.checkpoint import Checkpoint
 from app.enums import StageStatus
 
 # TODO: Раскомментировать когда появться модели (1)
@@ -29,10 +30,10 @@ class Stage(Base):
         index=True,
     )
 
+    checkpoints: Mapped[list["Checkpoint"]] = relationship(
+        back_populates="stage", order_by="Checkpoint.order_index"
+    )
     # TODO: Раскомментировать когда появться модели (2)
-    # checkpoints: Mapped[list["Checkpoint"]] = relationship(
-    #     back_populates="stage", order_by="Checkpoint.order_index"
-    # )
     # devices: Mapped[list["Device"]] = relationship(back_populates="stage")
     # track_points: Mapped[list["TrackPoint"]] = relationship(back_populates="stage")
     # official_marks: Mapped[list["OfficialMark"]] = relationship(back_populates="stage")
