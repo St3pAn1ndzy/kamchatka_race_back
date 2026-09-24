@@ -11,6 +11,7 @@ settings = get_settings()
 class Base(DeclarativeBase):
     pass
 
+
 async_engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,

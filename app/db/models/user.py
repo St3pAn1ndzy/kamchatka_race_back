@@ -23,7 +23,9 @@ class User(Base):
     platform: Mapped[str | None] = mapped_column(String(64), nullable=True)
     notifications_allowed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     push_subscription: Mapped[Optional["PushSubscription"]] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
