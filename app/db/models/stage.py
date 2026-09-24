@@ -47,4 +47,3 @@ class Stage(Base):
     #     back_populates="stage", order_by="RoutePoint.order_index",
     #     cascade="all, delete-orphan",
     # )
-    
