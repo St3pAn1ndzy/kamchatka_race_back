@@ -1,3 +1,7 @@
+from app.db.models.admin_account import AdminAccount
+from app.db.models.admin_session import AdminSession
+from app.db.models.audit_log import AuditLog
+from app.db.models.checkpoint import Checkpoint
 from app.db.models.device import Device
 from app.db.models.participant import Participant
 from app.db.models.push_subscription import PushSubscription
@@ -6,4 +10,16 @@ from app.db.models.stage import Stage
 from app.db.models.track_point import TrackPoint
 from app.db.models.user import User
 
-__all__ = ["User", "PushSubscription", "Participant", "RaceStatus", "Stage", "Device", "TrackPoint"]
+__all__ = [
+    "AdminAccount",
+    "AdminSession",
+    "AuditLog",
+    "Checkpoint",
+    "Device",
+    "Participant",
+    "PushSubscription",
+    "RaceStatus",
+    "Stage",
+    "TrackPoint",
+    "User",
+]
