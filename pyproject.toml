@@ -22,3 +22,49 @@ dependencies = [
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+
+[dependency-groups]
+dev = [
+    "ruff (>=0.16.8,<0.17.0)"
+]
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+exclude = [
+    ".venv",
+    "__pycache__",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    "alembic/versions",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (сортировка импортов)
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade (устаревший синтаксис)
+    "SIM", # flake8-simplify
+]
+
+ignore = [
+    "B008",
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
