@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -28,8 +28,8 @@ class TrackPoint(Base):
     # Проверяем координаты на валидность, а также создаем индекс по participant_id и recorded_at для ускорения выборки
     __table_args__ = (
         CheckConstraint("lat >= -90 AND lat <= 90", name="ck_track_points_lat"),
-        CheckConstraint("lon >= -180 AND lon <= 180", name=" ck_track_points_lon"),
-        Index("ix_track_points_device_recorded_at", "participant_id", "recorded_at"),
+        CheckConstraint("lon >= -180 AND lon <= 180", name="ck_track_points_lon"),
+        Index("ix_track_points_participant_recorded_at", "participant_id", "recorded_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -45,7 +45,7 @@ class TrackPoint(Base):
     )
 
     participant_id: Mapped[int | None] = mapped_column(
-        ForeignKey("participants.id", ondelete="SET NULL"), nullable=True, index=True
+        ForeignKey("participants.id", ondelete="SET NULL"), nullable=True
     )
 
     stage_id: Mapped[int | None] = mapped_column(
@@ -84,6 +84,6 @@ class TrackPoint(Base):
 
     device: Mapped["Device"] = relationship(back_populates="track_points")
 
-    participant: Mapped[Optional["Participant"]] = relationship(back_populates="track_points")
+    participant: Mapped["Participant" | None] = relationship(back_populates="track_points")
 
-    stage: Mapped[Optional["Stage"]] = relationship(back_populates="track_points")
+    stage: Mapped["Stage" | None] = relationship(back_populates="track_points")

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -53,8 +53,8 @@ class Device(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    participant: Mapped[Optional["Participant"]] = relationship(back_populates="devices")
-    stage: Mapped[Optional["Stage"]] = relationship(back_populates="devices")
+    participant: Mapped["Participant" | None] = relationship(back_populates="devices")
+    stage: Mapped["Stage" | None] = relationship(back_populates="devices")
 
     track_points: Mapped[list["TrackPoint"]] = relationship(
         back_populates="device",
