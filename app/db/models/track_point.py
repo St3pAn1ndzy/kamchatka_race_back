@@ -25,23 +25,25 @@ if TYPE_CHECKING:
 class TrackPoint(Base):
     __tablename__ = "track_points"
 
-    # Проверяем координаты на валидность, а также создаем индекс по device_id и recorded_at для ускорения выборки
+    # Проверяем координаты на валидность, а также создаем индекс по participant_id и recorded_at для ускорения выборки
     __table_args__ = (
-        CheckConstraint("lat >= -90 AND lat <= 90", name="bad_track_points_lat"),
-        CheckConstraint("lon >= -180 AND lon <= 180", name="bad_track_points_lon"),
-        Index("index_track_points_device_recorded_at", "device_id", "recorded_at"),
+        CheckConstraint("lat >= -90 AND lat <= 90", name="ck_track_points_lat"),
+        CheckConstraint("lon >= -180 AND lon <= 180", name=" ck_track_points_lon"),
+        Index("ix_track_points_device_recorded_at", "participant_id", "recorded_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
+    #id точки, которое возращает устройство
     iridium_point_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    #Проверка, чтобы устройство не возращало одинаковые точки по прошествие какого-то времени
     deduplication_key: Mapped[str] = mapped_column(
-        String(64), unique=True, nullable=False, index=True
+        String(64), unique=True, nullable=False
     )
 
     device_id: Mapped[int] = mapped_column(
-        ForeignKey("devices.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("devices.id", ondelete="CASCADE"), nullable=False
     )
 
     participant_id: Mapped[int | None] = mapped_column(
@@ -58,8 +60,10 @@ class TrackPoint(Base):
 
     altitude: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    #Курс, который возвращается iridium
     course_deg: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    #Скорость, которая возвращается iridium
     source_speed: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     average_speed_kmh: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -68,7 +72,7 @@ class TrackPoint(Base):
 
     # Время получения точки gps и время записи точки gps на устройстве могут отличаться, поэтому я сделал два поля
     recorded_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
+        DateTime(timezone=True), nullable=False
     )
 
     received_at: Mapped[datetime] = mapped_column(
@@ -79,7 +83,7 @@ class TrackPoint(Base):
     # Подтвержденные точки могут быть использованы для расчета результатов,
     # а неподтвержденные точки могут быть удалены или проигнорированы
     is_confirmed: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False, index=True
+        Boolean, default=False, server_default=false(), nullable=False
     )
 
     device: Mapped["Device"] = relationship(back_populates="track_points")
