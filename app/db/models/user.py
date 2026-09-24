@@ -7,8 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    # TODO: раскомментировать, когда появится NotificationQueue (1)
-    # from app.db.models.notifications import NotificationQueue
+    from app.db.models.notification import NotificationQueue
     from app.db.models.push_subscription import PushSubscription
 
 
@@ -30,5 +29,4 @@ class User(Base):
     push_subscription: Mapped[Optional["PushSubscription"]] = relationship(
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
-    # TODO: раскомментировать, когда появится NotificationQueue (2)
-    # notifications: Mapped[list["NotificationQueue"]] = relationship(back_populates="user")
+    notifications: Mapped[list["NotificationQueue"]] = relationship(back_populates="user")
