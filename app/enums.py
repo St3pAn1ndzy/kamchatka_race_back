@@ -25,3 +25,20 @@ class CheckpointKind(StrEnum):
     START = "start"
     FINISH = "finish"
     CHECKPOINT = "checkpoint"
+
+
+class NotificationStatus(StrEnum):
+    PENDING = "pending"
+    SENT = "sent"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+
+
+class NotificationEventType(StrEnum):
+    STAGE_START = "stage_start"
+    STAGE_FINISH = "stage_finish"
+    CHECKPOINT_PASSED = "checkpoint_passed"
+    LEADER_CHANGED = "leader_changed"
+    PARTICIPANT_FINISHED = "participant_finished"
+    BROADCAST = "broadcast"
+    FAVORITE_UPDATE = "favorite_update"
