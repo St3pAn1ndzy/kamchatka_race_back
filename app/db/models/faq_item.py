@@ -4,13 +4,11 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
-    Index,
     Integer,
     String,
     Text,
     false,
     func,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,7 +22,6 @@ class FAQItem(Base):
     __table_args__ = (
         # Ограничение на то, что порядковый номер вопроса не может быть отрицательным
         CheckConstraint("order_index >= 0", name="ck_faq_items_order_index_nonnegative"),
-        Index("ix_faq_items_question_answer", "question", "answer"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -35,10 +32,11 @@ class FAQItem(Base):
     # Полный текст ответа на вопрос (может быть длинным, поэтому Text)
     answer: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Порядковый номер вопроса в списке (по умолчания первый)
-    order_index: Mapped[int] = mapped_column(
-        Integer, default=0, server_default=text("0"), nullable=False
-    )
+    # Категория вопроса, NULL означает, что категория не выбрана
+    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Порядковый номер вопроса в списке
+    order_index: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
     # Новая запись как черновик, сама же публикация будет проходить явно
     is_public: Mapped[bool] = mapped_column(
@@ -48,4 +46,10 @@ class FAQItem(Base):
     # Дата и время создания записи (по умолчания время назначает БД)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # При создании заполняется текущим временем.
+    # При UPDATE через SQLAlchemy обновляется автоматически, если updated_at не передан явно
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
