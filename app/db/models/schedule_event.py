@@ -13,6 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.enums import ScheduleKind
 
 if TYPE_CHECKING:
     from app.db.models.stage import Stage
@@ -38,7 +39,7 @@ class ScheduleEvent(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Тип события
-    kind: Mapped[str] = mapped_column(String(32), default='other', nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(32), default=ScheduleKind.OTHER.value, nullable=False, index=True)
 
     # Событие может существовать без этапа, поэтому удаление этапа сохраняет событие.
     stage_id: Mapped[int | None] = mapped_column(
