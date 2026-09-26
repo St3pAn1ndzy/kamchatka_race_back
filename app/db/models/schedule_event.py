@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Boolean,
@@ -71,4 +71,4 @@ class ScheduleEvent(Base):
         nullable=False,
     )
 
-    stage: Mapped["Stage" | None] = relationship(back_populates="schedule_events")
+    stage: Mapped[Optional["Stage"]] = relationship(back_populates="schedule_events")
