@@ -15,6 +15,16 @@ class StageStatus(StrEnum):
     FINISHED = "finished"
 
 
+class ScheduleKind(StrEnum):
+    """Виды событий в программе фестиваля"""
+
+    # По необходимости можно добавить новые виды событий,
+    # например: workshop, concert, meeting и т.д.
+    RACE = "race"
+    CULTURAL = "cultural"
+    OTHER = "other"
+
+
 class RaceState(StrEnum):
     UPCOMING = "upcoming"
     LIVE = "live"
