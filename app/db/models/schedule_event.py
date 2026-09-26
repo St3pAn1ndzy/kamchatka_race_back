@@ -21,11 +21,11 @@ if TYPE_CHECKING:
 class ScheduleEvent(Base):
     """Событие программы: гонка, культурное мероприятие или другое событие"""
 
-    __tablename__ = "schedule_event"
+    __tablename__ = "schedule_events"
     __table_args__ = (
         # Проверяем что конец события был валидным
         CheckConstraint(
-            "ends_at is NULL or ends_at >= start_at", name="ck_schedule_events_time_valid"
+            "ends_at is NULL or ends_at >= starts_at", name="ck_schedule_events_time_valid"
         )
     )
 
@@ -37,18 +37,18 @@ class ScheduleEvent(Base):
     # Подробности можно добавить позже.
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Время события
-    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    # Тип события
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
 
     # Событие может существовать без этапа, поэтому удаление этапа сохраняет событие.
     stage_id: Mapped[int | None] = mapped_column(
-        ForeignKey("stage.id", ondelete="SET NULL"),
+        ForeignKey("stages.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
 
     # Начало события указывают явно, чтобы было заранее расписано все мероприятие
-    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     # NULL означает, что время окончания пока не задано
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -71,4 +71,4 @@ class ScheduleEvent(Base):
         nullable=False,
     )
 
-    stage: Mapped["Stage"] = relationship(back_populates="schedule_events")
+    stage: Mapped["Stage" | None] = relationship(back_populates="schedule_events")
