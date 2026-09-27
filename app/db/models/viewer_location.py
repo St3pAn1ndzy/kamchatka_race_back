@@ -40,7 +40,7 @@ class ViewerLocation(Base):
 
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
 
-    # Координаты плошадки, если например она между к/п гонки, без адреса
+    # Координаты площадки, если например она между к/п гонки, без адреса
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lon: Mapped[float] = mapped_column(Float, nullable=False)
 
@@ -48,7 +48,7 @@ class ViewerLocation(Base):
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Как добраться: дорога, транспорт, парковка или пеший маршрут
-    directors: Mapped[str | None] = mapped_column(Text, nullable=False)
+    directions: Mapped[str | None] = mapped_column(Text, nullable=False)
 
     # Площадка может не относиться ни к одному из этапов, а быть просто местом для зрителей
     stage_id: Mapped[int | None] = mapped_column(
