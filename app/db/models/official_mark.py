@@ -10,7 +10,6 @@ if TYPE_CHECKING:
     from app.db.models.admin_account import AdminAccount
     from app.db.models.checkpoint import Checkpoint
     from app.db.models.participant import Participant
-    from app.db.models.stage import Stage
 
 
 class OfficialMark(Base):
@@ -39,13 +38,6 @@ class OfficialMark(Base):
         index=True,
     )
 
-    # SET NULL: если этап удалят, отметка остаётся.
-    stage_id: Mapped[int | None] = mapped_column(
-        ForeignKey("stages.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-
     # Официальное время прохождения КП. Ставит судья.
     mark_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -68,10 +60,10 @@ class OfficialMark(Base):
 
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # SET NULL: если админа удалят, отметка остаётся (история).
-    entered_by_admin_id: Mapped[int | None] = mapped_column(
-        ForeignKey("admin_accounts.id", ondelete="SET NULL"),
-        nullable=True,
+    # RESTRICT: нельзя удалить админа, пока есть его отметки.
+    entered_by_admin_id: Mapped[int] = mapped_column(
+        ForeignKey("admin_accounts.id", ondelete="RESTRICT"),
+        nullable=False,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -98,9 +90,8 @@ class OfficialMark(Base):
 
     participant: Mapped["Participant"] = relationship(back_populates="official_marks")
     checkpoint: Mapped["Checkpoint"] = relationship(back_populates="official_marks")
-    stage: Mapped[Optional["Stage"]] = relationship(back_populates="official_marks")
 
-    entered_by: Mapped[Optional["AdminAccount"]] = relationship(
+    entered_by: Mapped["AdminAccount"] = relationship(
         foreign_keys=[entered_by_admin_id],
         back_populates="entered_marks",
     )
