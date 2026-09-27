@@ -27,7 +27,7 @@ class ScheduleEvent(Base):
         # Проверяем что конец события был валидным
         CheckConstraint(
             "ends_at is NULL or ends_at >= starts_at", name="ck_schedule_events_time_valid"
-        )
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
