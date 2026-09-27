@@ -13,9 +13,6 @@ if TYPE_CHECKING:
     from app.db.models.schedule_event import ScheduleEvent
     from app.db.models.track_point import TrackPoint
 
-    # TODO: раскомментировать когда появятся модели (1)
-    # from app.db.models.results import OfficialMark
-
 
 class Stage(Base):
     __tablename__ = "stages"
@@ -46,8 +43,6 @@ class Stage(Base):
         order_by="ScheduleEvent.starts_at, ScheduleEvent.id",
     )
 
-    # TODO: Раскомментировать когда появятся модели (2)
-    # official_marks: Mapped[list["OfficialMark"]] = relationship(back_populates="stage")
     # route_points: Mapped[list["RoutePoint"]] = relationship(
     #     back_populates="stage", order_by="RoutePoint.order_index",
     #     cascade="all, delete-orphan",
