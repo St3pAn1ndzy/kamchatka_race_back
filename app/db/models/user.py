@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.db.models.fun_subscription import FanSubscription
     from app.db.models.notification import NotificationQueue
     from app.db.models.push_subscription import PushSubscription
 
@@ -30,3 +31,7 @@ class User(Base):
         back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
     notifications: Mapped[list["NotificationQueue"]] = relationship(back_populates="user")
+    favorites: Mapped[list["FanSubscription"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
