@@ -7,8 +7,8 @@ from app.db.base import Base
 from app.enums import CheckpointKind
 
 if TYPE_CHECKING:
-    from app.db.models.stage import Stage
     from app.db.models.official_mark import OfficialMark
+    from app.db.models.stage import Stage
 
 
 class Checkpoint(Base):
