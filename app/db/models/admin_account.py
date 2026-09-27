@@ -9,8 +9,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.db.models.admin_session import AdminSession
     from app.db.models.audit_log import AuditLog
-    # TODO: Раскомментировать когда появиться модель
-    # from app.db.models.official_mark import OfficialMark
+    from app.db.models.official_mark import OfficialMark
 
 
 class AdminAccount(Base):
@@ -71,7 +70,6 @@ class AdminAccount(Base):
 
     sessions: Mapped[list["AdminSession"]] = relationship(back_populates="admin")
     audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="admin")
-    # TODO: Раскомментировать когда появиться модель
-    # entered_marks: Mapped[list["OfficialMark"]] = relationship(
-    #     back_populates="entered_by",
-    # )
+    entered_marks: Mapped[list["OfficialMark"]] = relationship(
+        back_populates="entered_by",
+    )
