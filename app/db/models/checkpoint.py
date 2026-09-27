@@ -8,8 +8,7 @@ from app.enums import CheckpointKind
 
 if TYPE_CHECKING:
     from app.db.models.stage import Stage
-    # TODO: раскомментировать, когда появится OfficialMark
-    # from app.db.models.official_mark import OfficialMark
+    from app.db.models.official_mark import OfficialMark
 
 
 class Checkpoint(Base):
@@ -63,7 +62,6 @@ class Checkpoint(Base):
 
     stage: Mapped["Stage"] = relationship(back_populates="checkpoints")
 
-    # TODO: раскомментировать, когда появится OfficialMark
-    # official_marks: Mapped[list["OfficialMark"]] = relationship(
-    #     back_populates="checkpoint",
-    # )
+    official_marks: Mapped[list["OfficialMark"]] = relationship(
+        back_populates="checkpoint",
+    )
