@@ -11,6 +11,7 @@ from app.db.models.official_mark import OfficialMark
 from app.db.models.participant import Participant
 from app.db.models.push_subscription import PushSubscription
 from app.db.models.race_status import RaceStatus
+from app.db.models.saved_item import SavedItem
 from app.db.models.schedule_event import ScheduleEvent
 from app.db.models.stage import Stage
 from app.db.models.track_point import TrackPoint
@@ -34,4 +35,5 @@ __all__ = [
     "FanSubscription",
     "OfficialMark",
     "NewsPost",
+    "SavedItem",
 ]
