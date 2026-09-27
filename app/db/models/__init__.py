@@ -5,6 +5,7 @@ from app.db.models.checkpoint import Checkpoint
 from app.db.models.device import Device
 from app.db.models.faq_item import FAQItem
 from app.db.models.fun_subscription import FanSubscription
+from app.db.models.news_post import NewsPost
 from app.db.models.notification import NotificationQueue
 from app.db.models.official_mark import OfficialMark
 from app.db.models.participant import Participant
@@ -32,4 +33,5 @@ __all__ = [
     "NotificationQueue",
     "FanSubscription",
     "OfficialMark",
+    "NewsPost",
 ]
