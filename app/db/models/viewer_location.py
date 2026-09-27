@@ -19,6 +19,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.db.models import Stage
 
+
 class ViewerLocation(Base):
     """Публичное место для зрителей: старт, финиш или площадка фестиваля
 
@@ -52,16 +53,20 @@ class ViewerLocation(Base):
 
     # Площадка может не относиться ни к одному из этапов, а быть просто местом для зрителей
     stage_id: Mapped[int | None] = mapped_column(
-        ForeignKey("stages.id", ondelete="SET NULL"), nullable=True, index=True)
+        ForeignKey("stages.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     # Новая площадка — черновик
     is_public: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False)
+        Boolean, default=False, server_default=false(), nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False)
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     stage: Mapped[Optional["Stage"]] = relationship(back_populates="viewer_locations")

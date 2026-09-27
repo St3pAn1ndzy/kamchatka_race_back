@@ -58,6 +58,7 @@ class NewsSource(StrEnum):
     MANUAL = "manual"
     VK = "vk"
 
+
 class ViewerLocationKind(StrEnum):
     """Виды зрительских локаций"""
 

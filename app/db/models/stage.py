@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.db.models.track_point import TrackPoint
     from app.db.models.viewer_location import ViewerLocation
 
+
 class Stage(Base):
     __tablename__ = "stages"
 
@@ -46,8 +47,8 @@ class Stage(Base):
     # Места для зрителей сохраняются при отвязке от этапа.
     # Для незагруженных мест SET NULL выполнит база данных.
     viewer_locations: Mapped[list["ViewerLocation"]] = relationship(
-        back_populates="stage",
-        passive_deletes=True)
+        back_populates="stage", passive_deletes=True
+    )
 
     # route_points: Mapped[list["RoutePoint"]] = relationship(
     #     back_populates="stage", order_by="RoutePoint.order_index",
