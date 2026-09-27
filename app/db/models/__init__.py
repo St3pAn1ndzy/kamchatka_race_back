@@ -4,6 +4,7 @@ from app.db.models.audit_log import AuditLog
 from app.db.models.checkpoint import Checkpoint
 from app.db.models.device import Device
 from app.db.models.faq_item import FAQItem
+from app.db.models.fun_subscription import FanSubscription
 from app.db.models.notification import NotificationQueue
 from app.db.models.participant import Participant
 from app.db.models.push_subscription import PushSubscription
@@ -28,4 +29,5 @@ __all__ = [
     "ScheduleEvent",
     "FAQItem",
     "NotificationQueue",
+    "FanSubscription",
 ]
