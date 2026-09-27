@@ -52,3 +52,8 @@ class NotificationEventType(StrEnum):
     PARTICIPANT_FINISHED = "participant_finished"
     BROADCAST = "broadcast"
     FAVORITE_UPDATE = "favorite_update"
+
+
+class NewsSource(StrEnum):
+    MANUAL = "manual"
+    VK = "vk"
