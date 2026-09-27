@@ -2,9 +2,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
+    CheckConstraint,
     Boolean,
     DateTime,
     ForeignKey,
+    Float,
     String,
     Text,
     false,
@@ -24,6 +26,12 @@ class ViewerLocation(Base):
 
     __tablename__ = "viewer_location"
 
+    __table_args__ = (
+        # Проверяем координаты на валидность, чтобы не было ошибок при внесении в БД
+        CheckConstraint("lat >= -90 AND lat <= 90", name="ck_viewer_locations_lat_valid"),
+        CheckConstraint("lon >= -180 AND lon <= 180", name="ck_viewer_locations_lon_valid"),
+    )
+
     id: Mapped[int] = mapped_column(primary_key=True)
 
     # Название точки на карте и в списке мест
@@ -32,7 +40,11 @@ class ViewerLocation(Base):
 
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
 
-    # У природной площадки может не быть почтового адреса
+    # Координаты плошадки, если например она между к/п гонки, без адреса
+    lat: Mapped[float] = mapped_column(Float, nullable=False)
+    lon: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # Адрес площадки, чтобы зрители могли найти её на карте
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Как добраться: дорога, транспорт, парковка или пеший маршрут
