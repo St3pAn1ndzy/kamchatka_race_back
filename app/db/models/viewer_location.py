@@ -2,11 +2,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
-    CheckConstraint,
     Boolean,
+    CheckConstraint,
     DateTime,
-    ForeignKey,
     Float,
+    ForeignKey,
     String,
     Text,
     false,
