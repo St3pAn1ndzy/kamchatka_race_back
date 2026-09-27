@@ -10,7 +10,6 @@ from app.enums import StageStatus
 
 if TYPE_CHECKING:
     from app.db.models.device import Device
-    from app.db.models.official_mark import OfficialMark
     from app.db.models.schedule_event import ScheduleEvent
     from app.db.models.track_point import TrackPoint
 
@@ -44,7 +43,6 @@ class Stage(Base):
         order_by="ScheduleEvent.starts_at, ScheduleEvent.id",
     )
 
-    official_marks: Mapped[list["OfficialMark"]] = relationship(back_populates="stage")
     # route_points: Mapped[list["RoutePoint"]] = relationship(
     #     back_populates="stage", order_by="RoutePoint.order_index",
     #     cascade="all, delete-orphan",
