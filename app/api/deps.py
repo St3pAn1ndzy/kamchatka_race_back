@@ -54,8 +54,8 @@ def _decode_admin_payload(token: str) -> dict:
 
 
 async def get_optional_user(
-        session: SessionDep,
-        authorization: Annotated[str | None, Header()] = None,
+    session: SessionDep,
+    authorization: Annotated[str | None, Header()] = None,
 ) -> User | None:
     token = _extract_bearer(authorization)
     if token is None:
@@ -80,7 +80,7 @@ async def get_optional_user(
 
 
 async def get_current_user(
-        user: Annotated[User | None, Depends(get_optional_user)],
+    user: Annotated[User | None, Depends(get_optional_user)],
 ) -> User:
     if user is None:
         raise HTTPException(
@@ -91,8 +91,8 @@ async def get_current_user(
 
 
 async def require_admin(
-        session: SessionDep,
-        authorization: Annotated[str | None, Header()] = None,
+    session: SessionDep,
+    authorization: Annotated[str | None, Header()] = None,
 ) -> AdminAccount:
     token = _extract_bearer(authorization)
     if token is None:

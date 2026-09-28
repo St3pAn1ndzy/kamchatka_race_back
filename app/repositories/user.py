@@ -3,7 +3,7 @@
 Все запросы к таблице users — здесь.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 
@@ -21,14 +21,14 @@ class UserRepository(BaseRepository[User]):
         return result.scalar_one_or_none()
 
     async def create(
-            self,
-            *,
-            vk_user_id: int,
-            first_name: str = "",
-            last_name: str = "",
-            photo_url: str | None = None,
-            platform: str | None = None,
-            notifications_allowed: bool = False,
+        self,
+        *,
+        vk_user_id: int,
+        first_name: str = "",
+        last_name: str = "",
+        photo_url: str | None = None,
+        platform: str | None = None,
+        notifications_allowed: bool = False,
     ) -> User:
         """Создать пользователя. Возвращает объект с заполненным id."""
         user = User(
@@ -44,14 +44,14 @@ class UserRepository(BaseRepository[User]):
         return user
 
     async def update_from_vk(
-            self,
-            user: User,
-            *,
-            first_name: str | None = None,
-            last_name: str | None = None,
-            photo_url: str | None = None,
-            platform: str | None = None,
-            notifications_allowed: bool | None = None,
+        self,
+        user: User,
+        *,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        photo_url: str | None = None,
+        platform: str | None = None,
+        notifications_allowed: bool | None = None,
     ) -> User:
         """Обновить поля пользователя из VK.
 
@@ -73,19 +73,15 @@ class UserRepository(BaseRepository[User]):
 
     async def touch_last_seen(self, user: User) -> None:
         """Обновить время последнего визита."""
-        user.last_seen_at = datetime.now(tz=timezone.utc)
+        user.last_seen_at = datetime.now(tz=UTC)
         await self.session.flush()
 
     async def set_notifications_allowed(
-            self,
-            user_id: int,
-            allowed: bool,
+        self,
+        user_id: int,
+        allowed: bool,
     ) -> None:
         """Изменить флаг уведомлений по id (без загрузки объекта)."""
-        stmt = (
-            update(User)
-            .where(User.id == user_id)
-            .values(notifications_allowed=allowed)
-        )
+        stmt = update(User).where(User.id == user_id).values(notifications_allowed=allowed)
         await self.session.execute(stmt)
         await self.session.flush()
