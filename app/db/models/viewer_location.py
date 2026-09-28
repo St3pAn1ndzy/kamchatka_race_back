@@ -43,7 +43,7 @@ class ViewerLocation(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     kind: Mapped[str] = mapped_column(
-        String(32), default=ViewerLocationKind.VIEWPOINT.value, nullable=False
+        String(32), default=ViewerLocationKind.VIEWPOINT.value, nullable=False, index=True
     )
 
     # Координаты площадки, если например она между к/п гонки, без адреса
@@ -51,7 +51,7 @@ class ViewerLocation(Base):
     lon: Mapped[float] = mapped_column(Float, nullable=False)
 
     # Адрес площадки, чтобы зрители могли найти её на карте
-    address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Как добраться: дорога, транспорт, парковка или пеший маршрут
     directions: Mapped[str | None] = mapped_column(Text, nullable=True)
