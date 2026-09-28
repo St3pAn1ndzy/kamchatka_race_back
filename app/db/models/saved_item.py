@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -25,6 +25,8 @@ class SavedItem(Base):
 
     __tablename__ = "saved_items"
     __table_args__ = (
+        CheckConstraint("num_nonnulls(news_post_id, faq_item_id, schedule_event_id, viewer_location_id) = 1",
+                        name="ck_saved_items_one_material"),
         # Нельзя дважды сохранить один объект одним пользователем.
         UniqueConstraint("user_id", "news_post_id", name="uq_saved_items_user_news"),
         UniqueConstraint("user_id", "faq_item_id", name="uq_saved_items_user_faq"),
