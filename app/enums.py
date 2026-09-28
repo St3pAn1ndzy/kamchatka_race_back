@@ -57,3 +57,13 @@ class NotificationEventType(StrEnum):
 class NewsSource(StrEnum):
     MANUAL = "manual"
     VK = "vk"
+
+
+class ViewerLocationKind(StrEnum):
+    """Виды зрительских локаций"""
+
+    START = "start"
+    FINISH = "finish"
+    FESTIVAL = "festival"
+    VIEWPOINT = "viewpoint"
+    OTHER = "other"

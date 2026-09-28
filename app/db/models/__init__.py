@@ -15,6 +15,7 @@ from app.db.models.schedule_event import ScheduleEvent
 from app.db.models.stage import Stage
 from app.db.models.track_point import TrackPoint
 from app.db.models.user import User
+from app.db.models.viewer_location import ViewerLocation
 
 __all__ = [
     "AdminAccount",
@@ -34,4 +35,5 @@ __all__ = [
     "FanSubscription",
     "OfficialMark",
     "NewsPost",
+    "ViewerLocation",
 ]

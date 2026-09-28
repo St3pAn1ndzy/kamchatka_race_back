@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.db.models.device import Device
     from app.db.models.schedule_event import ScheduleEvent
     from app.db.models.track_point import TrackPoint
+    from app.db.models.viewer_location import ViewerLocation
 
 
 class Stage(Base):
@@ -41,6 +42,12 @@ class Stage(Base):
     schedule_events: Mapped[list["ScheduleEvent"]] = relationship(
         back_populates="stage",
         order_by="ScheduleEvent.starts_at, ScheduleEvent.id",
+    )
+
+    # Места для зрителей сохраняются при отвязке от этапа.
+    # Для незагруженных мест SET NULL выполнит база данных.
+    viewer_locations: Mapped[list["ViewerLocation"]] = relationship(
+        back_populates="stage", passive_deletes=True
     )
 
     # route_points: Mapped[list["RoutePoint"]] = relationship(

@@ -8,11 +8,9 @@ from app.enums import ParticipantStatus
 
 if TYPE_CHECKING:
     from app.db.models.device import Device
-
-    # TODO: Раскомментировать по ходу создания моделей
     from app.db.models.fun_subscription import FanSubscription
+    from app.db.models.official_mark import OfficialMark
     from app.db.models.track_point import TrackPoint
-    # from app.db.models.results import OfficialMark
 
 
 class Participant(Base):
@@ -42,10 +40,10 @@ class Participant(Base):
         order_by="TrackPoint.recorded_at",
     )
 
-    # TODO: Раскомментировать по ходу создания моделей
-    # official_marks: Mapped[list["OfficialMark"]] = relationship(
-    #     back_populates="participant"
-    # )
+    official_marks: Mapped[list["OfficialMark"]] = relationship(
+        back_populates="participant",
+    )
+
     fans: Mapped[list["FanSubscription"]] = relationship(
         back_populates="participant",
         cascade="all, delete-orphan",
