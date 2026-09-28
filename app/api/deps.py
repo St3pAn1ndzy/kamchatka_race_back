@@ -15,9 +15,14 @@ from app.db.base import get_session
 from app.db.models.admin_account import AdminAccount
 from app.db.models.admin_session import AdminSession
 from app.db.models.user import User
+from app.repositories import UserRepository
 from app.security.tokens import decode_token
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+
+def get_user_repo(session: SessionDep) -> UserRepository:
+    return UserRepository(session)
 
 
 def _extract_bearer(authorization: str | None) -> str | None:
@@ -49,8 +54,8 @@ def _decode_admin_payload(token: str) -> dict:
 
 
 async def get_optional_user(
-    session: SessionDep,
-    authorization: Annotated[str | None, Header()] = None,
+        session: SessionDep,
+        authorization: Annotated[str | None, Header()] = None,
 ) -> User | None:
     token = _extract_bearer(authorization)
     if token is None:
@@ -75,7 +80,7 @@ async def get_optional_user(
 
 
 async def get_current_user(
-    user: Annotated[User | None, Depends(get_optional_user)],
+        user: Annotated[User | None, Depends(get_optional_user)],
 ) -> User:
     if user is None:
         raise HTTPException(
@@ -86,8 +91,8 @@ async def get_current_user(
 
 
 async def require_admin(
-    session: SessionDep,
-    authorization: Annotated[str | None, Header()] = None,
+        session: SessionDep,
+        authorization: Annotated[str | None, Header()] = None,
 ) -> AdminAccount:
     token = _extract_bearer(authorization)
     if token is None:
@@ -114,3 +119,4 @@ async def require_admin(
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 OptionalUserDep = Annotated[User | None, Depends(get_optional_user)]
 AdminDep = Annotated[AdminAccount, Depends(require_admin)]
+UserRepoDep = Annotated[UserRepository, Depends(get_user_repo)]
