@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Boolean,
-    Integer,
     CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
+    Integer,
     String,
     Text,
     false,
