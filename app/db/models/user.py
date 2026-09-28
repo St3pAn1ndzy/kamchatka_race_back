@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.db.models.fun_subscription import FanSubscription
     from app.db.models.notification import NotificationQueue
     from app.db.models.push_subscription import PushSubscription
+    from app.db.models.saved_item import SavedItem
 
 
 class User(Base):
@@ -34,4 +35,11 @@ class User(Base):
     favorites: Mapped[list["FanSubscription"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+
+    # Закладки на материалы, отдельно от подписки «Болею за».
+    saved_items: Mapped[list["SavedItem"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
