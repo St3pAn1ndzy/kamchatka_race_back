@@ -25,8 +25,10 @@ class SavedItem(Base):
 
     __tablename__ = "saved_items"
     __table_args__ = (
-        CheckConstraint("num_nonnulls(news_post_id, faq_item_id, schedule_event_id, viewer_location_id) = 1",
-                        name="ck_saved_items_one_material"),
+        CheckConstraint(
+            "num_nonnulls(news_post_id, faq_item_id, schedule_event_id, viewer_location_id) = 1",
+            name="ck_saved_items_one_material",
+        ),
         # Нельзя дважды сохранить один объект одним пользователем.
         UniqueConstraint("user_id", "news_post_id", name="uq_saved_items_user_news"),
         UniqueConstraint("user_id", "faq_item_id", name="uq_saved_items_user_faq"),
