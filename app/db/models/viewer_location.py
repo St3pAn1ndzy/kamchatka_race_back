@@ -40,12 +40,10 @@ class ViewerLocation(Base):
 
     # Название точки на карте и в списке мест
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     kind: Mapped[str] = mapped_column(
-        String(32),
-        default=ViewerLocationKind.VIEWPOINT.value,
-        nullable=False
+        String(32), default=ViewerLocationKind.VIEWPOINT.value, nullable=False
     )
 
     # Координаты площадки, если например она между к/п гонки, без адреса
@@ -84,11 +82,15 @@ class ViewerLocation(Base):
     )
 
     # Техника безопасности
-    safety_notes: Mapped[str] = mapped_column(Text, nullable=False)
+    safety_notes: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+    )
 
     # Новая площадка — черновик
     is_public: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false(), nullable=False
+        Boolean, default=False, server_default=false(), nullable=False, index=True
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -99,4 +101,4 @@ class ViewerLocation(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    stage: Mapped[Optional["Stage"]] = relationship(back_populates="viewer_location")
+    stage: Mapped[Optional["Stage"]] = relationship(back_populates="viewer_locations")
