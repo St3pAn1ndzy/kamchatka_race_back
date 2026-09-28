@@ -65,4 +65,5 @@ class ViewerLocationKind(StrEnum):
     START = "start"
     FINISH = "finish"
     FESTIVAL = "festival"
+    VIEWPOINT = "viewpoint"
     OTHER = "other"
