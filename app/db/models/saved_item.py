@@ -11,9 +11,7 @@ if TYPE_CHECKING:
     from app.db.models.news_post import NewsPost
     from app.db.models.schedule_event import ScheduleEvent
     from app.db.models.user import User
-
-    # TODO: Раскомментировать, после слияния модели ViewerLocation в ветку develop (1)
-    # from app.db.models.viewer_location import ViewerLocation
+    from app.db.models.viewer_location import ViewerLocation
 
 
 class SavedItem(Base):
@@ -70,5 +68,4 @@ class SavedItem(Base):
     faq_item: Mapped[Optional["FAQItem"]] = relationship()
     schedule_event: Mapped[Optional["ScheduleEvent"]] = relationship()
 
-    # TODO: Раскомментировать, после слияния модели ViewerLocation в ветку develop (2)
-    # viewer_location: Mapped[Optional["ViewerLocation"]] = relationship()
+    viewer_location: Mapped[Optional["ViewerLocation"]] = relationship()
