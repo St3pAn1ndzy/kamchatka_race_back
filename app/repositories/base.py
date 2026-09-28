@@ -8,17 +8,13 @@ commit, delete. Конкретные репозитории наследуютс
 Никакой бизнес-логики, расчётов, вызовов внешних API.
 """
 
-from typing import Generic, TypeVar
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import Base
 
-ModelT = TypeVar("ModelT", bound=Base)
 
-
-class BaseRepository(Generic[ModelT]):
+class BaseRepository[ModelT: Base]:
     """Базовые операции с моделью.
 
     Конкретный репозиторий задаёт `model`:
