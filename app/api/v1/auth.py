@@ -19,9 +19,9 @@ settings = get_settings()
 
 @router.post("/vk", response_model=AuthResponse)
 async def auth_vk(
-        body: VKAuthRequest,
-        users: UserRepoDep,
-        session: AsyncSession = Depends(get_session),
+    body: VKAuthRequest,
+    users: UserRepoDep,
+    session: AsyncSession = Depends(get_session),
 ):
     params = body.params
 

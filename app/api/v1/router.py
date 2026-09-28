@@ -8,10 +8,7 @@
 
 from fastapi import APIRouter
 
-api_router = APIRouter(prefix="/api/v1", tags=["v1"])
-
-# По мере готовности раскомментировать и подключать:
-#
+# TODO: По мере готовности раскомментировать и подключать:
 from app.api.v1 import (
     auth,
     # state,
@@ -21,6 +18,9 @@ from app.api.v1 import (
     # content,
     # engagement
 )
+
+api_router = APIRouter(prefix="/api/v1", tags=["v1"])
+
 
 #
 # api_router.include_router(state.router)
