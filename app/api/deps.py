@@ -15,7 +15,12 @@ from app.db.base import get_session
 from app.db.models.admin_account import AdminAccount
 from app.db.models.admin_session import AdminSession
 from app.db.models.user import User
-from app.repositories import UserRepository
+from app.repositories import (
+    FAQItemRepository,
+    NewsPostRepository,
+    ScheduleEventRepository,
+    UserRepository,
+)
 from app.security.tokens import decode_token
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -23,6 +28,18 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 def get_user_repo(session: SessionDep) -> UserRepository:
     return UserRepository(session)
+
+
+def get_faq_item_repo(session: SessionDep) -> FAQItemRepository:
+    return FAQItemRepository(session)
+
+
+def get_news_post_repo(session: SessionDep) -> NewsPostRepository:
+    return NewsPostRepository(session)
+
+
+def get_schedule_event_repo(session: SessionDep) -> ScheduleEventRepository:
+    return ScheduleEventRepository(session)
 
 
 def _extract_bearer(authorization: str | None) -> str | None:
@@ -120,3 +137,6 @@ CurrentUserDep = Annotated[User, Depends(get_current_user)]
 OptionalUserDep = Annotated[User | None, Depends(get_optional_user)]
 AdminDep = Annotated[AdminAccount, Depends(require_admin)]
 UserRepoDep = Annotated[UserRepository, Depends(get_user_repo)]
+FAQItemRepoDep = Annotated[FAQItemRepository, Depends(get_faq_item_repo)]
+NewsPostRepoDep = Annotated[NewsPostRepository, Depends(get_news_post_repo)]
+ScheduleEventRepoDep = Annotated[ScheduleEventRepository, Depends(get_schedule_event_repo)]
