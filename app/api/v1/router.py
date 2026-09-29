@@ -8,14 +8,23 @@
 
 from fastapi import APIRouter
 
+# TODO: По мере готовности раскомментировать и подключать:
+from app.api.v1 import (
+    auth,
+    # state,
+    # map,
+    # participants,
+    # results,
+    # content,
+    # engagement
+)
+
 api_router = APIRouter(prefix="/api/v1", tags=["v1"])
 
-# По мере готовности раскомментировать и подключать:
-#
-# from app.api.v1 import auth, state, map, participants, results, content, engagement
+
 #
 # api_router.include_router(state.router)
-# api_router.include_router(auth.router)
+api_router.include_router(auth.router)
 # api_router.include_router(map.router)
 # api_router.include_router(participants.router)
 # api_router.include_router(results.router)
