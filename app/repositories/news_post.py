@@ -1,9 +1,10 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.models.news_post import NewsPost
+from app.enums import NewsSource
 from app.repositories.base import BaseRepository
 
 
@@ -15,7 +16,7 @@ class NewsPostRepository(BaseRepository[NewsPost]):
     @staticmethod
     def _public_filters(
         *,
-        source: str | None,
+        source: NewsSource | None,
         stage_id: int | None,
         important_only: bool,
         published_from: datetime | None,
@@ -30,7 +31,7 @@ class NewsPostRepository(BaseRepository[NewsPost]):
         ]
 
         if source is not None:
-            filters.append(NewsPost.source == source)
+            filters.append(NewsPost.source == source.value)
         if stage_id is not None:
             filters.append(NewsPost.stage_id == stage_id)
         if important_only:
@@ -45,7 +46,7 @@ class NewsPostRepository(BaseRepository[NewsPost]):
     async def list_public(
         self,
         *,
-        source: str | None,
+        source: NewsSource | None,
         stage_id: int | None,
         important_only: bool,
         published_from: datetime | None,
@@ -80,7 +81,7 @@ class NewsPostRepository(BaseRepository[NewsPost]):
     async def count_public(
         self,
         *,
-        source: str | None,
+        source: NewsSource | None,
         stage_id: int | None,
         important_only: bool,
         published_from: datetime | None,
@@ -100,13 +101,13 @@ class NewsPostRepository(BaseRepository[NewsPost]):
         result = await self.session.execute(stmt)
         return int(result.scalar_one())
 
-    async def get_public_by_id(self, news_id: int) -> NewsPost | None:
+    async def get_public_by_id(self, news_id: int, *, now: datetime) -> NewsPost | None:
         """Найти опубликованную и уже доступную по времени новость."""
         stmt = select(NewsPost).where(
             NewsPost.id == news_id,
             NewsPost.is_published.is_(True),
             NewsPost.published_at.is_not(None),
-            NewsPost.published_at <= datetime.now(tz=UTC),
+            NewsPost.published_at <= now,
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

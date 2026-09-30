@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from app.enums import NewsSource
 from app.schemas.base import BaseSchema
 
 
@@ -10,7 +11,7 @@ class NewsPostListItemResponse(BaseSchema):
     title: str
     lead: str | None = None
     cover_url: str | None = None
-    source: str
+    source: NewsSource
     stage_id: int | None = None
     published_at: datetime
     is_important: bool

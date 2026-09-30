@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import AwareDatetime
 
 from app.api.deps import NewsPostRepoDep
+from app.enums import NewsSource
 from app.schemas.news import (
     NewsPostListItemResponse,
     NewsPostListResponse,
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/content/news", tags=["content"])
 @router.get("", response_model=NewsPostListResponse)
 async def list_news_posts(
     news_posts: NewsPostRepoDep,
-    source: Annotated[str | None, Query(min_length=1, max_length=32)] = None,
+    source: Annotated[NewsSource | None, Query()] = None,
     stage_id: Annotated[int | None, Query(gt=0)] = None,
     important_only: Annotated[bool, Query()] = False,
     published_from: Annotated[AwareDatetime | None, Query()] = None,
@@ -66,7 +67,8 @@ async def get_news_post(
     news_posts: NewsPostRepoDep,
 ) -> NewsPostResponse:
     """Получить полное содержимое одной опубликованной новости."""
-    news_post = await news_posts.get_public_by_id(news_id)
+    now = datetime.now(tz=UTC)
+    news_post = await news_posts.get_public_by_id(news_id, now=now)
     if news_post is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
