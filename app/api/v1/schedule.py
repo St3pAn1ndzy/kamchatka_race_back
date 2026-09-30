@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import AwareDatetime
 
 from app.api.deps import ScheduleEventRepoDep
+from app.enums import ScheduleKind
 from app.schemas.schedule import ScheduleEventListResponse, ScheduleEventResponse
 
 router = APIRouter(
@@ -15,7 +16,7 @@ router = APIRouter(
 @router.get("", response_model=ScheduleEventListResponse)
 async def list_schedule_events(
     schedule_events: ScheduleEventRepoDep,
-    kind: Annotated[str | None, Query(min_length=1, max_length=32)] = None,
+    kind: Annotated[ScheduleKind | None, Query()] = None,
     stage_id: Annotated[int | None, Query(gt=0)] = None,
     starts_from: Annotated[AwareDatetime | None, Query()] = None,
     starts_to: Annotated[AwareDatetime | None, Query()] = None,

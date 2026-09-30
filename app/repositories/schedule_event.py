@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.models.schedule_event import ScheduleEvent
+from app.enums import ScheduleKind
 from app.repositories.base import BaseRepository
 
 
@@ -15,7 +16,7 @@ class ScheduleEventRepository(BaseRepository[ScheduleEvent]):
     @staticmethod
     def _public_filters(
         *,
-        kind: str | None,
+        kind: ScheduleKind | None,
         stage_id: int | None,
         starts_from: datetime | None,
         starts_to: datetime | None,
@@ -24,7 +25,7 @@ class ScheduleEventRepository(BaseRepository[ScheduleEvent]):
         filters: list[ColumnElement[bool]] = [ScheduleEvent.is_public.is_(True)]
 
         if kind is not None:
-            filters.append(ScheduleEvent.kind == kind)
+            filters.append(ScheduleEvent.kind == kind.value)
 
         if stage_id is not None:
             filters.append(ScheduleEvent.stage_id == stage_id)
@@ -40,7 +41,7 @@ class ScheduleEventRepository(BaseRepository[ScheduleEvent]):
     async def list_public(
         self,
         *,
-        kind: str | None,
+        kind: ScheduleKind | None,
         stage_id: int | None,
         starts_from: datetime | None,
         starts_to: datetime | None,
@@ -72,7 +73,7 @@ class ScheduleEventRepository(BaseRepository[ScheduleEvent]):
     async def count_public(
         self,
         *,
-        kind: str | None,
+        kind: ScheduleKind | None,
         stage_id: int | None,
         starts_from: datetime | None,
         starts_to: datetime | None,

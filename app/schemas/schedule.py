@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from app.enums import ScheduleKind
 from app.schemas.base import BaseSchema
 
 
@@ -9,7 +10,7 @@ class ScheduleEventResponse(BaseSchema):
     id: int
     title: str
     description: str | None = None
-    kind: str
+    kind: ScheduleKind
     stage_id: int | None = None
     starts_at: datetime
     ends_at: datetime | None = None
