@@ -5,10 +5,10 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 from app.api.deps import FAQItemRepoDep
 from app.schemas.content import FAQItemResponse, FAQListResponse
 
-router = APIRouter(prefix="/content", tags=["content"])
+router = APIRouter(prefix="/content/faq", tags=["content"])
 
 
-@router.get("/faq", response_model=FAQListResponse)
+@router.get("", response_model=FAQListResponse)
 async def list_faq_items(
     faq_items: FAQItemRepoDep,
     category: Annotated[
@@ -34,7 +34,7 @@ async def list_faq_items(
     )
 
 
-@router.get("/faq/{faq_id}", response_model=FAQItemResponse)
+@router.get("/{faq_id}", response_model=FAQItemResponse)
 async def get_faq_item(
     faq_id: Annotated[int, Path(gt=0)],
     faq_items: FAQItemRepoDep,
