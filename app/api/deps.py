@@ -39,6 +39,7 @@ _bearer = HTTPBearer(auto_error=False)
 
 # --- Репозитории -------------------------------------------------------------
 
+
 def get_user_repo(session: SessionDep) -> UserRepository:
     return UserRepository(session)
 
@@ -64,6 +65,7 @@ def get_fan_subscription_repo(session: SessionDep) -> FanSubscriptionRepository:
 
 
 # --- Вспомогательные ---------------------------------------------------------
+
 
 def _decode_user_payload(token: str) -> dict:
     payload = decode_token(token)
@@ -104,9 +106,10 @@ async def _load_user(session: AsyncSession, token: str) -> User | None:
 
 # --- Пользователь: опциональная авторизация ----------------------------------
 
+
 async def get_optional_user(
-        session: SessionDep,
-        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    session: SessionDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> User | None:
     """Опциональная авторизация. None, если токена нет или он невалиден."""
     if credentials is None:
@@ -116,8 +119,9 @@ async def get_optional_user(
 
 # --- Пользователь: обязательная авторизация ----------------------------------
 
+
 async def get_current_user(
-        user: Annotated[User | None, Depends(get_optional_user)],
+    user: Annotated[User | None, Depends(get_optional_user)],
 ) -> User:
     """Обязательная авторизация. 401, если токена нет или он невалиден."""
     if user is None:
@@ -130,9 +134,10 @@ async def get_current_user(
 
 # --- Админ: обязательная авторизация + серверная сессия ----------------------
 
+
 async def require_admin(
-        session: SessionDep,
-        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    session: SessionDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> AdminAccount:
     if credentials is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется авторизация")
@@ -142,9 +147,7 @@ async def require_admin(
     session_id = payload["session_id"]
 
     admin_session = (
-        await session.execute(
-            select(AdminSession).where(AdminSession.session_id == session_id)
-        )
+        await session.execute(select(AdminSession).where(AdminSession.session_id == session_id))
     ).scalar_one_or_none()
     if admin_session is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия не найдена")
@@ -167,6 +170,4 @@ FAQItemRepoDep = Annotated[FAQItemRepository, Depends(get_faq_item_repo)]
 NewsPostRepoDep = Annotated[NewsPostRepository, Depends(get_news_post_repo)]
 ScheduleEventRepoDep = Annotated[ScheduleEventRepository, Depends(get_schedule_event_repo)]
 ParticipantRepoDep = Annotated[ParticipantRepository, Depends(get_participant_repo)]
-FanSubscriptionRepoDep = Annotated[
-    FanSubscriptionRepository, Depends(get_fan_subscription_repo)
-]
+FanSubscriptionRepoDep = Annotated[FanSubscriptionRepository, Depends(get_fan_subscription_repo)]
