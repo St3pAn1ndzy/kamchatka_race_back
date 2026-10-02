@@ -4,13 +4,15 @@
 `sub` в JWT — строка, поэтому `int(payload["sub"])`.
 `type` в payload — `user` или `admin`, проверяем.
 
-`get_current_user` и `require_admin` объявляют Authorization ОБЯЗАТЕЛЬНЫМ —
-в OpenAPI появляется замок, кодогенерация фронта делает токен required.
+Используем HTTPBearer — он даёт кнопку «Authorize» в /docs и
+корректные замки у защищённых эндпоинтов. Роутеры это не меняет:
+они по-прежнему используют CurrentUserDep / OptionalUserDep / AdminDep.
 """
 
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +32,12 @@ from app.security.tokens import decode_token
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
+# auto_error=False — при отсутствии заголовка не бросаем 403 автоматически,
+# а отдаём None. Это нужно для get_optional_user.
+_bearer = HTTPBearer(auto_error=False)
+
+
+# --- Репозитории -------------------------------------------------------------
 
 def get_user_repo(session: SessionDep) -> UserRepository:
     return UserRepository(session)
@@ -55,11 +63,7 @@ def get_fan_subscription_repo(session: SessionDep) -> FanSubscriptionRepository:
     return FanSubscriptionRepository(session)
 
 
-def _extract_bearer(authorization: str | None) -> str | None:
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-    return authorization.removeprefix("Bearer ").strip() or None
-
+# --- Вспомогательные ---------------------------------------------------------
 
 def _decode_user_payload(token: str) -> dict:
     payload = decode_token(token)
@@ -98,18 +102,24 @@ async def _load_user(session: AsyncSession, token: str) -> User | None:
     return await session.get(User, user_id)
 
 
+# --- Пользователь: опциональная авторизация ----------------------------------
+
+async def get_optional_user(
+        session: SessionDep,
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> User | None:
+    """Опциональная авторизация. None, если токена нет или он невалиден."""
+    if credentials is None:
+        return None
+    return await _load_user(session, credentials.credentials)
+
+
+# --- Пользователь: обязательная авторизация ----------------------------------
+
 async def get_current_user(
-    session: SessionDep,
-    authorization: Annotated[str, Header()],
+        user: Annotated[User | None, Depends(get_optional_user)],
 ) -> User:
-    """Обязательная авторизация. 401 без заголовка или с невалидным токеном."""
-    token = _extract_bearer(authorization)
-    if token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Требуется авторизация",
-        )
-    user = await _load_user(session, token)
+    """Обязательная авторизация. 401, если токена нет или он невалиден."""
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -118,34 +128,23 @@ async def get_current_user(
     return user
 
 
-async def get_optional_user(
-    session: SessionDep,
-    authorization: Annotated[str | None, Header()] = None,
-) -> User | None:
-    """Опциональная авторизация. None, если токена нет или он невалиден."""
-    token = _extract_bearer(authorization)
-    if token is None:
-        return None
-    return await _load_user(session, token)
-
+# --- Админ: обязательная авторизация + серверная сессия ----------------------
 
 async def require_admin(
-    session: SessionDep,
-    authorization: Annotated[str, Header()],
+        session: SessionDep,
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> AdminAccount:
-    token = _extract_bearer(authorization)
-    if token is None:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            "Требуется авторизация",
-        )
+    if credentials is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется авторизация")
 
-    payload = _decode_admin_payload(token)
+    payload = _decode_admin_payload(credentials.credentials)
     admin_id = int(payload["sub"])
     session_id = payload["session_id"]
 
     admin_session = (
-        await session.execute(select(AdminSession).where(AdminSession.session_id == session_id))
+        await session.execute(
+            select(AdminSession).where(AdminSession.session_id == session_id)
+        )
     ).scalar_one_or_none()
     if admin_session is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия не найдена")
@@ -158,6 +157,8 @@ async def require_admin(
     return admin
 
 
+# --- Annotated-алиасы (роутеры не меняются) ----------------------------------
+
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 OptionalUserDep = Annotated[User | None, Depends(get_optional_user)]
 AdminDep = Annotated[AdminAccount, Depends(require_admin)]
@@ -166,4 +167,6 @@ FAQItemRepoDep = Annotated[FAQItemRepository, Depends(get_faq_item_repo)]
 NewsPostRepoDep = Annotated[NewsPostRepository, Depends(get_news_post_repo)]
 ScheduleEventRepoDep = Annotated[ScheduleEventRepository, Depends(get_schedule_event_repo)]
 ParticipantRepoDep = Annotated[ParticipantRepository, Depends(get_participant_repo)]
-FanSubscriptionRepoDep = Annotated[FanSubscriptionRepository, Depends(get_fan_subscription_repo)]
+FanSubscriptionRepoDep = Annotated[
+    FanSubscriptionRepository, Depends(get_fan_subscription_repo)
+]
