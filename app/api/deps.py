@@ -3,6 +3,9 @@
 `decode_token` возвращает None при ошибке — не бросает исключение.
 `sub` в JWT — строка, поэтому `int(payload["sub"])`.
 `type` в payload — `user` или `admin`, проверяем.
+
+`get_current_user` и `require_admin` объявляют Authorization ОБЯЗАТЕЛЬНЫМ —
+в OpenAPI появляется замок, кодогенерация фронта делает токен required.
 """
 
 from typing import Annotated
@@ -80,35 +83,33 @@ def _decode_admin_payload(token: str) -> dict:
     return payload
 
 
-async def get_optional_user(
-    session: SessionDep,
-    authorization: Annotated[str | None, Header()] = None,
-) -> User | None:
-    token = _extract_bearer(authorization)
-    if token is None:
-        return None
-
+async def _load_user(session: AsyncSession, token: str) -> User | None:
+    """Загрузить пользователя по токену. None — если токен невалиден."""
     payload = decode_token(token)
-    if payload is None:
+    if payload is None or payload.get("type") != "user":
         return None
-    if payload.get("type") != "user":
-        return None
-
     sub = payload.get("sub")
     if sub is None:
         return None
-
     try:
         user_id = int(sub)
     except (TypeError, ValueError):
         return None
-
     return await session.get(User, user_id)
 
 
 async def get_current_user(
-    user: Annotated[User | None, Depends(get_optional_user)],
+    session: SessionDep,
+    authorization: Annotated[str, Header()],
 ) -> User:
+    """Обязательная авторизация. 401 без заголовка или с невалидным токеном."""
+    token = _extract_bearer(authorization)
+    if token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Требуется авторизация",
+        )
+    user = await _load_user(session, token)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -117,13 +118,27 @@ async def get_current_user(
     return user
 
 
-async def require_admin(
+async def get_optional_user(
     session: SessionDep,
     authorization: Annotated[str | None, Header()] = None,
+) -> User | None:
+    """Опциональная авторизация. None, если токена нет или он невалиден."""
+    token = _extract_bearer(authorization)
+    if token is None:
+        return None
+    return await _load_user(session, token)
+
+
+async def require_admin(
+    session: SessionDep,
+    authorization: Annotated[str, Header()],
 ) -> AdminAccount:
     token = _extract_bearer(authorization)
     if token is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется авторизация")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Требуется авторизация",
+        )
 
     payload = _decode_admin_payload(token)
     admin_id = int(payload["sub"])
