@@ -16,8 +16,10 @@ from app.db.models.admin_account import AdminAccount
 from app.db.models.admin_session import AdminSession
 from app.db.models.user import User
 from app.repositories import (
+    FanSubscriptionRepository,
     FAQItemRepository,
     NewsPostRepository,
+    ParticipantRepository,
     ScheduleEventRepository,
     UserRepository,
 )
@@ -40,6 +42,14 @@ def get_news_post_repo(session: SessionDep) -> NewsPostRepository:
 
 def get_schedule_event_repo(session: SessionDep) -> ScheduleEventRepository:
     return ScheduleEventRepository(session)
+
+
+def get_participant_repo(session: SessionDep) -> ParticipantRepository:
+    return ParticipantRepository(session)
+
+
+def get_fan_subscription_repo(session: SessionDep) -> FanSubscriptionRepository:
+    return FanSubscriptionRepository(session)
 
 
 def _extract_bearer(authorization: str | None) -> str | None:
@@ -140,3 +150,5 @@ UserRepoDep = Annotated[UserRepository, Depends(get_user_repo)]
 FAQItemRepoDep = Annotated[FAQItemRepository, Depends(get_faq_item_repo)]
 NewsPostRepoDep = Annotated[NewsPostRepository, Depends(get_news_post_repo)]
 ScheduleEventRepoDep = Annotated[ScheduleEventRepository, Depends(get_schedule_event_repo)]
+ParticipantRepoDep = Annotated[ParticipantRepository, Depends(get_participant_repo)]
+FanSubscriptionRepoDep = Annotated[FanSubscriptionRepository, Depends(get_fan_subscription_repo)]
