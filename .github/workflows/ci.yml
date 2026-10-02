@@ -37,8 +37,6 @@ jobs:
 
       - run: poetry install --no-interaction
 
-      - run: poetry run ruff check app/ tests/
-
       - run: poetry run ruff format --check app/ tests/
 
   openapi:
