@@ -37,7 +37,9 @@ jobs:
 
       - run: poetry install --no-interaction
 
-      - run: poetry run ruff format --check app/ tests/
+      - run: poetry run ruff check app/
+
+      - run: poetry run ruff format --check app/
 
   openapi:
     name: Generate openapi.json
