@@ -1,12 +1,19 @@
 """Публичные endpoints для карты гонки"""
 
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Path, status
 from sqlalchemy import func, select
 
 from app.api.deps import SessionDep
 from app.db.models.participant import Participant
 from app.db.models.track_point import TrackPoint
-from app.schemas.map import MapParticipant, MapTrackPoint
+from app.schemas.map import (
+    MapEntryTrackPoint,
+    MapEntryTrackResponse,
+    MapParticipant,
+    MapTrackPoint,
+)
 
 router = APIRouter(prefix="/map", tags=["map"])
 
@@ -92,3 +99,47 @@ async def list_map_participants(session: SessionDep) -> list[MapParticipant]:
         )
 
     return items
+
+
+@router.get("/entry/{entry_id}/track", response_model=MapEntryTrackResponse)
+async def get_entry_track(
+    entry_id: Annotated[int, Path(gt=0)],
+    session: SessionDep,
+) -> MapEntryTrackResponse:
+    """Возвращаем подтверждённый трек участника для карты"""
+    participant = await session.get(Participant, entry_id)
+    if participant is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Участник не найден",
+        )
+
+    stmt = (
+        select(TrackPoint)
+        .where(
+            TrackPoint.participant_id == entry_id,
+            TrackPoint.is_confirmed.is_(True),
+        )
+        .order_by(TrackPoint.recorded_at.asc(), TrackPoint.id.asc())
+    )
+    points = list((await session.execute(stmt)).scalars().all())
+
+    return MapEntryTrackResponse(
+        participant_id=entry_id,
+        points=[
+            MapEntryTrackPoint(
+                id=point.id,
+                stage_id=point.stage_id,
+                lat=point.lat,
+                lon=point.lon,
+                altitude=point.altitude,
+                course_deg=point.course_deg,
+                source_speed=point.source_speed,
+                average_speed_kmh=point.average_speed_kmh,
+                km_from_start=point.km_from_start,
+                recorded_at=point.recorded_at,
+                received_at=point.received_at,
+            )
+            for point in points
+        ],
+    )
