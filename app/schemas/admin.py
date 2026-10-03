@@ -94,6 +94,16 @@ class OfficialMarkCreateRequest(BaseSchema):
     comment: str | None = Field(default=None, max_length=2000)
 
 
+class OfficialMarkCorrectRequest(BaseSchema):
+    """Данные для исправления судейской отметки"""
+
+    mark_time: AwareDatetime
+    penalty_minutes: int = Field(default=0, ge=0)
+    mandatory_stop_minutes: int = Field(default=0, ge=0)
+    comment: str | None = Field(default=None, max_length=2000)
+    cancel_reason: str = Field(min_length=1, max_length=2000)
+
+
 class OfficialMarkResponse(BaseSchema):
     """Судейская отметка в административном API"""
 
