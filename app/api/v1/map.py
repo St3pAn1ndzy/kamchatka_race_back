@@ -13,7 +13,7 @@ router = APIRouter(prefix="/map", tags=["map"])
 
 @router.get("/participants", response_model=list[MapParticipant])
 async def list_map_participants(session: SessionDep) -> list[MapParticipant]:
-    """Возращаем участников с последней подтверждённой точкой для карты"""
+    """Возвращаем участников с последней подтверждённой точкой для карты"""
     latest_points = (
         select(
             TrackPoint.participant_id.label("participant_id"),
