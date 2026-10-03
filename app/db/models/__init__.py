@@ -16,6 +16,7 @@ from app.db.models.schedule_event import ScheduleEvent
 from app.db.models.stage import Stage
 from app.db.models.track_point import TrackPoint
 from app.db.models.user import User
+from app.db.models.user_feedback import UserFeedback
 from app.db.models.viewer_location import ViewerLocation
 
 __all__ = [
@@ -38,4 +39,5 @@ __all__ = [
     "TrackPoint",
     "User",
     "ViewerLocation",
+    "UserFeedback",
 ]
