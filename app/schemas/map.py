@@ -30,3 +30,26 @@ class MapParticipant(BaseSchema):
     photo_url: str | None = None
     status: ParticipantStatus
     latest_point: MapTrackPoint | None = None
+
+
+class MapEntryTrackPoint(BaseSchema):
+    """Точка трека участника для линии на карте"""
+
+    id: int
+    stage_id: int | None = None
+    lat: float
+    lon: float
+    altitude: float | None = None
+    course_deg: float | None = None
+    source_speed: float | None = None
+    average_speed_kmh: float | None = None
+    km_from_start: float | None = None
+    recorded_at: datetime
+    received_at: datetime
+
+
+class MapEntryTrackResponse(BaseSchema):
+    """Трек одного участника для карты"""
+
+    participant_id: int
+    points: list[MapEntryTrackPoint]
