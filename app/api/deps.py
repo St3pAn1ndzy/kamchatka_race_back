@@ -9,6 +9,7 @@
 они по-прежнему используют CurrentUserDep / OptionalUserDep / AdminDep.
 """
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -153,6 +154,8 @@ async def require_admin(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия не найдена")
     if admin_session.revoked_at is not None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия отозвана")
+    if admin_session.expires_at <= datetime.now(tz=UTC):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия истекла")
 
     admin = await session.get(AdminAccount, admin_id)
     if admin is None or not admin.is_active:
