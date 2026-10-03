@@ -1,7 +1,10 @@
 """Схемы административного API"""
 
+from datetime import datetime
+
 from pydantic import Field
 
+from app.enums import RaceState
 from app.schemas.base import BaseSchema
 
 
@@ -18,3 +21,19 @@ class AdminLoginResponse(BaseSchema):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
+
+
+class RaceStatusUpdateRequest(BaseSchema):
+    """Данные для обновления статуса гонки"""
+
+    status: RaceState
+    current_stage_id: int | None = None
+
+
+class RaceStatusResponse(BaseSchema):
+    """Текущий статус гонки"""
+
+    id: int
+    status: RaceState
+    current_stage_id: int | None = None
+    updated_at: datetime
