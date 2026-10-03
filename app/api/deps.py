@@ -24,10 +24,10 @@ from app.repositories import (
     FanSubscriptionRepository,
     FAQItemRepository,
     NewsPostRepository,
+    NotificationQueueRepository,
     ParticipantRepository,
     ScheduleEventRepository,
     UserRepository,
-    NotificationQueueRepository,
 )
 from app.security.tokens import decode_token
 
@@ -113,8 +113,8 @@ async def _load_user(session: AsyncSession, token: str) -> User | None:
 
 
 async def get_optional_user(
-        session: SessionDep,
-        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    session: SessionDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> User | None:
     """Опциональная авторизация. None, если токена нет или он невалиден."""
     if credentials is None:
@@ -126,7 +126,7 @@ async def get_optional_user(
 
 
 async def get_current_user(
-        user: Annotated[User | None, Depends(get_optional_user)],
+    user: Annotated[User | None, Depends(get_optional_user)],
 ) -> User:
     """Обязательная авторизация. 401, если токена нет или он невалиден."""
     if user is None:
@@ -141,8 +141,8 @@ async def get_current_user(
 
 
 async def require_admin(
-        session: SessionDep,
-        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    session: SessionDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> AdminAccount:
     if credentials is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Требуется авторизация")
@@ -176,4 +176,6 @@ NewsPostRepoDep = Annotated[NewsPostRepository, Depends(get_news_post_repo)]
 ScheduleEventRepoDep = Annotated[ScheduleEventRepository, Depends(get_schedule_event_repo)]
 ParticipantRepoDep = Annotated[ParticipantRepository, Depends(get_participant_repo)]
 FanSubscriptionRepoDep = Annotated[FanSubscriptionRepository, Depends(get_fan_subscription_repo)]
-NotificationQueueRepoDep = Annotated[NotificationQueueRepository, Depends(get_notification_queue_repo)]
+NotificationQueueRepoDep = Annotated[
+    NotificationQueueRepository, Depends(get_notification_queue_repo)
+]

@@ -8,7 +8,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, content, news, participants, schedule, notifications
+from app.api.v1 import auth, content, news, notifications, participants, schedule
 
 api_router = APIRouter(prefix="/api/v1", tags=["v1"])
 

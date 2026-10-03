@@ -20,10 +20,10 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
     summary="История уведомлений",
 )
 async def list_notifications(
-        user: CurrentUserDep,
-        queue: NotificationQueueRepoDep,
-        limit: int = Query(50, ge=1, le=200),
-        offset: int = Query(0, ge=0),
+    user: CurrentUserDep,
+    queue: NotificationQueueRepoDep,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
 ) -> NotificationListResponse:
     """Мои уведомления с пагинацией."""
     items = await queue.list_by_user(user.id, limit=limit, offset=offset)
@@ -73,7 +73,6 @@ async def preview_notifications() -> NotificationPreviewListResponse:
     ]
     return NotificationPreviewListResponse(
         items=[
-            NotificationPreviewResponse(event_type=et, title=t, body=b)
-            for et, t, b in templates
+            NotificationPreviewResponse(event_type=et, title=t, body=b) for et, t, b in templates
         ]
     )
