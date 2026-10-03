@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from app.enums import ParticipantStatus
+from app.enums import CheckpointKind, ParticipantStatus
 from app.schemas.base import BaseSchema
 
 
@@ -53,3 +53,20 @@ class MapEntryTrackResponse(BaseSchema):
 
     participant_id: int
     points: list[MapEntryTrackPoint]
+
+
+class MapCheckpoint(BaseSchema):
+    """Контрольная точка для карты"""
+
+    id: int
+    stage_id: int
+    code: str
+    name: str
+    kind: CheckpointKind
+    description: str | None = None
+    lat: float
+    lon: float
+    altitude: int | None = None
+    km_from_race_start: float | None = None
+    order_index: int
+    has_judge: bool
