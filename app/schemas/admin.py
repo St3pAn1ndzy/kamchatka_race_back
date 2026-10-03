@@ -61,3 +61,23 @@ class EquipmentHealthResponse(BaseSchema):
 
     items: list[EquipmentHealthItem]
     total: int
+
+
+class DeviceAssignRequest(BaseSchema):
+    """Данные для привязки трекера к участнику и этапу"""
+
+    device_id: int = Field(gt=0)
+    participant_id: int | None = Field(default=None, gt=0)
+    stage_id: int | None = Field(default=None, gt=0)
+
+
+class DeviceAssignResponse(BaseSchema):
+    """Обновлённая привязка трекера"""
+
+    id: int
+    iridium_number: str
+    imei: str
+    name: str
+    participant_id: int | None = None
+    stage_id: int | None = None
+    is_active: bool
