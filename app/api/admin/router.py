@@ -11,7 +11,7 @@ SOS и служебные данные трекеров - только здес�
 
 from fastapi import APIRouter
 
-from app.api.admin import auth, devices, equipment, race
+from app.api.admin import auth, devices, equipment, marks, race
 
 admin_router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -19,11 +19,11 @@ admin_router.include_router(auth.router)
 admin_router.include_router(race.router)
 admin_router.include_router(equipment.router)
 admin_router.include_router(devices.router)
+admin_router.include_router(marks.router)
 
 # По мере готовности:
 #
 # from app.api.admin import race, marks, equipment, notifications, stats
 #
-# admin_router.include_router(marks.router)
 # admin_router.include_router(notifications.router)
 # admin_router.include_router(stats.router)
