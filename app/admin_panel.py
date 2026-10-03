@@ -5,6 +5,8 @@ from sqladmin import ModelView
 from app.db.models.admin_account import AdminAccount
 from app.db.models.admin_session import AdminSession
 from app.db.models.audit_log import AuditLog
+from app.db.models.fun_subscription import FanSubscription
+from app.db.models.participant import Participant
 
 
 class AdminAccountAdmin(ModelView, model=AdminAccount):
@@ -59,8 +61,49 @@ class AuditLogAdmin(ModelView, model=AuditLog):
     column_searchable_list = [AuditLog.action, AuditLog.entity_type]
 
 
+class ParticipantAdmin(ModelView, model=Participant):
+    name = "Участник"
+    name_plural = "Участники"
+    icon = "fa-solid fa-user"
+    column_list = [
+        Participant.id,
+        Participant.name,
+        Participant.number,
+        Participant.region,
+        Participant.discipline,
+        Participant.status,
+        Participant.dogs_count,
+    ]
+    column_searchable_list = [
+        Participant.name,
+        Participant.number,
+    ]
+    column_sortable_list = [
+        Participant.number,
+        Participant.name,
+    ]
+
+
+class FanSubscriptionAdmin(ModelView, model=FanSubscription):
+    name = "Подписка «Болею за»"
+    name_plural = "Подписки «Болею за»"
+    icon = "fa-solid fa-heart"
+    # Только просмотр — создаётся через API.
+    can_create = False
+    can_edit = False
+    column_list = [
+        FanSubscription.id,
+        FanSubscription.user_id,
+        FanSubscription.participant_id,
+        FanSubscription.created_at,
+    ]
+    column_sortable_list = [FanSubscription.created_at]
+
+
 VIEWS: list[type[ModelView]] = [
     AdminAccountAdmin,
     AdminSessionAdmin,
     AuditLogAdmin,
+    ParticipantAdmin,
+    FanSubscriptionAdmin,
 ]
