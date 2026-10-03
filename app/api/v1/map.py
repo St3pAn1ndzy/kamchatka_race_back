@@ -2,13 +2,15 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, HTTPException, Path, Query, status
 from sqlalchemy import func, select
 
 from app.api.deps import SessionDep
+from app.db.models.checkpoint import Checkpoint
 from app.db.models.participant import Participant
 from app.db.models.track_point import TrackPoint
 from app.schemas.map import (
+    MapCheckpoint,
     MapEntryTrackPoint,
     MapEntryTrackResponse,
     MapParticipant,
@@ -143,3 +145,24 @@ async def get_entry_track(
             for point in points
         ],
     )
+
+
+@router.get("/checkpoints", response_model=list[MapCheckpoint])
+async def list_map_checkpoints(
+    session: SessionDep,
+    stage_id: Annotated[int | None, Query(gt=0)] = None,
+) -> list[MapCheckpoint]:
+    """Возвращаем публичные КП для карты"""
+    stmt = select(Checkpoint).where(Checkpoint.is_public.is_(True))
+
+    if stage_id is not None:
+        stmt = stmt.where(Checkpoint.stage_id == stage_id)
+
+    stmt = stmt.order_by(
+        Checkpoint.stage_id.asc(),
+        Checkpoint.order_index.asc(),
+        Checkpoint.id.asc(),
+    )
+
+    checkpoints = list((await session.execute(stmt)).scalars().all())
+    return [MapCheckpoint.model_validate(checkpoint) for checkpoint in checkpoints]
