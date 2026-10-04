@@ -5,7 +5,7 @@ description = ""
 authors = [
     {name = "Stepan Obukhov",email = "stepanobukhov2009@gmail.com"}
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.12,<4"
 dependencies = [
     "sqlalchemy[asyncio] (>=2.0.54,<3.0.0)",
     "pydantic (>=2.13.5,<3.0.0)",
@@ -19,6 +19,10 @@ dependencies = [
     "sqladmin (>=0.32.0,<0.33.0)",
     "uvicorn (>=0.54.0,<0.55.0)",
     "itsdangerous (>=2.2.0,<3.0.0)"
+    "httpx (>=0.28.1,<0.29.0)",
+    "celery (>=5.6.3,<6.0.0)",
+    "celery-types (>=0.26.0,<0.27.0)",
+    "redis (>=8.1.0,<9.0.0)"
 ]
 
 

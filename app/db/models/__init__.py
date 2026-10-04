@@ -13,9 +13,11 @@ from app.db.models.push_subscription import PushSubscription
 from app.db.models.race_status import RaceStatus
 from app.db.models.saved_item import SavedItem
 from app.db.models.schedule_event import ScheduleEvent
+from app.db.models.share_event import ShareEvent
 from app.db.models.stage import Stage
 from app.db.models.track_point import TrackPoint
 from app.db.models.user import User
+from app.db.models.user_feedback import UserFeedback
 from app.db.models.viewer_location import ViewerLocation
 
 __all__ = [
@@ -26,6 +28,7 @@ __all__ = [
     "Device",
     "FanSubscription",
     "FAQItem",
+    "ShareEvent",
     "NewsPost",
     "NotificationQueue",
     "OfficialMark",
@@ -38,4 +41,5 @@ __all__ = [
     "TrackPoint",
     "User",
     "ViewerLocation",
+    "UserFeedback",
 ]

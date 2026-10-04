@@ -67,3 +67,33 @@ class ViewerLocationKind(StrEnum):
     FESTIVAL = "festival"
     VIEWPOINT = "viewpoint"
     OTHER = "other"
+
+
+class UserFeedbackStatus(StrEnum):
+    NEW = "new"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+
+class UserFeedbackKind(StrEnum):
+    BUG = "bug"
+    IDEA = "idea"
+    QUESTION = "question"
+    OTHER = "other"
+
+
+class ShareEventTargetKind(StrEnum):
+    APP = "app"
+    NEWS = "news"
+    SCHEDULE_EVENT = "schedule_event"
+    PARTICIPANT = "participant"
+    CHECKPOINT = "checkpoint"
+    VIEWER_LOCATION = "viewer_location"
+
+
+class ShareEventChannel(StrEnum):
+    VK = "vk"
+    TELEGRAM = "telegram"
+    COPY_LINK = "copy_link"
+    OTHER = "other"
