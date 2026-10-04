@@ -7,6 +7,7 @@ from app.repositories.official_mark import OfficialMarkRepository
 from app.repositories.participant import ParticipantRepository
 from app.repositories.schedule_event import ScheduleEventRepository
 from app.repositories.user import UserRepository
+from app.repositories.device import DeviceRepository
 
 __all__ = [
     "BaseRepository",
@@ -16,6 +17,7 @@ __all__ = [
     "NotificationQueueRepository",
     "OfficialMarkRepository",
     "ParticipantRepository",
+    "DeviceRepository",
     "ScheduleEventRepository",
     "UserRepository",
 ]
