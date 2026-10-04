@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.db.models.checkpoint import Checkpoint
-from app.enums import StageStatus
+from app.enums import PublicationStatus, StageStatus
 
 if TYPE_CHECKING:
     from app.db.models.device import Device
@@ -28,6 +28,18 @@ class Stage(Base):
     status: Mapped[str] = mapped_column(
         String(32),
         default=StageStatus.PLANNED.value,
+        nullable=False,
+        index=True,
+    )
+
+    # Статус публикации результатов этапа.
+    # draft — черновик, не показывается в публичном API;
+    # provisional — предварительные результаты;
+    # official — официальный протокол.
+    results_publication: Mapped[str] = mapped_column(
+        String(32),
+        default=PublicationStatus.DRAFT.value,
+        server_default=PublicationStatus.DRAFT.value,
         nullable=False,
         index=True,
     )
