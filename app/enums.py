@@ -97,3 +97,11 @@ class ShareEventChannel(StrEnum):
     TELEGRAM = "telegram"
     COPY_LINK = "copy_link"
     OTHER = "other"
+
+
+class PublicationStatus(StrEnum):
+    """Статус публикации результатов этапа/гонки"""
+
+    DRAFT = "draft"
+    PROVISIONAL = "provisional"
+    OFFICIAL = "official"
