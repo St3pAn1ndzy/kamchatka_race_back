@@ -27,9 +27,9 @@ def upgrade() -> None:
         "share_events",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=True),
-        sa.Column("target_kind", sa.String(length=32), nullable=False),
+        sa.Column("target_kind", sa.String(length=32), server_default="app", nullable=False),
         sa.Column("target_id", sa.Integer(), nullable=True),
-        sa.Column("channel", sa.String(length=32), nullable=False),
+        sa.Column("channel", sa.String(length=32), server_default="other", nullable=False),
         sa.Column("source", sa.String(length=64), nullable=True),
         sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column(

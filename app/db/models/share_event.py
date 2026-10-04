@@ -30,6 +30,7 @@ class ShareEvent(Base):
     target_kind: Mapped[str] = mapped_column(
         String(32),
         default=ShareEventTargetKind.APP.value,
+        server_default=ShareEventTargetKind.APP.value,
         nullable=False,
         index=True,
     )
@@ -41,10 +42,10 @@ class ShareEvent(Base):
     channel: Mapped[str] = mapped_column(
         String(32),
         default=ShareEventChannel.OTHER.value,
+        server_default=ShareEventChannel.OTHER.value,
         nullable=False,
         index=True,
     )
-
     # Экран или место в приложении, откуда нажали кнопку поделиться
     source: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
