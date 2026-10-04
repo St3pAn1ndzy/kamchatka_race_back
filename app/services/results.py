@@ -194,8 +194,8 @@ class ResultService:
     # ── Таблица лидеров (краткая) ──────────────────────────────────────
 
     async def get_leaderboard(
-            self,
-            limit: int = 50,
+        self,
+        limit: int = 50,
     ) -> list[LeaderboardEntry]:
         """Таблица лидеров.
 
@@ -221,9 +221,9 @@ class ResultService:
     # ── Отметки участника ──────────────────────────────────────────────
 
     async def get_control_times(
-            self,
-            participant_id: int,
-            stage_id: int | None = None,
+        self,
+        participant_id: int,
+        stage_id: int | None = None,
     ) -> list[ControlTimeEntry]:
         """Все отметки участника (по этапу или по всем).
 
