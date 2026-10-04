@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from app.db.models.notification import NotificationQueue
     from app.db.models.push_subscription import PushSubscription
     from app.db.models.saved_item import SavedItem
+    from app.db.models.share_event import ShareEvent
+    from app.db.models.user_feedback import UserFeedback
 
 
 class User(Base):
@@ -41,5 +43,15 @@ class User(Base):
     saved_items: Mapped[list["SavedItem"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    feedback_items: Mapped[list["UserFeedback"]] = relationship(
+        back_populates="user",
+        passive_deletes=True,
+    )
+
+    share_events: Mapped[list["ShareEvent"]] = relationship(
+        back_populates="user",
         passive_deletes=True,
     )
