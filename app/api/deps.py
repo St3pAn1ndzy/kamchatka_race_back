@@ -24,6 +24,7 @@ from app.repositories import (
     FanSubscriptionRepository,
     FAQItemRepository,
     NewsPostRepository,
+    NotificationQueueRepository,
     ParticipantRepository,
     ScheduleEventRepository,
     UserRepository,
@@ -62,6 +63,10 @@ def get_participant_repo(session: SessionDep) -> ParticipantRepository:
 
 def get_fan_subscription_repo(session: SessionDep) -> FanSubscriptionRepository:
     return FanSubscriptionRepository(session)
+
+
+def get_notification_queue_repo(session: SessionDep) -> NotificationQueueRepository:
+    return NotificationQueueRepository(session)
 
 
 # --- Вспомогательные ---------------------------------------------------------
@@ -171,3 +176,6 @@ NewsPostRepoDep = Annotated[NewsPostRepository, Depends(get_news_post_repo)]
 ScheduleEventRepoDep = Annotated[ScheduleEventRepository, Depends(get_schedule_event_repo)]
 ParticipantRepoDep = Annotated[ParticipantRepository, Depends(get_participant_repo)]
 FanSubscriptionRepoDep = Annotated[FanSubscriptionRepository, Depends(get_fan_subscription_repo)]
+NotificationQueueRepoDep = Annotated[
+    NotificationQueueRepository, Depends(get_notification_queue_repo)
+]
