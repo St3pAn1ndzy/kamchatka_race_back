@@ -28,6 +28,7 @@ class UserFeedback(Base):
     kind: Mapped[str] = mapped_column(
         String(32),
         default=UserFeedbackKind.OTHER.value,
+        server_default=UserFeedbackKind.OTHER.value,
         nullable=False,
         index=True,
     )
@@ -35,6 +36,7 @@ class UserFeedback(Base):
     status: Mapped[str] = mapped_column(
         String(32),
         default=UserFeedbackStatus.NEW.value,
+        server_default=UserFeedbackStatus.NEW.value,
         nullable=False,
         index=True,
     )
