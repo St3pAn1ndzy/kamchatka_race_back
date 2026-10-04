@@ -29,6 +29,7 @@ from app.repositories import (
 )
 from app.security.admin_sessions import get_active_admin_for_session
 from app.security.tokens import decode_token
+from app.services.results import ResultService
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -66,6 +67,10 @@ def get_fan_subscription_repo(session: SessionDep) -> FanSubscriptionRepository:
 
 def get_notification_queue_repo(session: SessionDep) -> NotificationQueueRepository:
     return NotificationQueueRepository(session)
+
+
+def get_result_service(session: SessionDep) -> ResultService:
+    return ResultService(session)
 
 
 # --- Вспомогательные ---------------------------------------------------------
@@ -171,3 +176,4 @@ FanSubscriptionRepoDep = Annotated[FanSubscriptionRepository, Depends(get_fan_su
 NotificationQueueRepoDep = Annotated[
     NotificationQueueRepository, Depends(get_notification_queue_repo)
 ]
+ResultServiceDep = Annotated[ResultService, Depends(get_result_service)]
