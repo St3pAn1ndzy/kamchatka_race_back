@@ -16,8 +16,6 @@ class ControlTimeEntry(BaseSchema):
     mark_time: datetime
     penalty_minutes: int = 0
     mandatory_stop_minutes: int = 0
-    is_cancelled: bool = False
-    cancel_reason: str | None = None
 
 
 class StageProtocolRow(BaseSchema):
