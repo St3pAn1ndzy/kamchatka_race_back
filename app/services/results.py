@@ -194,8 +194,8 @@ class ResultService:
     # ── Таблица лидеров (краткая) ──────────────────────────────────────
 
     async def get_leaderboard(
-        self,
-        limit: int = 50,
+            self,
+            limit: int = 50,
     ) -> list[LeaderboardEntry]:
         """Таблица лидеров.
 
@@ -221,9 +221,9 @@ class ResultService:
     # ── Отметки участника ──────────────────────────────────────────────
 
     async def get_control_times(
-        self,
-        participant_id: int,
-        stage_id: int | None = None,
+            self,
+            participant_id: int,
+            stage_id: int | None = None,
     ) -> list[ControlTimeEntry]:
         """Все отметки участника (по этапу или по всем).
 
@@ -238,7 +238,6 @@ class ResultService:
         marks = await self.mark_repo.get_for_participant(
             participant_id,
             stage_id=stage_id,
-            include_cancelled=True,
         )
         return [
             ControlTimeEntry(
@@ -249,18 +248,13 @@ class ResultService:
                 mark_time=m.mark_time,
                 penalty_minutes=m.penalty_minutes,
                 mandatory_stop_minutes=m.mandatory_stop_minutes,
-                is_cancelled=m.is_cancelled,
-                cancel_reason=m.cancel_reason,
             )
             for m in marks
         ]
 
     # ── Вспомогательные ────────────────────────────────────────────────
 
-    async def _get_published_stages(
-        self,
-        race_id: int | None = None,
-    ) -> list[Stage]:
+    async def _get_published_stages(self) -> list[Stage]:
         """Этапы с publication=provisional или official, опционально по гонке."""
         stmt = (
             select(Stage)
@@ -274,6 +268,5 @@ class ResultService:
             )
             .order_by(Stage.order_index)
         )
-        if race_id is not None:
-            stmt = stmt.where(Stage.race_id == race_id)
+
         return list((await self.session.execute(stmt)).scalars().all())
