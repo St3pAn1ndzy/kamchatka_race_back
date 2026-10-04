@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     NOTIFICATION_RATE_LIMIT_PER_DAY: int = 10
 
     ADMIN_SESSION_TTL_SECONDS: int = 28800  # 8h
+    # Секрет для подписи cookie-сессий SQLAdmin. В проде нужно будет переопределить
+    ADMIN_PANEL_SESSION_SECRET: str = "change-me-admin-panel"
 
     JWT_ALGORITHM: str = "HS256"
     JWT_USER_TTL_SECONDS: int = 86400  # 24h

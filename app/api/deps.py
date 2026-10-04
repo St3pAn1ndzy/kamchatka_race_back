@@ -13,12 +13,10 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base import get_session
 from app.db.models.admin_account import AdminAccount
-from app.db.models.admin_session import AdminSession
 from app.db.models.user import User
 from app.repositories import (
     FanSubscriptionRepository,
@@ -29,6 +27,7 @@ from app.repositories import (
     ScheduleEventRepository,
     UserRepository,
 )
+from app.security.admin_sessions import get_active_admin_for_session
 from app.security.tokens import decode_token
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -151,17 +150,10 @@ async def require_admin(
     admin_id = int(payload["sub"])
     session_id = payload["session_id"]
 
-    admin_session = (
-        await session.execute(select(AdminSession).where(AdminSession.session_id == session_id))
-    ).scalar_one_or_none()
-    if admin_session is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия не найдена")
-    if admin_session.revoked_at is not None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия отозвана")
+    admin = await get_active_admin_for_session(session, session_id, admin_id=admin_id)
+    if admin is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Сессия не найдена или истекла")
 
-    admin = await session.get(AdminAccount, admin_id)
-    if admin is None or not admin.is_active:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Доступ запрещён")
     return admin
 
 

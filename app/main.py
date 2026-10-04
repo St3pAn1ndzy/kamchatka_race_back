@@ -7,7 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from sqladmin import Admin
 from sqlalchemy import create_engine
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.admin_auth import AdminPanelAuth
 from app.admin_panel import VIEWS
 from app.api.admin.router import admin_router
 from app.api.errors import (
@@ -55,6 +57,13 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    # SQLAdmin использует cookie-сессию для входа в админ-панель
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.ADMIN_PANEL_SESSION_SECRET,
+        same_site="lax",
+        https_only=not settings.DEBUG,
+    )
     # Порядок: сначала внутренние, потом внешние. CORS — последним.
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(RequestIDMiddleware)
@@ -80,7 +89,13 @@ def create_app() -> FastAPI:
     admin_engine = create_engine(settings.SYNC_DATABASE_URL, pool_pre_ping=True)
     app.state.admin_engine = admin_engine
 
-    admin = Admin(app, engine=admin_engine, base_url="/admin-panel")
+    # SQLAdmin на синхронном движке, доступ закрыт через AdminPanelAuth
+    admin = Admin(
+        app,
+        engine=admin_engine,
+        base_url="/admin-panel",
+        authentication_backend=AdminPanelAuth(secret_key=settings.ADMIN_PANEL_SESSION_SECRET),
+    )
     for view in VIEWS:
         admin.add_view(view)
 
