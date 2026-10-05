@@ -11,8 +11,7 @@ SOS и служебные данные трекеров - только здес�
 
 from fastapi import APIRouter
 
-from app.api.admin import auth, equipment
-from app.api.admin import auth, race
+from app.api.admin import auth, equipment, race
 
 admin_router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
