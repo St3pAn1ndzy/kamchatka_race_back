@@ -18,9 +18,8 @@ __all__ = [
     "NotificationQueueRepository",
     "OfficialMarkRepository",
     "ParticipantRepository",
-    "ScheduleEventRepository",
-    "UserRepository",
-    "StageRepository",
-    "NotificationQueueRepository",
     "RaceStatusRepository",
+    "ScheduleEventRepository",
+    "StageRepository",
+    "UserRepository",
 ]
