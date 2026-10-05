@@ -5,7 +5,9 @@ from app.repositories.news_post import NewsPostRepository
 from app.repositories.notification_queue import NotificationQueueRepository
 from app.repositories.official_mark import OfficialMarkRepository
 from app.repositories.participant import ParticipantRepository
+from app.repositories.race_status import RaceStatusRepository
 from app.repositories.schedule_event import ScheduleEventRepository
+from app.repositories.stage import StageRepository
 from app.repositories.user import UserRepository
 
 __all__ = [
@@ -16,6 +18,8 @@ __all__ = [
     "NotificationQueueRepository",
     "OfficialMarkRepository",
     "ParticipantRepository",
+    "RaceStatusRepository",
     "ScheduleEventRepository",
+    "StageRepository",
     "UserRepository",
 ]
