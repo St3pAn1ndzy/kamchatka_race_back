@@ -1,4 +1,5 @@
 from app.repositories.base import BaseRepository
+from app.repositories.device import DeviceRepository
 from app.repositories.faq_item import FAQItemRepository
 from app.repositories.fun_subscription import FanSubscriptionRepository
 from app.repositories.news_post import NewsPostRepository
@@ -18,6 +19,7 @@ __all__ = [
     "NotificationQueueRepository",
     "OfficialMarkRepository",
     "ParticipantRepository",
+    "DeviceRepository",
     "RaceStatusRepository",
     "ScheduleEventRepository",
     "StageRepository",
