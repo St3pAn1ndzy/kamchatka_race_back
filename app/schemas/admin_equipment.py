@@ -19,6 +19,8 @@ class EquipmentHealthItem(BaseSchema):
     sos_active: bool
     last_message_at: datetime | None = None
     health_status: str
+    freshness_status: str
+    delayed_after_seconds: int
     stale_after_seconds: int
 
 

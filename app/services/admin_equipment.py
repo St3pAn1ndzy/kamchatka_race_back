@@ -19,24 +19,32 @@ class AdminEquipmentService:
         self.devices = DeviceRepository(session)
 
     @staticmethod
-    def _device_health_status(
+    def _device_freshness_status(
         device: Device,
         *,
         now: datetime,
+        delayed_after_seconds: int,
         stale_after_seconds: int,
     ) -> str:
-        """Собираем короткий статус трекера для админки"""
-        if not device.is_active:
-            return "inactive"
-        if device.sos_active:
-            return "sos"
+        """Показываем, насколько свежие данные пришли от трекера"""
         if device.last_message_at is None:
             return "no_signal"
 
         seconds_since_message = (now - device.last_message_at).total_seconds()
         if seconds_since_message > stale_after_seconds:
             return "stale"
+        if seconds_since_message > delayed_after_seconds:
+            return "delayed"
 
+        return "fresh"
+
+    @staticmethod
+    def _device_health_status(device: Device) -> str:
+        """Собираем короткий технический статус трекера"""
+        if not device.is_active:
+            return "inactive"
+        if device.sos_active:
+            return "sos"
         if device.battery_percent is not None and device.battery_percent <= 20:
             return "low_battery"
 
@@ -44,6 +52,7 @@ class AdminEquipmentService:
 
     async def get_health(self) -> EquipmentHealthResponse:
         """Возвращаем состояние всех трекеров"""
+        delayed_after_seconds = settings.TRACKING_POLL_INTERVAL_SECONDS
         stale_after_seconds = (
             settings.TRACKING_POLL_INTERVAL_SECONDS * settings.TRACKING_STALE_MISSED_INTERVALS
         )
@@ -64,9 +73,14 @@ class AdminEquipmentService:
                 last_message_at=device.last_message_at,
                 health_status=self._device_health_status(
                     device,
+                ),
+                freshness_status=self._device_freshness_status(
+                    device,
                     now=now,
+                    delayed_after_seconds=delayed_after_seconds,
                     stale_after_seconds=stale_after_seconds,
                 ),
+                delayed_after_seconds=delayed_after_seconds,
                 stale_after_seconds=stale_after_seconds,
             )
             for device in devices
