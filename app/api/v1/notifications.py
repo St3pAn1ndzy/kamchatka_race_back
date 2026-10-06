@@ -2,13 +2,17 @@
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import CurrentUserDep, NotificationQueueRepoDep
+from app.api.deps import CurrentUserDep, NotificationQueueRepoDep, SessionDep
+from app.db.models.user import User
 from app.enums import NotificationEventType
 from app.schemas.notifications import (
     NotificationItem,
     NotificationListResponse,
+    NotificationPreferenceOut,
     NotificationPreviewListResponse,
     NotificationPreviewResponse,
+    NotificationSettingsResponse,
+    NotificationSettingsUpdate,
 )
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -76,3 +80,60 @@ async def preview_notifications() -> NotificationPreviewListResponse:
             NotificationPreviewResponse(event_type=et, title=t, body=b) for et, t, b in templates
         ]
     )
+
+
+# Названия типов событий. Если добавили новый event_type —
+# добавь title в _EVENT_TITLES. Fallback: et.value.
+_EVENT_TITLES: dict[NotificationEventType, str] = {
+    NotificationEventType.CHECKPOINT_PASSED: "Мой каюр прошёл КП",
+    NotificationEventType.LEADER_CHANGED: "Смена лидера",
+    NotificationEventType.PARTICIPANT_FINISHED: "Мой каюр финишировал",
+    NotificationEventType.STAGE_START: "Старт этапа",
+    NotificationEventType.STAGE_FINISH: "Финиш этапа",
+    NotificationEventType.FAVORITE_UPDATE: "Новости гонки",
+}
+
+
+def _build_settings(user: User) -> NotificationSettingsResponse:
+    """Собрать ответ с настройками уведомлений."""
+    return NotificationSettingsResponse(
+        notifications_allowed=user.notifications_allowed,
+        preferences=[
+            NotificationPreferenceOut(
+                event_type=et,
+                title=_EVENT_TITLES.get(et, et.value),
+                enabled=user.notifications_allowed,
+            )
+            for et in NotificationEventType
+            if et is not NotificationEventType.BROADCAST
+        ],
+    )
+
+
+@router.get(
+    "/settings",
+    response_model=NotificationSettingsResponse,
+    summary="Настройки уведомлений",
+)
+async def get_notification_settings(
+    user: CurrentUserDep,
+) -> NotificationSettingsResponse:
+    """Текущие настройки push-уведомлений."""
+    return _build_settings(user)
+
+
+@router.patch(
+    "/settings",
+    response_model=NotificationSettingsResponse,
+    summary="Изменить настройки уведомлений",
+)
+async def update_notification_settings(
+    body: NotificationSettingsUpdate,
+    user: CurrentUserDep,
+    session: SessionDep,
+) -> NotificationSettingsResponse:
+    """Включить или выключить push-уведомления."""
+    if body.notifications_allowed is not None:
+        user.notifications_allowed = body.notifications_allowed
+        await session.commit()
+    return _build_settings(user)

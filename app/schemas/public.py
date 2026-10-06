@@ -27,6 +27,13 @@ class VKAuthRequest(BaseSchema):
     )
 
 
+class ConsentIn(BaseSchema):
+    """Согласие или отзыв согласия на обработку ПДн."""
+
+    accepted: bool
+    policy_version: str = Field(max_length=32)
+
+
 class UserProfile(BaseSchema):
     """Профиль пользователя в ответе API."""
 
@@ -36,6 +43,10 @@ class UserProfile(BaseSchema):
     last_name: str
     photo_url: str | None = None
     notifications_allowed: bool
+    is_favorite_app: bool = False
+    onboarding_passed: bool = False
+    consent_required: bool = False
+    policy_version: str | None = None
 
 
 class AuthResponse(BaseSchema):

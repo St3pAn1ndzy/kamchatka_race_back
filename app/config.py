@@ -83,6 +83,9 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "https://vk.com,https://m.vk.com,https://prod-apps.vkusercontent.com"
 
+    # --- 152-ФЗ ---
+    PRIVACY_POLICY_VERSION: str = "1.0"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
