@@ -1,20 +1,42 @@
 import logging
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import UserRepoDep, get_current_user
 from app.config import get_settings
 from app.db.base import get_session
 from app.db.models.user import User
-from app.schemas.public import AuthResponse, UserProfile, VKAuthRequest
+from app.schemas.public import AuthResponse, ConsentIn, UserProfile, VKAuthRequest
 from app.security.tokens import create_user_token
 from app.security.vk_auth import verify_vk_launch_params
+from app.services.privacy import anonymize_user
 
 logger = logging.getLogger("avacha.auth")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
+
+
+# --- Хелперы 152-ФЗ ----------------------------------------------------------
+
+
+def _consent_required(user: User) -> bool:
+    """Согласие нужно, если не принимал, отозвал или принял старую версию."""
+    if user.consent_accepted_at is None:
+        return True
+    if user.consent_revoked_at is not None:
+        return True
+    return user.consent_version != settings.PRIVACY_POLICY_VERSION
+
+
+def _user_profile(user: User) -> UserProfile:
+    """Собрать профиль с контекстом 152-ФЗ."""
+    profile = UserProfile.model_validate(user)
+    profile.consent_required = _consent_required(user)
+    profile.policy_version = settings.PRIVACY_POLICY_VERSION
+    return profile
 
 
 @router.post("/vk", response_model=AuthResponse)
@@ -100,5 +122,38 @@ async def auth_vk(
 
 
 @router.get("/me", response_model=UserProfile)
-async def me(user: User = Depends(get_current_user)):
-    return user
+async def me(user: User = Depends(get_current_user)) -> UserProfile:
+    return _user_profile(user)
+
+
+@router.post("/me/consent", response_model=UserProfile)
+async def accept_consent(
+    body: ConsentIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> UserProfile:
+    """Зафиксировать согласие или отзыв на обработку ПДн."""
+    now = datetime.now(tz=UTC)
+    if body.accepted:
+        user.consent_version = body.policy_version
+        user.consent_accepted_at = now
+        user.consent_revoked_at = None
+    else:
+        user.consent_version = None
+        user.consent_accepted_at = None
+        user.consent_revoked_at = now
+        await anonymize_user(session, user.id, reason="consent_revoked")
+    await session.commit()
+    await session.refresh(user)
+    return _user_profile(user)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Удалить аккаунт (152-ФЗ)."""
+    await session.delete(user)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
