@@ -42,9 +42,9 @@ def _user_profile(user: User) -> UserProfile:
 
 @router.post("/vk", response_model=AuthResponse)
 async def auth_vk(
-        body: VKAuthRequest,
-        users: UserRepoDep,
-        session: AsyncSession = Depends(get_session),
+    body: VKAuthRequest,
+    users: UserRepoDep,
+    session: AsyncSession = Depends(get_session),
 ):
     params = body.params
 
@@ -129,9 +129,9 @@ async def me(user: User = Depends(get_current_user)) -> UserProfile:
 
 @router.post("/me/consent", response_model=UserProfile)
 async def accept_consent(
-        body: ConsentIn,
-        user: User = Depends(get_current_user),
-        session: AsyncSession = Depends(get_session),
+    body: ConsentIn,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> UserProfile:
     """Зафиксировать согласие или отзыв на обработку ПДн."""
     now = datetime.now(tz=UTC)
@@ -151,8 +151,8 @@ async def accept_consent(
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_me(
-        user: User = Depends(get_current_user),
-        session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> Response:
     """Удалить аккаунт (152-ФЗ)."""
     await session.delete(user)
