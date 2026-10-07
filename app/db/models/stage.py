@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Float, Integer, String
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -11,6 +11,7 @@ from app.enums import PublicationStatus, StageStatus
 if TYPE_CHECKING:
     from app.db.models.device import Device
     from app.db.models.schedule_event import ScheduleEvent
+    from app.db.models.season import Season
     from app.db.models.track_point import TrackPoint
     from app.db.models.viewer_location import ViewerLocation
 
@@ -62,7 +63,11 @@ class Stage(Base):
         back_populates="stage", passive_deletes=True
     )
 
-    # route_points: Mapped[list["RoutePoint"]] = relationship(
-    #     back_populates="stage", order_by="RoutePoint.order_index",
-    #     cascade="all, delete-orphan",
-    # )
+    season_id: Mapped[int | None] = mapped_column(
+        ForeignKey("seasons.id", ondelete="SET NULL", name="stages_season_id_fkey"),
+        nullable=True,
+        index=True,
+    )
+    number: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
+
+    season: Mapped[Optional["Season"]] = relationship(back_populates="stages")
