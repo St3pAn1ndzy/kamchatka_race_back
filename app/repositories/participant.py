@@ -1,6 +1,7 @@
 """Репозиторий участников."""
 
 from sqlalchemy import asc, desc, func, select
+from sqlalchemy.orm import selectinload
 
 from app.db.models.fun_subscription import FanSubscription
 from app.db.models.participant import Participant
@@ -27,7 +28,7 @@ class ParticipantRepository(BaseRepository[Participant]):
         self,
         *,
         search: str | None = None,
-        discipline: str | None = None,
+        discipline_id: int | None = None,
         status: ParticipantStatus | None = None,
         sort: str = "bib",
         limit: int = 100,
@@ -35,14 +36,16 @@ class ParticipantRepository(BaseRepository[Participant]):
     ) -> list[tuple[Participant, int]]:
         """Список участников с числом болельщиков. Один SQL-запрос, без N+1."""
         subq = self._supporters_subquery()
-        stmt = select(Participant, func.coalesce(subq.c.cnt, 0).label("cnt")).outerjoin(
-            subq, Participant.id == subq.c.pid
+        stmt = (
+            select(Participant, func.coalesce(subq.c.cnt, 0).label("cnt"))
+            .options(selectinload(Participant.discipline_ref))
+            .outerjoin(subq, Participant.id == subq.c.pid)
         )
 
         if search:
             stmt = stmt.where(Participant.name.ilike(f"%{search}%"))
-        if discipline:
-            stmt = stmt.where(Participant.discipline == discipline)
+        if discipline_id is not None:
+            stmt = stmt.where(Participant.discipline_id == discipline_id)
         if status is not None:
             stmt = stmt.where(Participant.status == status.value)
 
@@ -61,15 +64,15 @@ class ParticipantRepository(BaseRepository[Participant]):
         self,
         *,
         search: str | None = None,
-        discipline: str | None = None,
+        discipline_id: int | None = None,
         status: ParticipantStatus | None = None,
     ) -> int:
         """Общее число участников с фильтрами (для пагинации)."""
         stmt = select(func.count(Participant.id))
         if search:
             stmt = stmt.where(Participant.name.ilike(f"%{search}%"))
-        if discipline:
-            stmt = stmt.where(Participant.discipline == discipline)
+        if discipline_id is not None:
+            stmt = stmt.where(Participant.discipline_id == discipline_id)
         if status is not None:
             stmt = stmt.where(Participant.status == status.value)
         return int((await self.session.execute(stmt)).scalar_one())
@@ -82,6 +85,7 @@ class ParticipantRepository(BaseRepository[Participant]):
         subq = self._supporters_subquery()
         stmt = (
             select(Participant, func.coalesce(subq.c.cnt, 0).label("cnt"))
+            .options(selectinload(Participant.discipline_ref))
             .outerjoin(subq, Participant.id == subq.c.pid)
             .where(Participant.id == participant_id)
         )
