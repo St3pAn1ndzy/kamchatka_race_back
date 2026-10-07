@@ -3,6 +3,7 @@ from app.db.models.admin_session import AdminSession
 from app.db.models.audit_log import AuditLog
 from app.db.models.checkpoint import Checkpoint
 from app.db.models.device import Device
+from app.db.models.discipline import Discipline
 from app.db.models.faq_item import FAQItem
 from app.db.models.fun_subscription import FanSubscription
 from app.db.models.news_post import NewsPost
@@ -13,6 +14,7 @@ from app.db.models.push_subscription import PushSubscription
 from app.db.models.race_status import RaceStatus
 from app.db.models.saved_item import SavedItem
 from app.db.models.schedule_event import ScheduleEvent
+from app.db.models.season import Season
 from app.db.models.share_event import ShareEvent
 from app.db.models.stage import Stage
 from app.db.models.track_point import TrackPoint
@@ -28,6 +30,8 @@ __all__ = [
     "Device",
     "FanSubscription",
     "FAQItem",
+    "Discipline",
+    "Season",
     "ShareEvent",
     "NewsPost",
     "NotificationQueue",
