@@ -15,3 +15,11 @@ class StageRepository(BaseRepository[Stage]):
         """Проверить, что этап существует"""
         stmt = select(Stage.id).where(Stage.id == stage_id).limit(1)
         return (await self.session.execute(stmt)).scalar_one_or_none() is not None
+
+    async def list_ordered(self, *, season_id: int | None = None) -> list[Stage]:
+        """Возращаем список (с условием/без условия сезона) этапов"""
+        stmt = select(Stage)
+        if season_id is not None:
+            stmt = stmt.where(Stage.season_id == season_id)
+        stmt = stmt.order_by(Stage.order_index, Stage.number, Stage.id)
+        return list((await self.session.execute(stmt)).scalars().all())
