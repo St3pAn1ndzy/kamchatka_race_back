@@ -17,7 +17,7 @@ class Season(Base):
     __tablename__ = "seasons"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    year: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    year: Mapped[int] = mapped_column(Integer, unique=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
