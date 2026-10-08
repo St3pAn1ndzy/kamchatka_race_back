@@ -1,6 +1,8 @@
 """Справочники гонки в административном API"""
 
-from fastapi import APIRouter, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Path, Query, status
 
 from app.api.deps import AdminDep, SessionDep
 from app.schemas.admin_directory import (
@@ -16,7 +18,7 @@ from app.schemas.admin_directory import (
 )
 from app.services.admin_directory import AdminDirectoryService
 
-router = APIRouter(tags=["admin-directory"])
+router = APIRouter(prefix="/directory", tags=["admin-directory"])
 
 
 @router.get("/seasons", response_model=list[SeasonResponse])
@@ -29,7 +31,11 @@ async def list_seasons(
     return [SeasonResponse.model_validate(season) for season in seasons]
 
 
-@router.post("/seasons", response_model=SeasonResponse)
+@router.post(
+    "/seasons",
+    response_model=SeasonResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_season(
     body: SeasonCreateRequest,
     session: SessionDep,
@@ -42,7 +48,7 @@ async def create_season(
 
 @router.patch("/seasons/{season_id}", response_model=SeasonResponse)
 async def update_season(
-    season_id: int,
+    season_id: Annotated[int, Path(gt=0)],
     body: SeasonUpdateRequest,
     session: SessionDep,
     admin: AdminDep,
@@ -63,7 +69,11 @@ async def list_disciplines(
     return [DisciplineResponse.model_validate(discipline) for discipline in disciplines]
 
 
-@router.post("/disciplines", response_model=DisciplineResponse)
+@router.post(
+    "/disciplines",
+    response_model=DisciplineResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_discipline(
     body: DisciplineCreateRequest,
     session: SessionDep,
@@ -76,7 +86,7 @@ async def create_discipline(
 
 @router.patch("/disciplines/{discipline_id}", response_model=DisciplineResponse)
 async def update_discipline(
-    discipline_id: int,
+    discipline_id: Annotated[int, Path(gt=0)],
     body: DisciplineUpdateRequest,
     session: SessionDep,
     admin: AdminDep,
@@ -97,7 +107,11 @@ async def list_stages(
     return [StageAdminResponse.model_validate(stage) for stage in stages]
 
 
-@router.post("/stages", response_model=StageAdminResponse)
+@router.post(
+    "/stages",
+    response_model=StageAdminResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_stage(
     body: StageCreateRequest,
     session: SessionDep,
@@ -110,7 +124,7 @@ async def create_stage(
 
 @router.patch("/stages/{stage_id}", response_model=StageAdminResponse)
 async def update_stage(
-    stage_id: int,
+    stage_id: Annotated[int, Path(gt=0)],
     body: StageUpdateRequest,
     session: SessionDep,
     admin: AdminDep,
