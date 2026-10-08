@@ -88,6 +88,15 @@ class AdminDirectoryService:
             "Дата окончания сезона не может быть раньше даты начала",
         )
 
+        if "year" in data:
+            if data["year"] is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY, "Год сезона не может быть пустым"
+                )
+            existing = await self.seasons.get_by_year(data["year"])
+            if existing is not None and existing.id != season.id:
+                raise HTTPException(status.HTTP_409_CONFLICT, "Сезон с таким годом уже существует")
+
         # Присваиваем новые значения
         for field, value in data.items():
             setattr(season, field, value)
@@ -156,13 +165,17 @@ class AdminDirectoryService:
         data = body.model_dump(exclude_unset=True)
         audit_data = body.model_dump(exclude_unset=True, mode="json")
 
-        if "season_id" in data:
-            await self._require_season(data["season_id"])
+        season_id = data.get("season_id", discipline.season_id)
+        code = data.get("code", discipline.code)
+        if "season_id" in data or "code" in data:
+            if season_id is None or code is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    "Сезон и код дисциплины не могут быть пустыми",
+                )
+            await self._require_season(season_id)
 
-            existing = await self.disciplines.get_by_season_and_code(
-                data["season_id"],
-                discipline.code,
-            )
+            existing = await self.disciplines.get_by_season_and_code(season_id, code)
             if existing is not None and existing.id != discipline.id:
                 raise HTTPException(
                     status.HTTP_409_CONFLICT,
@@ -192,6 +205,12 @@ class AdminDirectoryService:
 
     async def create_stage(self, body: StageCreateRequest, *, admin_id: int) -> Stage:
         await self._require_season(body.season_id)
+        existing = await self.stages.get_by_season_and_number(body.season_id, body.number)
+        if existing is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "Этап с таким номером уже существует в этом сезоне",
+            )
         self._validate_period(
             body.start_time,
             body.finish_time,
@@ -225,8 +244,23 @@ class AdminDirectoryService:
         data = body.model_dump(exclude_unset=True)
         audit_data = body.model_dump(exclude_unset=True, mode="json")
 
-        if "season_id" in data:
+        if "season_id" in data and data["season_id"] is not None:
             await self._require_season(data["season_id"])
+
+        season_id = data.get("season_id", stage.season_id)
+        number = data.get("number", stage.number)
+        if "season_id" in data or "number" in data:
+            if number is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY, "Номер этапа не может быть пустым"
+                )
+            if season_id is not None:
+                existing = await self.stages.get_by_season_and_number(season_id, number)
+                if existing is not None and existing.id != stage.id:
+                    raise HTTPException(
+                        status.HTTP_409_CONFLICT,
+                        "Этап с таким номером уже существует в этом сезоне",
+                    )
 
         start_time = data.get("start_time", stage.start_time)
         finish_time = data.get("finish_time", stage.finish_time)
