@@ -15,6 +15,7 @@ class SeasonCreateRequest(BaseSchema):
 
 
 class SeasonUpdateRequest(BaseSchema):
+    year: int | None = Field(default=None, ge=2000, le=2100)
     title: str | None = Field(default=None, min_length=1, max_length=255)
     starts_at: datetime | None = None
     ends_at: datetime | None = None
@@ -40,6 +41,7 @@ class DisciplineCreateRequest(BaseSchema):
 
 class DisciplineUpdateRequest(BaseSchema):
     season_id: int | None = Field(default=None, gt=0)
+    code: str | None = Field(default=None, min_length=1, max_length=64)
     name: str | None = Field(default=None, min_length=1, max_length=255)
     sort_order: int | None = None
     is_active: bool | None = None
@@ -62,7 +64,7 @@ class StageCreateRequest(BaseSchema):
     start_time: datetime | None = None
     finish_time: datetime | None = None
     order_index: int = 0
-    tracker_interval_seconds: int = Field(default=1200, ge=60)
+    tracker_interval_seconds: int = Field(default=1200, ge=15, le=86400)
     status: StageStatus = StageStatus.PLANNED
 
 
@@ -74,7 +76,7 @@ class StageUpdateRequest(BaseSchema):
     start_time: datetime | None = None
     finish_time: datetime | None = None
     order_index: int | None = None
-    tracker_interval_seconds: int | None = Field(default=None, ge=60)
+    tracker_interval_seconds: int | None = Field(default=None, ge=15, le=86400)
     status: StageStatus | None = None
 
 
