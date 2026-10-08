@@ -11,6 +11,7 @@ class ParticipantListItem(BaseSchema):
     name: str
     number: int
     region: str | None = None
+    discipline_id: int | None = None
     discipline: str | None = None
     photo_url: str | None = None
     status: ParticipantStatus
@@ -25,6 +26,7 @@ class ParticipantDetail(BaseSchema):
     name: str
     number: int
     region: str | None = None
+    discipline_id: int | None = None
     discipline: str | None = None
     photo_url: str | None = None
     status: ParticipantStatus

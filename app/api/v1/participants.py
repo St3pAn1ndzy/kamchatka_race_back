@@ -55,7 +55,7 @@ async def supporters_rating(
 async def list_participants(
     participants: ParticipantRepoDep,
     search: str | None = Query(None, description="Поиск по имени"),
-    discipline: str | None = Query(None),
+    discipline_id: int | None = Query(None, gt=0),
     status_filter: ParticipantStatus | None = Query(None, alias="status"),
     sort: str = Query("bib", pattern="^(bib|name|supporters)$"),
     limit: int = Query(100, ge=1, le=300),
@@ -64,7 +64,7 @@ async def list_participants(
     """Список участников с фильтрами, сортировкой и пагинацией."""
     rows = await participants.list_filtered(
         search=search,
-        discipline=discipline,
+        discipline_id=discipline_id,
         status=status_filter,
         sort=sort,
         limit=limit,
@@ -76,7 +76,8 @@ async def list_participants(
             name=p.name,
             number=p.number,
             region=p.region,
-            discipline=p.discipline,
+            discipline_id=p.discipline_id,
+            discipline=p.discipline_ref.name if p.discipline_ref else None,
             photo_url=p.photo_url,
             status=p.status,
             dogs_count=p.dogs_count,
@@ -107,7 +108,8 @@ async def get_participant(
         name=participant.name,
         number=participant.number,
         region=participant.region,
-        discipline=participant.discipline,
+        discipline_id=participant.discipline_id,
+        discipline=participant.discipline_ref.name if participant.discipline_ref else None,
         photo_url=participant.photo_url,
         status=participant.status,
         dogs_count=participant.dogs_count,

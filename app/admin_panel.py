@@ -5,8 +5,11 @@ from sqladmin import ModelView
 from app.db.models.admin_account import AdminAccount
 from app.db.models.admin_session import AdminSession
 from app.db.models.audit_log import AuditLog
+from app.db.models.discipline import Discipline
 from app.db.models.fun_subscription import FanSubscription
 from app.db.models.participant import Participant
+from app.db.models.season import Season
+from app.db.models.stage import Stage
 
 
 class AdminAccountAdmin(ModelView, model=AdminAccount):
@@ -23,6 +26,55 @@ class AdminAccountAdmin(ModelView, model=AdminAccount):
         AdminAccount.created_at,
     ]
     column_searchable_list = [AdminAccount.login, AdminAccount.display_name]
+
+
+class SeasonAdmin(ModelView, model=Season):
+    name = "Сезон"
+    name_plural = "Сезоны"
+    icon = "fa-solid fa-calendar"
+    column_list = [
+        Season.id,
+        Season.year,
+        Season.title,
+        Season.starts_at,
+        Season.ends_at,
+        Season.is_active,
+    ]
+    column_sortable_list = [Season.year, Season.starts_at]
+
+
+class DisciplineAdmin(ModelView, model=Discipline):
+    name = "Дисциплина"
+    name_plural = "Дисциплины"
+    icon = "fa-solid fa-list"
+    column_list = [
+        Discipline.id,
+        Discipline.season_id,
+        Discipline.code,
+        Discipline.name,
+        Discipline.sort_order,
+        Discipline.is_active,
+    ]
+    column_searchable_list = [Discipline.code, Discipline.name]
+    column_sortable_list = [Discipline.sort_order, Discipline.name]
+
+
+class StageAdmin(ModelView, model=Stage):
+    name = "Этап"
+    name_plural = "Этапы"
+    icon = "fa-solid fa-route"
+    column_list = [
+        Stage.id,
+        Stage.season_id,
+        Stage.number,
+        Stage.name,
+        Stage.start_time,
+        Stage.finish_time,
+        Stage.status,
+        Stage.results_publication,
+    ]
+    column_searchable_list = [Stage.name]
+    column_sortable_list = [Stage.order_index, Stage.number, Stage.start_time]
 
 
 class AdminSessionAdmin(ModelView, model=AdminSession):
@@ -70,7 +122,7 @@ class ParticipantAdmin(ModelView, model=Participant):
         Participant.name,
         Participant.number,
         Participant.region,
-        Participant.discipline,
+        Participant.discipline_id,
         Participant.status,
         Participant.dogs_count,
     ]
@@ -106,4 +158,7 @@ VIEWS: list[type[ModelView]] = [
     AuditLogAdmin,
     ParticipantAdmin,
     FanSubscriptionAdmin,
+    SeasonAdmin,
+    DisciplineAdmin,
+    StageAdmin,
 ]

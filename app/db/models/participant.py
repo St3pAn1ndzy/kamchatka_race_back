@@ -1,6 +1,6 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -8,6 +8,7 @@ from app.enums import ParticipantStatus
 
 if TYPE_CHECKING:
     from app.db.models.device import Device
+    from app.db.models.discipline import Discipline
     from app.db.models.fun_subscription import FanSubscription
     from app.db.models.official_mark import OfficialMark
     from app.db.models.track_point import TrackPoint
@@ -20,7 +21,12 @@ class Participant(Base):
     name: Mapped[str] = mapped_column(String(255))
     number: Mapped[int] = mapped_column(Integer, unique=True, index=True)
     region: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    discipline: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Каждый игрок имеет какую-либо дисциплину в гонке
+    discipline_id: Mapped[int | None] = mapped_column(
+        ForeignKey("disciplines.id", ondelete="SET NULL", name="participants_discipline_id_fkey"),
+        nullable=True,
+        index=True,
+    )
     photo_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     dogs_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -48,3 +54,5 @@ class Participant(Base):
         back_populates="participant",
         cascade="all, delete-orphan",
     )
+
+    discipline_ref: Mapped[Optional["Discipline"]] = relationship(back_populates="participants")
