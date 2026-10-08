@@ -23,5 +23,9 @@ celery_app.conf.update(
             "task": "app.tasks.notifications.send_pending",
             "schedule": 30.0,
         },
+        "poll-iridium": {
+            "task": "app.tasks.tracking.poll_iridium",
+            "schedule": settings.TRACKING_POLL_INTERVAL_SECONDS,
+        },
     },
 )
