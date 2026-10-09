@@ -10,6 +10,10 @@ celery_app = Celery(
     "avacha",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
+    include=[
+        "app.tasks.notifications",
+        "app.tasks.tracking",
+    ],
 )
 
 celery_app.conf.update(
