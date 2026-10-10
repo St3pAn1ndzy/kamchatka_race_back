@@ -24,8 +24,6 @@ dependencies = [
     "celery (>=5.6.3,<6.0.0)",
     "celery-types (>=0.26.0,<0.27.0)",
     "redis (>=8.1.0,<9.0.0)",
-    "pytest (>=9.1.1,<10.0.0)",
-    "pytest-asyncio (>=1.4.0,<2.0.0)",
 ]
 
 
@@ -42,10 +40,12 @@ build-backend = "poetry.core.masonry.api"
 dev = [
     "ruff (>=0.16.8,<0.17.0)",
     "pytest (>=9.1.1,<10.0.0)",
+    "pytest-asyncio (>=1.4.0,<2.0.0)",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+testpaths = ["tests"]
 
 
 [tool.ruff]
@@ -86,7 +86,3 @@ ignore = [
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
-
-[tool.pytest.ini_options]
-pythonpath = ["."]
-testpaths = ["tests"]
