@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.db.models.device import Device
     from app.db.models.schedule_event import ScheduleEvent
     from app.db.models.season import Season
+    from app.db.models.stage_route_point import StageRoutePoint
     from app.db.models.track_point import TrackPoint
     from app.db.models.viewer_location import ViewerLocation
 
@@ -71,3 +72,10 @@ class Stage(Base):
     number: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
 
     season: Mapped[Optional["Season"]] = relationship(back_populates="stages")
+
+    route_points: Mapped[list["StageRoutePoint"]] = relationship(
+        back_populates="stage",
+        order_by="StageRoutePoint.position",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
