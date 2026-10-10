@@ -17,6 +17,7 @@ from app.db.models.schedule_event import ScheduleEvent
 from app.db.models.season import Season
 from app.db.models.share_event import ShareEvent
 from app.db.models.stage import Stage
+from app.db.models.stage_route_point import StageRoutePoint
 from app.db.models.track_point import TrackPoint
 from app.db.models.user import User
 from app.db.models.user_feedback import UserFeedback
@@ -46,4 +47,5 @@ __all__ = [
     "User",
     "ViewerLocation",
     "UserFeedback",
+    "StageRoutePoint",
 ]
