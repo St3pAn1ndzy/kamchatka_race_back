@@ -27,3 +27,7 @@ class StageRepository(BaseRepository[Stage]):
             stmt = stmt.where(Stage.season_id == season_id)
         stmt = stmt.order_by(Stage.order_index, Stage.number, Stage.id)
         return list((await self.session.execute(stmt)).scalars().all())
+
+    async def get_for_update(self, stage_id: int) -> Stage | None:
+        stmt = select(Stage).where(Stage.id == stage_id).with_for_update()
+        return (await self.session.execute(stmt)).scalar_one_or_none()
