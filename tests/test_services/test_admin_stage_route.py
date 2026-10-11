@@ -60,6 +60,21 @@ def test_get_route_returns_http_response(monkeypatch: pytest.MonkeyPatch) -> Non
     service.get_route.assert_awaited_once_with(1)
 
 
+def test_put_route_rejects_empty_points(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = FastAPI()
+    app.include_router(admin_router)
+    app.dependency_overrides[get_session] = lambda: MagicMock(spec=AsyncSession)
+    app.dependency_overrides[require_admin] = lambda: object()
+    service = MagicMock()
+    service.replace_route = AsyncMock()
+    monkeypatch.setattr("app.api.admin.stage_route.AdminStageRouteService", lambda _: service)
+
+    response = TestClient(app).put("/api/v1/admin/directory/stages/1/route", json={"points": []})
+
+    assert response.status_code == 422
+    service.replace_route.assert_not_awaited()
+
+
 @pytest.mark.parametrize(
     "points",
     [

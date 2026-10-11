@@ -48,6 +48,7 @@ class AdminStageRouteService:
         old_points = await self.routes.list_for_stage(stage_id)
         old_coordinates = [(point.lat, point.lon) for point in old_points]
         if old_coordinates == coordinates:
+            # Маршрут не изменился, завершаем транзакцию и освобождаем блокировку этапа
             await self.session.commit()
             return old_points
 

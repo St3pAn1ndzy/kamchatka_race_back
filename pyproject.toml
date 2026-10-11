@@ -43,6 +43,10 @@ dev = [
     "pytest-asyncio (>=1.4.0,<2.0.0)",
 ]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
 
 [tool.ruff]
 line-length = 100
@@ -82,7 +86,3 @@ ignore = [
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
-
-[tool.pytest.ini_options]
-pythonpath = ["."]
-testpaths = ["tests"]
