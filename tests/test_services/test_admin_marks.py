@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.schema import CreateIndex
 
@@ -84,6 +85,15 @@ def _service() -> tuple[AdminMarkService, MagicMock]:
 
     service.marks.add = MagicMock(side_effect=add_mark)
     return service, session
+
+
+def _integrity_error(constraint_name: str, *, via_cause: bool = False) -> IntegrityError:
+    postgres_error = Exception("constraint violation")
+    postgres_error.constraint_name = constraint_name
+    driver_error = Exception("asyncpg adapter error") if via_cause else postgres_error
+    if via_cause:
+        driver_error.__cause__ = postgres_error
+    return IntegrityError("INSERT official_marks", {}, driver_error)
 
 
 def test_mark_endpoints_are_registered_and_protected() -> None:
@@ -223,6 +233,34 @@ async def test_create_rejects_cross_season_mark() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("failure_point", ["flush", "commit"])
+@pytest.mark.parametrize(
+    ("constraint_name", "message"),
+    [
+        ("uq_official_marks_active_participant_checkpoint", "Действующая отметка уже существует"),
+        ("official_marks_participant_id_fkey", "Участник больше не существует"),
+        ("official_marks_checkpoint_id_fkey", "КП больше не существует"),
+        ("official_marks_entered_by_admin_id_fkey", "Администратор больше не существует"),
+    ],
+)
+async def test_create_rolls_back_known_integrity_conflicts(
+    failure_point: str, constraint_name: str, message: str
+) -> None:
+    service, session = _service()
+    getattr(session, failure_point).side_effect = _integrity_error(constraint_name)
+
+    with pytest.raises(HTTPException) as error:
+        await service.create(_create_body(), admin_id=7)
+
+    assert error.value.status_code == 409
+    assert error.value.detail == message
+    session.rollback.assert_awaited_once()
+    session.refresh.assert_not_awaited()
+    if failure_point == "flush":
+        session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_correction_cancels_old_mark_before_inserting_new() -> None:
     service, session = _service()
     old = _old_mark()
@@ -257,6 +295,43 @@ async def test_correction_cancels_old_mark_before_inserting_new() -> None:
     assert audit.payload["cancel_reason"] == "Ошибка времени"
     session.commit.assert_awaited_once()
     session.refresh.assert_awaited_once_with(new)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_point", ["flush", "commit"])
+async def test_correction_rolls_back_duplicate_replacement(failure_point: str) -> None:
+    service, session = _service()
+    failure = _integrity_error("uq_official_marks_active_participant_checkpoint", via_cause=True)
+    if failure_point == "flush":
+        session.flush.side_effect = [None, failure]
+    else:
+        session.commit.side_effect = failure
+
+    with pytest.raises(HTTPException) as error:
+        await service.correct(11, _correct_body(), admin_id=7)
+
+    assert error.value.status_code == 409
+    assert error.value.detail == "Действующая отметка уже существует"
+    session.rollback.assert_awaited_once()
+    session.refresh.assert_not_awaited()
+    if failure_point == "flush":
+        session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["create", "correct"])
+async def test_unrelated_integrity_error_is_not_hidden(operation: str) -> None:
+    service, session = _service()
+    session.commit.side_effect = _integrity_error("audit_logs_admin_id_fkey")
+
+    with pytest.raises(IntegrityError):
+        if operation == "create":
+            await service.create(_create_body(), admin_id=7)
+        else:
+            await service.correct(11, _correct_body(), admin_id=7)
+
+    session.rollback.assert_awaited_once()
+    session.refresh.assert_not_awaited()
 
 
 @pytest.mark.asyncio

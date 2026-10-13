@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_log import AuditLog
@@ -9,6 +10,22 @@ from app.repositories.official_mark import OfficialMarkRepository
 from app.repositories.participant import ParticipantRepository
 from app.repositories.stage import StageRepository
 from app.schemas.admin_marks import OfficialMarkCorrectRequest, OfficialMarkCreateRequest
+
+_MARK_CONFLICTS = {
+    "uq_official_marks_active_participant_checkpoint": "Действующая отметка уже существует",
+    "official_marks_participant_id_fkey": "Участник больше не существует",
+    "official_marks_checkpoint_id_fkey": "КП больше не существует",
+    "official_marks_entered_by_admin_id_fkey": "Администратор больше не существует",
+}
+
+
+def _mark_conflict_detail(exc: IntegrityError) -> str | None:
+    driver_error = exc.orig
+    cause = driver_error.__cause__
+    constraint_name = getattr(cause, "constraint_name", None) or getattr(
+        driver_error, "constraint_name", None
+    )
+    return _MARK_CONFLICTS.get(constraint_name)
 
 
 class AdminMarkService:
@@ -52,24 +69,31 @@ class AdminMarkService:
             comment=body.comment,
             entered_by_admin_id=admin_id,
         )
-        self.marks.add(mark)
-        await self.session.flush()
-        self.session.add(
-            AuditLog(
-                admin_id=admin_id,
-                action="official_mark_created",
-                entity_type="official_mark",
-                entity_id=str(mark.id),
-                payload={
-                    "participant_id": mark.participant_id,
-                    "checkpoint_id": mark.checkpoint_id,
-                    "mark_time": mark.mark_time.isoformat(),
-                    "penalty_minutes": mark.penalty_minutes,
-                    "mandatory_stop_minutes": mark.mandatory_stop_minutes,
-                },
+        try:
+            self.marks.add(mark)
+            await self.session.flush()
+            self.session.add(
+                AuditLog(
+                    admin_id=admin_id,
+                    action="official_mark_created",
+                    entity_type="official_mark",
+                    entity_id=str(mark.id),
+                    payload={
+                        "participant_id": mark.participant_id,
+                        "checkpoint_id": mark.checkpoint_id,
+                        "mark_time": mark.mark_time.isoformat(),
+                        "penalty_minutes": mark.penalty_minutes,
+                        "mandatory_stop_minutes": mark.mandatory_stop_minutes,
+                    },
+                )
             )
-        )
-        await self.session.commit()
+            await self.session.commit()
+        except IntegrityError as exc:
+            await self.session.rollback()
+            detail = _mark_conflict_detail(exc)
+            if detail is not None:
+                raise HTTPException(status.HTTP_409_CONFLICT, detail) from exc
+            raise
         await self.session.refresh(mark)
         return mark
 
@@ -102,42 +126,49 @@ class AdminMarkService:
             "mandatory_stop_minutes": old_mark.mandatory_stop_minutes,
             "comment": old_mark.comment,
         }
-        old_mark.is_cancelled = True
-        old_mark.cancel_reason = body.cancel_reason
-        # Освобождаем место в частичном уникальном индексе до вставки замены
-        await self.session.flush()
+        try:
+            old_mark.is_cancelled = True
+            old_mark.cancel_reason = body.cancel_reason
+            # Освобождаем место в частичном уникальном индексе до вставки замены
+            await self.session.flush()
 
-        new_mark = OfficialMark(
-            participant_id=old_mark.participant_id,
-            checkpoint_id=old_mark.checkpoint_id,
-            mark_time=body.mark_time,
-            penalty_minutes=body.penalty_minutes,
-            mandatory_stop_minutes=body.mandatory_stop_minutes,
-            comment=body.comment,
-            entered_by_admin_id=admin_id,
-            cancels_mark_id=old_mark.id,
-        )
-        self.marks.add(new_mark)
-        await self.session.flush()
-        self.session.add(
-            AuditLog(
-                admin_id=admin_id,
-                action="official_mark_corrected",
-                entity_type="official_mark",
-                entity_id=str(new_mark.id),
-                payload={
-                    "old": old_payload,
-                    "new": {
-                        "mark_id": new_mark.id,
-                        "mark_time": new_mark.mark_time.isoformat(),
-                        "penalty_minutes": new_mark.penalty_minutes,
-                        "mandatory_stop_minutes": new_mark.mandatory_stop_minutes,
-                        "comment": new_mark.comment,
-                    },
-                    "cancel_reason": body.cancel_reason,
-                },
+            new_mark = OfficialMark(
+                participant_id=old_mark.participant_id,
+                checkpoint_id=old_mark.checkpoint_id,
+                mark_time=body.mark_time,
+                penalty_minutes=body.penalty_minutes,
+                mandatory_stop_minutes=body.mandatory_stop_minutes,
+                comment=body.comment,
+                entered_by_admin_id=admin_id,
+                cancels_mark_id=old_mark.id,
             )
-        )
-        await self.session.commit()
+            self.marks.add(new_mark)
+            await self.session.flush()
+            self.session.add(
+                AuditLog(
+                    admin_id=admin_id,
+                    action="official_mark_corrected",
+                    entity_type="official_mark",
+                    entity_id=str(new_mark.id),
+                    payload={
+                        "old": old_payload,
+                        "new": {
+                            "mark_id": new_mark.id,
+                            "mark_time": new_mark.mark_time.isoformat(),
+                            "penalty_minutes": new_mark.penalty_minutes,
+                            "mandatory_stop_minutes": new_mark.mandatory_stop_minutes,
+                            "comment": new_mark.comment,
+                        },
+                        "cancel_reason": body.cancel_reason,
+                    },
+                )
+            )
+            await self.session.commit()
+        except IntegrityError as exc:
+            await self.session.rollback()
+            detail = _mark_conflict_detail(exc)
+            if detail is not None:
+                raise HTTPException(status.HTTP_409_CONFLICT, detail) from exc
+            raise
         await self.session.refresh(new_mark)
         return new_mark
