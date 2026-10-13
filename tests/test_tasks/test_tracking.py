@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.db.models.device import Device
+from app.db.models.stage_route_point import StageRoutePoint
 from app.db.models.track_point import TrackPoint
 
 
@@ -153,6 +154,48 @@ class TestPollIridium:
         # обновление device
         assert device.last_message_at == datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
         assert device.battery_percent == 80
+
+    @pytest.mark.asyncio
+    async def test_calculates_speed_and_route_progress_in_recorded_order(self, monkeypatch) -> None:
+        from app.tasks.tracking import _poll_iridium
+
+        device = _make_device()
+        session = _make_session([device])
+        _patch_session_factory(session, monkeypatch)
+
+        earlier = _point(point_id="earlier")
+        earlier.lon = 37.0
+        later = _point(point_id="later")
+        later.lon = 37.01
+        later.recorded_at = datetime(2024, 1, 15, 10, 40, tzinfo=UTC)
+        client = _mock_client(later, earlier)
+
+        route = [
+            StageRoutePoint(stage_id=1, position=0, lat=55.0, lon=37.0),
+            StageRoutePoint(stage_id=1, position=1, lat=55.0, lon=37.02),
+        ]
+        with (
+            patch("app.tasks.tracking.get_iridium_client", return_value=client),
+            patch(
+                "app.services.tracking_metrics.StageRoutePointRepository.list_for_stage",
+                new_callable=AsyncMock,
+                return_value=route,
+            ),
+        ):
+            result = await _poll_iridium()
+
+        saved = [
+            call.args[0]
+            for call in session.add.call_args_list
+            if isinstance(call.args[0], TrackPoint)
+        ]
+        assert result == {"devices": 1, "ingested": 2, "duplicated": 0}
+        assert [point.iridium_point_id for point in saved] == ["earlier", "later"]
+        assert saved[0].average_speed_kmh is None
+        assert saved[1].average_speed_kmh == pytest.approx(3.827, rel=0.01)
+        assert saved[0].km_from_start == pytest.approx(0.0)
+        assert saved[1].km_from_start == pytest.approx(0.638, rel=0.01)
+        session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_deduplication_by_point_id(self, monkeypatch) -> None:

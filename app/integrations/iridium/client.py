@@ -177,5 +177,6 @@ class IridiumClient:
         if isinstance(raw, (int, float)):
             return datetime.fromtimestamp(raw, tz=UTC)
         if isinstance(raw, str):
-            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
         raise ValueError(f"Unexpected Date type: {type(raw).__name__}")
