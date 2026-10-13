@@ -11,6 +11,7 @@ from app.db.base import async_session_factory
 from app.db.models.device import Device
 from app.db.models.track_point import TrackPoint
 from app.integrations.iridium import get_iridium_client
+from app.services.tracking_metrics import TrackingMetricsService
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger("avacha.tracking")
@@ -65,8 +66,9 @@ async def _poll_iridium() -> dict:
 
         ingested = 0
         duplicated = 0
+        metrics = TrackingMetricsService(session)
 
-        for pos in positions:
+        for pos in sorted(positions, key=lambda position: position.recorded_at):
             device = devices_by_number.get(pos.iridium_number)
             if device is None:
                 continue
@@ -97,23 +99,23 @@ async def _poll_iridium() -> dict:
                     duplicated += 1
                     continue
 
-            session.add(
-                TrackPoint(
-                    device_id=device.id,
-                    participant_id=device.participant_id,
-                    stage_id=device.stage_id,
-                    iridium_point_id=pos.iridium_point_id or None,
-                    lat=pos.lat,
-                    lon=pos.lon,
-                    altitude=pos.altitude_m,
-                    course_deg=pos.course_deg,
-                    source_speed=pos.speed_kmh,
-                    recorded_at=pos.recorded_at,
-                    received_at=datetime.now(tz=UTC),
-                    deduplication_key=dedup_key,
-                    is_confirmed=True,
-                )
+            point = TrackPoint(
+                device_id=device.id,
+                participant_id=device.participant_id,
+                stage_id=device.stage_id,
+                iridium_point_id=pos.iridium_point_id or None,
+                lat=pos.lat,
+                lon=pos.lon,
+                altitude=pos.altitude_m,
+                course_deg=pos.course_deg,
+                source_speed=pos.speed_kmh,
+                recorded_at=pos.recorded_at,
+                received_at=datetime.now(tz=UTC),
+                deduplication_key=dedup_key,
+                is_confirmed=True,
             )
+            await metrics.fill_metrics(point)
+            session.add(point)
             ingested += 1
 
             if device.last_message_at is None or pos.recorded_at > device.last_message_at:
