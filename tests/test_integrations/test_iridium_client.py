@@ -118,6 +118,11 @@ class TestParseDate:
         dt = client._parse_date("2026-10-08T14:32:00+03:00")
         assert dt.year == 2026
 
+    def test_iso_without_offset_is_utc(self) -> None:
+        client = IridiumClient(api_key="x")
+        dt = client._parse_date("2026-10-08T14:32:00")
+        assert dt == datetime(2026, 10, 8, 14, 32, tzinfo=UTC)
+
     def test_bad_type(self) -> None:
         """Неожиданный тип → ValueError."""
         client = IridiumClient(api_key="x")
