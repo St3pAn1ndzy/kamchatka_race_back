@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.admin.router import admin_router
@@ -177,6 +178,45 @@ async def test_assign_rejects_cross_season_participant() -> None:
     assert error.value.detail == "Участник и этап относятся к разным сезонам"
     session.add.assert_not_called()
     session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("constraint_name", "message"),
+    [
+        ("devices_participant_id_fkey", "Участник больше не существует"),
+        ("devices_stage_id_fkey", "Этап больше не существует"),
+    ],
+)
+async def test_assign_rolls_back_deleted_reference(constraint_name: str, message: str) -> None:
+    service, session = _service(_device())
+    postgres_error = Exception("foreign key violation")
+    postgres_error.constraint_name = constraint_name
+    driver_error = Exception("asyncpg adapter error")
+    driver_error.__cause__ = postgres_error
+    session.commit.side_effect = IntegrityError("UPDATE devices", {}, driver_error)
+
+    with pytest.raises(HTTPException) as error:
+        await service.assign(_body(), admin_id=7)
+
+    assert error.value.status_code == 409
+    assert error.value.detail == message
+    session.rollback.assert_awaited_once()
+    session.refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_assign_does_not_hide_unrelated_integrity_error() -> None:
+    service, session = _service(_device())
+    driver_error = Exception("other constraint violation")
+    driver_error.constraint_name = "audit_logs_admin_id_fkey"
+    session.commit.side_effect = IntegrityError("INSERT audit_logs", {}, driver_error)
+
+    with pytest.raises(IntegrityError):
+        await service.assign(_body(), admin_id=7)
+
+    session.rollback.assert_awaited_once()
+    session.refresh.assert_not_awaited()
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_log import AuditLog
@@ -74,6 +75,21 @@ class AdminDeviceService:
                 payload={"old": old_assignment, "new": new_assignment},
             )
         )
-        await self.session.commit()
+        try:
+            await self.session.commit()
+        except IntegrityError as exc:
+            await self.session.rollback()
+            driver_error = exc.orig
+            cause = driver_error.__cause__
+            constraint_name = getattr(cause, "constraint_name", None) or getattr(
+                driver_error, "constraint_name", None
+            )
+            if constraint_name == "devices_participant_id_fkey":
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT, "Участник больше не существует"
+                ) from exc
+            if constraint_name == "devices_stage_id_fkey":
+                raise HTTPException(status.HTTP_409_CONFLICT, "Этап больше не существует") from exc
+            raise
         await self.session.refresh(device)
         return device
