@@ -11,6 +11,22 @@ from app.repositories.base import BaseRepository
 class OfficialMarkRepository(BaseRepository[OfficialMark]):
     model = OfficialMark
 
+    async def get_active(self, participant_id: int, checkpoint_id: int) -> OfficialMark | None:
+        stmt = (
+            select(OfficialMark)
+            .where(
+                OfficialMark.participant_id == participant_id,
+                OfficialMark.checkpoint_id == checkpoint_id,
+                OfficialMark.is_cancelled.is_(False),
+            )
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def get_for_update(self, mark_id: int) -> OfficialMark | None:
+        stmt = select(OfficialMark).where(OfficialMark.id == mark_id).with_for_update()
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
     async def get_for_stage(
         self,
         stage_id: int,
