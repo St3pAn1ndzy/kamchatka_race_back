@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Text, false, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Text, false, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -23,6 +23,15 @@ class OfficialMark(Base):
     """
 
     __tablename__ = "official_marks"
+    __table_args__ = (
+        Index(
+            "uq_official_marks_active_participant_checkpoint",
+            "participant_id",
+            "checkpoint_id",
+            unique=True,
+            postgresql_where=text("is_cancelled = false"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
