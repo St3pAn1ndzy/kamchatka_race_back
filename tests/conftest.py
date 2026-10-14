@@ -11,7 +11,9 @@ from sqlalchemy.pool import NullPool
 import app.db.models  # noqa: F401
 from app.config import get_settings
 from app.db.base import Base, get_session
+from app.db.models import AdminAccount
 from app.main import app as fastapi_app
+from app.security.passwords import hash_password
 
 
 @pytest.fixture(scope="session")
@@ -86,3 +88,19 @@ async def client(db_session, app) -> AsyncGenerator[AsyncClient, None]:
             yield ac
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def create_admin(db_session):
+    async def _factory(*, login="admin", password="admin123", is_active=True):
+        admin = AdminAccount(
+            login=login,
+            password_hash=hash_password(password),
+            display_name="Test Admin",
+            is_active=is_active,
+        )
+        db_session.add(admin)
+        await db_session.flush()
+        return admin
+
+    return _factory
