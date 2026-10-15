@@ -201,19 +201,19 @@ def _random_position(rng: random.Random) -> tuple[float, float]:
 
 
 def _interp_with_offset(
-        start_lat: float,
-        start_lon: float,
-        finish_lat: float,
-        finish_lon: float,
-        ratio: float,
-        offset: float,
+    start_lat: float,
+    start_lon: float,
+    finish_lat: float,
+    finish_lon: float,
+    ratio: float,
+    offset: float,
 ) -> tuple[float, float]:
     """Точка на отрезке start→finish с перпендикулярным сдвигом offset (в градусах)."""
     base_lat = start_lat + (finish_lat - start_lat) * ratio
     base_lon = start_lon + (finish_lon - start_lon) * ratio
     d_lat = finish_lat - start_lat
     d_lon = finish_lon - start_lon
-    norm = (d_lat ** 2 + d_lon ** 2) ** 0.5 or 1.0
+    norm = (d_lat**2 + d_lon**2) ** 0.5 or 1.0
     perp_lat = -d_lon / norm
     perp_lon = d_lat / norm
     return round(base_lat + perp_lat * offset, 6), round(base_lon + perp_lon * offset, 6)
@@ -376,10 +376,10 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             _note_created(created, "AdminAccount", 1)
         else:
             admin = (
-                        await session.execute(select(AdminAccount).where(AdminAccount.login == "admin"))
-                    ).scalar_one_or_none() or (
-                        await session.execute(select(AdminAccount).limit(1))
-                    ).scalar_one_or_none()
+                await session.execute(select(AdminAccount).where(AdminAccount.login == "admin"))
+            ).scalar_one_or_none() or (
+                await session.execute(select(AdminAccount).limit(1))
+            ).scalar_one_or_none()
             logger.info("AdminAccount уже есть — пропускаю")
 
         # --- Participant ---
