@@ -1,6 +1,7 @@
 """Базовые фикстуры для тестов: engine, db_session, app, client."""
 
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -11,7 +12,7 @@ from sqlalchemy.pool import NullPool
 import app.db.models  # noqa: F401
 from app.config import get_settings
 from app.db.base import Base, get_session
-from app.db.models import AdminAccount
+from app.db.models import AdminAccount, Discipline, Season, Stage
 from app.main import app as fastapi_app
 from app.security.passwords import hash_password
 
@@ -102,5 +103,79 @@ async def create_admin(db_session):
         db_session.add(admin)
         await db_session.flush()
         return admin
+
+    return _factory
+
+
+@pytest.fixture
+async def create_season(db_session):
+    async def _factory(
+        *,
+        year: int = 2027,
+        title: str = "Авача 2027",
+        is_active: bool = True,
+    ) -> Season:
+        season = Season(
+            year=year,
+            title=title,
+            starts_at=datetime(2027, 2, 27, tzinfo=UTC),
+            ends_at=datetime(2027, 3, 6, tzinfo=UTC),
+            is_active=is_active,
+        )
+        db_session.add(season)
+        await db_session.flush()
+        return season
+
+    return _factory
+
+
+@pytest.fixture
+async def create_discipline(db_session):
+    async def _factory(
+        *,
+        season_id: int,
+        code: str = "long",
+        name: str = "Длинная",
+        sort_order: int = 0,
+        is_active: bool = True,
+    ) -> Discipline:
+        discipline = Discipline(
+            season_id=season_id,
+            code=code,
+            name=name,
+            sort_order=sort_order,
+            is_active=is_active,
+        )
+        db_session.add(discipline)
+        await db_session.flush()
+        return discipline
+
+    return _factory
+
+
+@pytest.fixture
+async def create_stage(db_session):
+    async def _factory(
+        *,
+        season_id: int,
+        number: int = 1,
+        name: str = "Этап 1",
+        distance_km: float = 100.0,
+        order_index: int = 0,
+    ) -> Stage:
+        stage = Stage(
+            season_id=season_id,
+            number=number,
+            name=name,
+            distance_km=distance_km,
+            start_time=datetime(2027, 3, 1, 2, 0, tzinfo=UTC),
+            finish_time=datetime(2027, 3, 1, 8, 0, tzinfo=UTC),
+            order_index=order_index,
+            tracker_interval_seconds=1200,
+            status="planned",
+        )
+        db_session.add(stage)
+        await db_session.flush()
+        return stage
 
     return _factory
