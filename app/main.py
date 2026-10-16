@@ -9,8 +9,8 @@ from sqladmin import Admin
 from sqlalchemy import create_engine
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.admin_auth import AdminPanelAuth
-from app.admin_panel import VIEWS
+from app.admin_panel.admin_auth import AdminPanelAuth
+from app.admin_panel.admin_panel import VIEWS
 from app.api.admin.router import admin_router
 from app.api.errors import (
     pydantic_validation_exception_handler,

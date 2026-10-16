@@ -10,13 +10,14 @@ from app.db.models.fun_subscription import FanSubscription
 from app.db.models.participant import Participant
 from app.db.models.season import Season
 from app.db.models.stage import Stage
+from app.admin_panel.categories import CategoryAdminEnum
 
 
 class AdminAccountAdmin(ModelView, model=AdminAccount):
     name = "Администратор"
     name_plural = "Администраторы"
     icon = "fa-solid fa-user-shield"
-    category = "Система"
+    category = CategoryAdminEnum.CATEGORY_SYSTEM
     category_icon = "fa-solid fa-gear"
     # password_hash не показываем — даже админам.
     column_list = [
@@ -34,7 +35,7 @@ class SeasonAdmin(ModelView, model=Season):
     name = "Сезон"
     name_plural = "Сезоны"
     icon = "fa-solid fa-calendar"
-    category = "Событие"
+    category = CategoryAdminEnum.CATEGORY_EVENT
     category_icon = "fa-solid fa-calendar-days"
     column_list = [
         Season.id,
@@ -51,7 +52,7 @@ class DisciplineAdmin(ModelView, model=Discipline):
     name = "Дисциплина"
     name_plural = "Дисциплины"
     icon = "fa-solid fa-list"
-    category = "Событие"
+    category = CategoryAdminEnum.CATEGORY_EVENT
     category_icon = "fa-solid fa-calendar-days"
     column_list = [
         Discipline.id,
@@ -69,7 +70,7 @@ class StageAdmin(ModelView, model=Stage):
     name = "Этап"
     name_plural = "Этапы"
     icon = "fa-solid fa-route"
-    category = "Событие"
+    category = CategoryAdminEnum.CATEGORY_EVENT
     category_icon = "fa-solid fa-calendar-days"
     column_list = [
         Stage.id,
@@ -89,7 +90,7 @@ class AdminSessionAdmin(ModelView, model=AdminSession):
     name = "Сессия"
     name_plural = "Сессии админов"
     icon = "fa-solid fa-key"
-    category = "Система"
+    category = CategoryAdminEnum.CATEGORY_SYSTEM
     category_icon = "fa-solid fa-gear"
     # Сессии создаются через login. Вручную — только просмотр.
     can_create = False
@@ -107,7 +108,7 @@ class AuditLogAdmin(ModelView, model=AuditLog):
     name = "Аудит"
     name_plural = "Журнал аудита"
     icon = "fa-solid fa-clipboard-list"
-    category = "Система"
+    category = CategoryAdminEnum.CATEGORY_SYSTEM
     category_icon = "fa-solid fa-gear"
     # Журнал — только просмотр.
     can_create = False
@@ -129,7 +130,7 @@ class ParticipantAdmin(ModelView, model=Participant):
     name = "Участник"
     name_plural = "Участники"
     icon = "fa-solid fa-user"
-    category = "Участники"
+    category = CategoryAdminEnum.CATEGORY_PARTICIPANTS
     category_icon = "fa-solid fa-users"
     column_list = [
         Participant.id,
@@ -154,7 +155,7 @@ class FanSubscriptionAdmin(ModelView, model=FanSubscription):
     name = "Подписка «Болею за»"
     name_plural = "Подписки «Болею за»"
     icon = "fa-solid fa-heart"
-    category = "Коммуникации"
+    category = CategoryAdminEnum.CATEGORY_COMMUNICATIONS
     category_icon = "fa-solid fa-bell"
     # Только просмотр — создаётся через API.
     can_create = False
