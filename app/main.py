@@ -87,6 +87,7 @@ def create_app() -> FastAPI:
         app,
         engine=admin_engine,
         base_url="/admin-panel",
+        title="Авача — админ панель",
         authentication_backend=AdminPanelAuth(secret_key=settings.ADMIN_PANEL_SESSION_SECRET),
     )
     for view in VIEWS:
