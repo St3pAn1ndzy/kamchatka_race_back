@@ -96,3 +96,12 @@ class AuditLogAdmin(ModelView, model=AuditLog):
     }
     column_sortable_list = [AuditLog.created_at]
     column_searchable_list = [AuditLog.action, AuditLog.entity_type]
+
+    can_export = True
+    column_export_list = [
+        AuditLog.created_at,
+        AuditLog.admin,
+        AuditLog.action,
+        AuditLog.entity_type,
+        AuditLog.entity_id,
+    ]

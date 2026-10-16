@@ -45,3 +45,12 @@ class UserAdmin(ModelView, model=User):
     }
     column_default_sort = (User.created_at, True)
     column_searchable_list = [User.first_name, User.last_name]
+
+    can_export = True
+    column_export_list = [
+        User.vk_user_id,
+        User.first_name,
+        User.last_name,
+        User.notifications_allowed,
+        User.created_at,
+    ]

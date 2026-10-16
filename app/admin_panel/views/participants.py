@@ -132,3 +132,13 @@ class ParticipantAdmin(ModelView, model=Participant):
             "choices": [(s.value, _LABELS[s]) for s in ParticipantStatus],
         },
     }
+
+    can_export = True
+
+    column_export_list = [
+        Participant.number,
+        Participant.name,
+        Participant.region,
+        Participant.status,
+        Participant.dogs_count,
+    ]
