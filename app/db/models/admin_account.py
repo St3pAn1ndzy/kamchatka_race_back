@@ -73,3 +73,9 @@ class AdminAccount(Base):
     entered_marks: Mapped[list["OfficialMark"]] = relationship(
         back_populates="entered_by",
     )
+
+    def __str__(self) -> str:
+        return self.login or self.display_name
+
+    def __repr__(self) -> str:
+        return f"<AdminAccount id={self.id} login={self.login!r}>"

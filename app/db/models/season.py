@@ -39,3 +39,9 @@ class Season(Base):
         back_populates="season",
         order_by="Stage.order_index",
     )
+
+    def __str__(self) -> str:
+        return self.title
+
+    def __repr__(self) -> str:
+        return f"<Season id={self.id} year={self.year}>"

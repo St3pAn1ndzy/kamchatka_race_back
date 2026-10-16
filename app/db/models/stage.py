@@ -79,3 +79,9 @@ class Stage(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+    def __str__(self) -> str:
+        return f"Этап {self.number}. {self.name}"
+
+    def __repr__(self) -> str:
+        return f"<Stage id={self.id} number={self.number} name={self.name!r}>"

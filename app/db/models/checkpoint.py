@@ -65,3 +65,6 @@ class Checkpoint(Base):
     official_marks: Mapped[list["OfficialMark"]] = relationship(
         back_populates="checkpoint",
     )
+
+    def __str__(self) -> str:
+        return f"{self.code} — {self.name}"

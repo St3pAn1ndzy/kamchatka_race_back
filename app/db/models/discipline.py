@@ -48,3 +48,9 @@ class Discipline(Base):
 
     season: Mapped["Season"] = relationship(back_populates="disciplines")
     participants: Mapped[list["Participant"]] = relationship(back_populates="discipline_ref")
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f"<Discipline id={self.id} code={self.code!r}>"

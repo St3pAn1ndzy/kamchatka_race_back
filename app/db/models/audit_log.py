@@ -48,3 +48,9 @@ class AuditLog(Base):
     )
 
     admin: Mapped[Optional["AdminAccount"]] = relationship(back_populates="audit_logs")
+
+    def __str__(self) -> str:
+        return str(self.id)
+
+    def __repr__(self) -> str:
+        return f"<AuditLog action={self.action} created_at={self.created_at!r}>"

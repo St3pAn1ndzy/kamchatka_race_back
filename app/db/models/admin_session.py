@@ -46,3 +46,9 @@ class AdminSession(Base):
     )
 
     admin: Mapped["AdminAccount"] = relationship(back_populates="sessions")
+
+    def __str__(self) -> str:
+        return self.session_id
+
+    def __repr__(self) -> str:
+        return f"<AdminSession session_id={self.session_id} expires_at={self.expires_at!r}>"
