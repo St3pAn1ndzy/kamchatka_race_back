@@ -1,9 +1,9 @@
 """Views для сущностей события: сезоны, дисциплины, этапы, КП."""
 
-from sqladmin import ModelView
 from wtforms import SelectField
 from wtforms.validators import NumberRange
 
+from app.admin_panel.base import BaseAdminView
 from app.admin_panel.categories import CategoryAdminEnum
 from app.admin_panel.formatters import (
     fmt_bool,
@@ -28,7 +28,7 @@ _LABELS_RESULTS_PUB = {
 }
 
 
-class CheckpointAdmin(ModelView, model=Checkpoint):
+class CheckpointAdmin(BaseAdminView, model=Checkpoint):
     name = "Контрольный пункт"
     name_plural = "Контрольные пункты"
     icon = "fa-solid fa-flag-checkered"
@@ -61,7 +61,7 @@ class CheckpointAdmin(ModelView, model=Checkpoint):
     }
     column_default_sort = (Checkpoint.km_from_race_start, False)
 
-    can_delete = False
+    column_selectinload = [Checkpoint.stage]
 
     form_overrides = {"kind": SelectField}
     form_args = {
@@ -75,7 +75,7 @@ class CheckpointAdmin(ModelView, model=Checkpoint):
     }
 
 
-class DisciplineAdmin(ModelView, model=Discipline):
+class DisciplineAdmin(BaseAdminView, model=Discipline):
     name = "Дисциплина"
     name_plural = "Дисциплины"
     icon = "fa-solid fa-list"
@@ -96,7 +96,7 @@ class DisciplineAdmin(ModelView, model=Discipline):
     column_searchable_list = [Discipline.code, Discipline.name]
     column_sortable_list = [Discipline.sort_order, Discipline.name]
 
-    can_delete = False
+    column_selectinload = [Discipline.season]
 
     form_columns = [
         Discipline.season,
@@ -114,7 +114,7 @@ class DisciplineAdmin(ModelView, model=Discipline):
     }
 
 
-class SeasonAdmin(ModelView, model=Season):
+class SeasonAdmin(BaseAdminView, model=Season):
     name = "Сезон"
     name_plural = "Сезоны"
     icon = "fa-solid fa-calendar"
@@ -133,8 +133,6 @@ class SeasonAdmin(ModelView, model=Season):
     }
     column_sortable_list = [Season.year, Season.starts_at]
 
-    can_delete = False
-
     form_columns = [
         Season.year,
         Season.title,
@@ -147,7 +145,7 @@ class SeasonAdmin(ModelView, model=Season):
     }
 
 
-class StageAdmin(ModelView, model=Stage):
+class StageAdmin(BaseAdminView, model=Stage):
     name = "Этап"
     name_plural = "Этапы"
     icon = "fa-solid fa-route"
@@ -180,7 +178,7 @@ class StageAdmin(ModelView, model=Stage):
     column_searchable_list = [Stage.name]
     column_sortable_list = [Stage.order_index, Stage.number, Stage.start_time]
 
-    can_delete = False
+    column_selectinload = [Stage.season]
 
     form_columns = [
         Stage.season,
