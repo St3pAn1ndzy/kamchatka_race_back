@@ -1,0 +1,79 @@
+{% extends "sqladmin/layout.html" %}
+{% block content %}
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card card-sm">
+      <div class="card-body text-center">
+        <div class="text-muted">Новости</div>
+        <div class="display-6 fw-bold text-primary">{{ overview.news_count }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-sm">
+      <div class="card-body text-center">
+        <div class="text-muted">Расписание</div>
+        <div class="display-6 fw-bold text-success">{{ overview.schedule_count }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-sm">
+      <div class="card-body text-center">
+        <div class="text-muted">FAQ</div>
+        <div class="display-6 fw-bold text-warning">{{ overview.faq_count }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-sm">
+      <div class="card-body text-center">
+        <div class="text-muted">Локации</div>
+        <div class="display-6 fw-bold text-info">{{ overview.locations_count }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header"><h4 class="card-title">Последние новости</h4></div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush">
+          {% for n in overview.recent_news %}
+          <li class="list-group-item d-flex align-items-center gap-2">
+            <i class="fa-regular fa-newspaper text-muted"></i>
+            <span>{{ n.title }}</span>
+            <span class="ms-auto">
+              {% if n.is_published %}<span class="badge bg-success">опубл.</span>
+              {% else %}<span class="badge bg-secondary">черновик</span>{% endif %}
+            </span>
+          </li>
+          {% else %}
+          <li class="list-group-item text-muted">Нет новостей</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header"><h4 class="card-title">Ближайшие события</h4></div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush">
+          {% for e in overview.upcoming_events %}
+          <li class="list-group-item d-flex align-items-center gap-2">
+            <i class="fa-regular fa-calendar text-muted"></i>
+            <span>{{ e.title }}</span>
+            <span class="ms-auto text-muted small">{{ e.starts_at[:10] }}</span>
+          </li>
+          {% else %}
+          <li class="list-group-item text-muted">Нет событий</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
