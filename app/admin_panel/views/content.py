@@ -1,6 +1,11 @@
-from sqladmin import ModelView
+from datetime import UTC, datetime
+
+from sqladmin import action
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
 from wtforms import SelectField
 
+from app.admin_panel.base import BaseAdminView
 from app.admin_panel.categories import CategoryAdminEnum
 from app.admin_panel.formatters import (
     fmt_bool,
@@ -9,15 +14,18 @@ from app.admin_panel.formatters import (
     fmt_schedule_kind,
     fmt_viewer_kind,
 )
-from app.db.models import FAQItem, NewsPost, ScheduleEvent, ViewerLocation
+from app.db.base import async_session_factory
+from app.db.models import AuditLog, FAQItem, NewsPost, ScheduleEvent, ViewerLocation
+from app.security.admin_sessions import get_active_admin_for_session
 
 
-class FAQItemAdmin(ModelView, model=FAQItem):
+class FAQItemAdmin(BaseAdminView, model=FAQItem):
     name = "FAQ"
     name_plural = "FAQ"
     icon = "fa-solid fa-circle-question"
     category = CategoryAdminEnum.CATEGORY_CONTENT
     category_icon = "fa-solid fa-newspaper"
+    can_delete = True
 
     column_list = [
         FAQItem.order_index,
@@ -42,7 +50,7 @@ class FAQItemAdmin(ModelView, model=FAQItem):
     }
 
 
-class NewsPostAdmin(ModelView, model=NewsPost):
+class NewsPostAdmin(BaseAdminView, model=NewsPost):
     name = "Новость"
     name_plural = "Новости"
     icon = "fa-solid fa-newspaper"
@@ -78,7 +86,7 @@ class NewsPostAdmin(ModelView, model=NewsPost):
     column_default_sort = (NewsPost.published_at, True)
     column_searchable_list = [NewsPost.title]
 
-    can_delete = False
+    column_selectinload = [NewsPost.stage]
 
     form_columns = [
         NewsPost.title,
@@ -112,8 +120,111 @@ class NewsPostAdmin(ModelView, model=NewsPost):
         },
     }
 
+    # --- BULK ACTIONS ---
 
-class ScheduleEventAdmin(ModelView, model=ScheduleEvent):
+    async def _set_published(
+        self, request: Request, publish: bool, action_code: str
+    ) -> RedirectResponse:
+        """Массовая публикация или снятие с публикации."""
+        pks = await self._parse_pks(request)
+        if not pks:
+            return RedirectResponse(
+                request.url_for("admin:list", identity=self.identity),
+                status_code=302,
+            )
+
+        session_id = request.session.get("admin_session_id")
+
+        async with async_session_factory() as session:
+            admin = await get_active_admin_for_session(session, str(session_id or ""))
+            admin_id = admin.id if admin else None
+            now = datetime.now(tz=UTC)
+
+            for pk in pks:
+                post = await session.get(NewsPost, pk)
+                if post is None:
+                    continue
+
+                old_status = post.is_published
+                post.is_published = publish
+
+                # Если публикуем и дата еще не стояла — ставим текущую
+                if publish and post.published_at is None:
+                    post.published_at = now
+
+                session.add(
+                    AuditLog(
+                        admin_id=admin_id,
+                        action=action_code,
+                        entity_type="news_post",
+                        entity_id=str(post.id),
+                        payload={"old_status": old_status, "new_status": publish},
+                    )
+                )
+            await session.commit()
+
+        return RedirectResponse(
+            request.url_for("admin:list", identity=self.identity),
+            status_code=302,
+        )
+
+    @action(
+        name="publish",
+        label="Опубликовать",
+        confirmation_message="Опубликовать выбранные новости?",
+        add_in_list=True,
+        add_in_detail=True,
+    )
+    async def action_publish(self, request: Request) -> RedirectResponse:
+        return await self._set_published(request, True, "news_published")
+
+    @action(
+        name="unpublish",
+        label="Снять с публикации",
+        confirmation_message="Снять выбранные новости с публикации?",
+        add_in_list=True,
+        add_in_detail=True,
+    )
+    async def action_unpublish(self, request: Request) -> RedirectResponse:
+        return await self._set_published(request, False, "news_unpublished")
+
+    @action(
+        name="mark-important",
+        label="Пометить важной",
+        confirmation_message="Пометить выбранные новости как важные? (Они пойдут в Push-рассылку при публикации)",
+        add_in_list=True,
+        add_in_detail=True,
+    )
+    async def action_mark_important(self, request: Request) -> RedirectResponse:
+        pks = await self._parse_pks(request)
+        if not pks:
+            return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
+
+        session_id = request.session.get("admin_session_id")
+        async with async_session_factory() as session:
+            admin = await get_active_admin_for_session(session, str(session_id or ""))
+            admin_id = admin.id if admin else None
+
+            for pk in pks:
+                post = await session.get(NewsPost, pk)
+                if post is None:
+                    continue
+                post.is_important = True
+                session.add(
+                    AuditLog(
+                        admin_id=admin_id,
+                        action="news_marked_important",
+                        entity_type="news_post",
+                        entity_id=str(post.id),
+                        payload={"is_important": True},
+                    )
+                )
+            await session.commit()
+
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
+
+
+class ScheduleEventAdmin(BaseAdminView, model=ScheduleEvent):
     name = "Событие программы"
     name_plural = "Программа фестиваля"
     icon = "fa-solid fa-calendar-check"
@@ -145,7 +256,7 @@ class ScheduleEventAdmin(ModelView, model=ScheduleEvent):
     column_default_sort = (ScheduleEvent.starts_at, False)
     column_searchable_list = [ScheduleEvent.title]
 
-    can_delete = False
+    column_selectinload = [ScheduleEvent.stage]
 
     form_overrides = {"kind": SelectField}
     form_args = {
@@ -159,7 +270,7 @@ class ScheduleEventAdmin(ModelView, model=ScheduleEvent):
     }
 
 
-class ViewerLocationAdmin(ModelView, model=ViewerLocation):
+class ViewerLocationAdmin(BaseAdminView, model=ViewerLocation):
     name = "Зрительская локация"
     name_plural = "Зрительские локации"
     icon = "fa-solid fa-map-location-dot"
@@ -186,6 +297,8 @@ class ViewerLocationAdmin(ModelView, model=ViewerLocation):
         ViewerLocation.kind: lambda m, a: fmt_viewer_kind(m.kind),
     }
     column_searchable_list = [ViewerLocation.name]
+
+    column_selectinload = [ViewerLocation.stage]
 
     form_overrides = {"kind": SelectField}
     form_args = {
