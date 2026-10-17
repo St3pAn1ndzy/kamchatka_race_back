@@ -28,6 +28,7 @@ class TrackerStatus:
     lon: float | None
     status_color: str  # success | warning | danger
     freshness_status: str
+    participant_id: int | None
 
 
 class AdminTrackerService:
@@ -96,6 +97,7 @@ class AdminTrackerService:
                     participant_name=(
                         f"№{participant.number} {participant.name}" if participant else None
                     ),
+                    participant_id=participant.id if participant else None,
                     battery=device.battery_percent,
                     sos_active=device.sos_active,
                     last_seen_minutes=last_seen_minutes,
