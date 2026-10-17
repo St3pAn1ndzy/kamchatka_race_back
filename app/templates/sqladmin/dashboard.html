@@ -1,0 +1,428 @@
+{% extends "sqladmin/layout.html" %}
+
+
+{% block head %}
+{{ super() }}
+<style>
+    @keyframes sos-pulse-dot {
+        0%, 100% {
+            box-shadow: 0 0 0 0 rgba(214, 57, 57, 0.55);
+        }
+        50% {
+            box-shadow: 0 0 0 8px rgba(214, 57, 57, 0);
+        }
+    }
+
+    .sos-pulse-dot {
+        animation: sos-pulse-dot 1.8s infinite;
+    }
+
+    @keyframes stat-flash-anim {
+        0% {
+            background: rgba(255, 193, 7, 0);
+        }
+        30% {
+            background: rgba(255, 193, 7, 0.35);
+            border-radius: 4px;
+        }
+        100% {
+            background: rgba(255, 193, 7, 0);
+        }
+    }
+
+    .stat-flash {
+        animation: stat-flash-anim 900ms ease-out;
+    }
+
+    @keyframes sos-flash-anim {
+        0% {
+            box-shadow: inset 0 0 0 0 rgba(214, 57, 57, 0);
+        }
+        30% {
+            box-shadow: inset 0 0 60px 0 rgba(214, 57, 57, 0.55);
+        }
+        100% {
+            box-shadow: inset 0 0 0 0 rgba(214, 57, 57, 0);
+        }
+    }
+
+    .sos-flash {
+        animation: sos-flash-anim 1200ms ease-out;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="container-xl">
+
+    {# ─── SOS-блок ─────────────────────────────────────────────────── #}
+    <div id="sos-block">
+        {% if sos_devices %}
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-danger text-white py-3">
+                <div class="d-flex align-items-center">
+                    <i class="fa-solid fa-triangle-exclamation me-2 fa-lg"></i>
+                    <h3 class="mb-0 text-white">
+                        SOS: {{ sos_devices|length }}
+                        <span class="ms-2 fw-normal fs-4 text-white opacity-75">требует внимания</span>
+                    </h3>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% for d in sos_devices %}
+                <div class="p-3 border-start border-danger border-4 {% if not loop.last %}border-bottom{% endif %}"
+                     style="background: rgba(214, 57, 57, 0.05);">
+
+                    <div class="row align-items-center g-3">
+                        <div class="col-auto">
+                  <span class="avatar bg-danger text-white sos-pulse-dot">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                  </span>
+                        </div>
+
+                        <div class="col">
+                            <div class="fs-3 fw-semibold lh-1 mb-1 text-danger">
+                                {% if d.participant_number %}
+                                №{{ d.participant_number }} {{ d.participant_name }}
+                                {% else %}
+                                Трекер {{ d.iridium_number }}
+                                {% endif %}
+                            </div>
+                            <div class="text-muted small">
+                                {{ d.device_name }} · Iridium {{ d.iridium_number }}
+                                {% if d.stage_number %} · Этап {{ d.stage_number }}{% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-auto text-end">
+                            {% if d.last_message_at %}
+                            <div class="text-muted small">
+                                <i class="fa-regular fa-clock me-1"></i>
+                                {{ d.last_message_at.strftime("%d.%m %H:%M") }} UTC
+                            </div>
+                            {% endif %}
+                            {% if d.lat is not none and d.lon is not none %}
+                            <div class="font-monospace small text-muted mt-1">
+                                <i class="fa-solid fa-location-dot me-1"></i>
+                                {{ "%.4f"|format(d.lat) }}, {{ "%.4f"|format(d.lon) }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-auto">
+                            {% if d.participant_id %}
+                            <a href="/admin-panel/participant/details/{{ d.participant_id }}"
+                               class="btn btn-sm btn-danger"
+                               title="Открыть карточку участника">
+                                <i class="fa-solid fa-user"></i>
+                                <span class="d-none d-md-inline ms-1">Участник</span>
+                            </a>
+                            {% endif %}
+                            <a href="/admin-panel/device/details/{{ d.device_id }}"
+                               class="btn btn-sm btn-danger"
+                               title="Открыть карточку трекера">
+                                <i class="fa-solid fa-satellite-dish"></i>
+                                <span class="d-none d-md-inline ms-1">Трекер</span>
+                            </a>
+                        </div>
+                    </div>
+
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# ─── Ряд 1: участники (без изменений) ────────────────────────── #}
+    <div class="row row-deck row-cards mb-3">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="subheader">Участников</div>
+                    </div>
+                    <div class="d-flex align-items-baseline">
+                        <div class="h1 mb-0 me-2" data-stat="participants_total">{{ stats.participants_total }}</div>
+                        <div class="text-muted">всего</div>
+                    </div>
+                    <div class="mt-2">
+                        <span class="badge bg-success-lt">
+        <span data-stat="participants_active">{{ stats.participants_active }}</span> активных</span>
+                        <span class="badge bg-info-lt">
+        <span data-stat="participants_finished">{{ stats.participants_finished }}</span> финишировали</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="subheader">Этапов</div>
+                    <div class="d-flex align-items-baseline">
+                        <div class="h1 mb-0 me-2" data-stat="stages_total">{{ stats.stages_total }}</div>
+                        <div class="text-muted">в сезоне</div>
+                    </div>
+                    <div class="mt-2">
+                        {% if stats.stages_active %}
+                        <span class="badge bg-success-lt">{{ stats.stages_active }} идёт сейчас</span>
+                        {% endif %}
+                        {% if stats.stages_draft_results %}
+                        <span class="badge bg-warning-lt">{{ stats.stages_draft_results }} без публикации</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="subheader">Судейских отметок</div>
+                    <div class="d-flex align-items-baseline">
+                        <div class="h1 mb-0 me-2" data-stat="marks_today">{{ stats.marks_today }}</div>
+                        <div class="text-muted">за сегодня</div>
+                    </div>
+                    <div class="mt-2 text-muted">
+                        Всего: <span data-stat="marks_total">{{ stats.marks_total }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="subheader">Трекеров онлайн</div>
+                    <div class="d-flex align-items-baseline">
+                        <div class="h1 mb-0 me-2" data-stat="devices_online">{{ stats.devices_online }}</div>
+                        <div class="text-muted">из <span data-stat="devices_total">{{ stats.devices_total }}</span>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        {% if stats.devices_stale %}
+                        <span class="badge bg-warning-lt">{{ stats.devices_stale }} молчат</span>
+                        {% endif %}
+                        {% if stats.devices_sos %}
+                        <span class="badge bg-danger-lt">{{ stats.devices_sos }} SOS</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ─── Ряд 2: быстрые ссылки ────────────────────────────────────── #}
+    <div class="row row-deck row-cards">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Быстрые действия</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/stage/list" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-route me-2"></i> Этапы гонки
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/participant/list" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-user me-2"></i> Участники
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/official-mark/list" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-stopwatch me-2"></i> Судейские отметки
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/device/list" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-satellite-dish me-2"></i> Трекеры
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/news-post/list" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-newspaper me-2"></i> Новости
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/schedule-event/list" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-calendar-check me-2"></i> Программа
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/viewer-location/list" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-map-location-dot me-2"></i> Локации
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/audit-log/list" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-clipboard-list me-2"></i> Журнал аудита
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/tracker-monitor" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-satellite-dish me-2"></i> Мониторинг связи
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/race-control" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-tower-broadcast me-2"></i> Оперативный штаб
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="/admin-panel/push-sender" class="btn btn-outline-primary w-100">
+                                <i class="fa-solid fa-bullhorn me-2"></i> Отправить Push
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    (function () {
+        'use strict';
+
+        const STATS_URL = '/admin-panel/api/dashboard-stats';
+        const REFRESH_MS = 30000;
+
+        let prevSosCount = null;
+
+        function formatTime(iso) {
+            if (!iso) return 'нет данных';
+            const d = new Date(iso);
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${pad(d.getUTCDate())}.${pad(d.getUTCMonth() + 1)} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+        }
+
+        function formatCoords(lat, lon) {
+            if (lat === null || lon === null) return null;
+            return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+        }
+
+        function renderSos(items) {
+            const container = document.getElementById('sos-block');
+            if (!container) return;
+
+            if (!items || items.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const rowsHtml = items.map((d) => {
+                const title = d.participant_number
+                    ? `№${d.participant_number} ${d.participant_name || ''}`
+                    : `Трекер ${d.iridium_number}`;
+
+                const subtitleParts = [d.device_name, `Iridium ${d.iridium_number}`];
+                if (d.stage_number) subtitleParts.push(`Этап ${d.stage_number}`);
+
+                const coords = formatCoords(d.lat, d.lon);
+                const time = formatTime(d.last_message_at);
+
+                const participantBtn = d.participant_id
+                    ? `<a href="/admin-panel/participant/details/${d.participant_id}"
+              class="btn btn-sm btn-danger" title="Открыть карточку участника">
+             <i class="fa-solid fa-user"></i>
+             <span class="d-none d-md-inline ms-1">Участник</span>
+           </a>`
+                    : '';
+
+                return `
+        <div class="p-3 border-start border-danger border-4" style="background: rgba(214, 57, 57, 0.05);">
+          <div class="row align-items-center g-3">
+            <div class="col-auto">
+              <span class="avatar bg-danger text-white sos-pulse-dot">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+              </span>
+            </div>
+            <div class="col">
+              <div class="fs-3 fw-semibold lh-1 mb-1 text-danger">${title}</div>
+              <div class="text-muted small">${subtitleParts.join(' · ')}</div>
+            </div>
+            <div class="col-auto text-end">
+              <div class="text-muted small"><i class="fa-regular fa-clock me-1"></i>${time}</div>
+              ${coords ? `<div class="font-monospace small text-muted mt-1"><i class="fa-solid fa-location-dot me-1"></i>${coords}</div>` : ''}
+            </div>
+            <div class="col-auto">
+              ${participantBtn}
+              <a href="/admin-panel/device/details/${d.device_id}"
+                 class="btn btn-sm btn-danger" title="Открыть карточку трекера">
+                <i class="fa-solid fa-satellite-dish"></i>
+                <span class="d-none d-md-inline ms-1">Трекер</span>
+              </a>
+            </div>
+          </div>
+        </div>`;
+            }).join('');
+
+            container.innerHTML = `
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-danger text-white py-3">
+          <div class="d-flex align-items-center">
+            <i class="fa-solid fa-triangle-exclamation me-2 fa-lg"></i>
+            <h3 class="mb-0 text-white">
+              SOS: ${items.length}
+              <span class="ms-2 fw-normal opacity-75 fs-4">требует внимания</span>
+            </h3>
+          </div>
+        </div>
+        <div class="card-body p-0">${rowsHtml}</div>
+      </div>`;
+        }
+
+        function updateStat(key, value) {
+            document.querySelectorAll(`[data-stat="${key}"]`).forEach((el) => {
+                const current = el.textContent.trim();
+                if (current !== String(value)) {
+                    el.textContent = value;
+                    el.classList.add('stat-flash');
+                    setTimeout(() => el.classList.remove('stat-flash'), 900);
+                }
+            });
+        }
+
+        async function refresh() {
+            try {
+                const resp = await fetch(STATS_URL, {credentials: 'same-origin'});
+                if (!resp.ok) {
+                    // 401/403 — сессия протухла, не мучаем сервер
+                    if (resp.status === 401 || resp.status === 403) return;
+                    return;
+                }
+                const data = await resp.json();
+
+                Object.entries(data.stats || {}).forEach(([key, value]) => {
+                    updateStat(key, value);
+                });
+
+                const newCount = (data.sos || []).length;
+                if (prevSosCount !== null && newCount > prevSosCount) {
+                    document.body.classList.add('sos-flash');
+                    setTimeout(() => document.body.classList.remove('sos-flash'), 1200);
+                }
+                prevSosCount = newCount;
+
+                renderSos(data.sos);
+            } catch (err) {
+                console.warn('dashboard stats refresh failed:', err);
+            }
+        }
+
+        // Первый вызов — чтобы синхронизировать prevSosCount
+        prevSosCount = document.querySelectorAll('#sos-block .card').length
+            ? (document.querySelector('#sos-block .card-header h3').textContent.match(/SOS:\s*(\d+)/) || [, '0'])[1] | 0
+            : 0;
+
+        setInterval(refresh, REFRESH_MS);
+    })();
+</script>
+
+{% endblock %}
