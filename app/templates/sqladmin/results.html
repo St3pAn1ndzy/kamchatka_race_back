@@ -1,0 +1,59 @@
+{% extends "sqladmin/layout.html" %}
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title"><i class="fa-solid fa-medal me-2 text-primary"></i>Результаты по этапам</h3>
+  </div>
+  <div class="card-body p-0">
+    <ul class="nav nav-tabs" id="stageTabs" role="tablist">
+      {% for s in stages %}
+      <li class="nav-item" role="presentation">
+        <button class="nav-link {% if loop.first %}active{% endif %}"
+                id="stage{{ s.stage_number }}-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#stage{{ s.stage_number }}"
+                type="button">
+          Этап {{ s.stage_number }}
+        </button>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="tab-content p-2">
+      {% for s in stages %}
+      <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="stage{{ s.stage_number }}">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <span class="fw-bold">{{ s.stage_name }}</span>
+          <span class="badge {% if s.results_publication == 'official' %}bg-success{% elif s.results_publication == 'provisional' %}bg-warning{% else %}bg-secondary{% endif %}">
+            {{ s.results_publication }}
+          </span>
+        </div>
+        {% if s.marks %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead><tr><th>№</th><th>Участник</th><th>КП</th><th>Время</th><th>Штраф (мин)</th><th>Стоп (мин)</th></tr></thead>
+            <tbody>
+              {% for m in s.marks %}
+              <tr>
+                <td class="fw-bold">{{ m.participant_number }}</td>
+                <td>{{ m.participant_name }}</td>
+                <td><span class="badge bg-info">{{ m.checkpoint_code }}</span></td>
+                <td>{{ m.mark_time[:19] }}</td>
+                <td>{% if m.penalty_minutes %}<span class="text-danger">{{ m.penalty_minutes }}</span>{% else %}0{% endif %}</td>
+                <td>{% if m.mandatory_stop_minutes %}<span class="text-warning">{{ m.mandatory_stop_minutes }}</span>{% else %}0{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state my-4">
+          <i class="fa-regular fa-file-lines mb-2" style="font-size:2rem;color:var(--bs-border-color);"></i>
+          <p class="text-muted mb-0">Нет отметок для этого этапа</p>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
