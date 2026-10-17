@@ -12,6 +12,38 @@ from app.repositories.base import BaseRepository
 class ParticipantRepository(BaseRepository[Participant]):
     model = Participant
 
+    async def list_for_map(
+        self,
+        *,
+        discipline_ids: list[int] | None,
+        participant_ids: list[int] | None = None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[Participant], int]:
+        filters = []
+        if discipline_ids is not None:
+            filters.append(Participant.discipline_id.in_(discipline_ids))
+        if participant_ids is not None:
+            filters.append(Participant.id.in_(participant_ids))
+        if not filters:
+            return [], 0
+
+        total = int(
+            (
+                await self.session.execute(select(func.count(Participant.id)).where(*filters))
+            ).scalar_one()
+        )
+        stmt = (
+            select(Participant)
+            .options(selectinload(Participant.discipline_ref))
+            .where(*filters)
+            .order_by(Participant.number, Participant.id)
+            .limit(limit)
+            .offset(offset)
+        )
+        items = list((await self.session.execute(stmt)).scalars().all())
+        return items, total
+
     @staticmethod
     def _supporters_subquery():
         """Подзапрос: participant_id → число болельщиков."""

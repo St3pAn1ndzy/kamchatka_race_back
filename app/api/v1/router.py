@@ -12,6 +12,7 @@ from app.api.v1 import (
     auth,
     content,
     directory,
+    map,
     news,
     notifications,
     participants,
@@ -27,5 +28,6 @@ api_router.include_router(news.router)
 api_router.include_router(results.router)
 api_router.include_router(schedule.router)
 api_router.include_router(participants.router)
+api_router.include_router(map.router)
 api_router.include_router(notifications.router)
 api_router.include_router(directory.router)
