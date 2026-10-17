@@ -20,18 +20,11 @@ from app.api.errors import (
 from app.api.health import router as health_router
 from app.api.middleware import LoggingMiddleware, RequestIDMiddleware
 from app.api.v1.router import api_router
-from app.config import Settings, get_settings
+from app.config import get_settings
 from app.db.base import async_engine
+from app.logging_setup import setup_logging
 
 logger = logging.getLogger("avacha")
-
-
-def setup_logging(settings: Settings) -> None:
-    level = logging.DEBUG if settings.DEBUG else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    )
 
 
 @asynccontextmanager
@@ -70,7 +63,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
-        allow_origin_regex=r"https://.*\.vk-apps\.com",
+        allow_origin_regex=settings.CORS_ORIGIN_REGEX,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     JWT_USER_TTL_SECONDS: int = 86400  # 24h
 
     CORS_ORIGINS: str = "https://vk.com,https://m.vk.com,https://prod-apps.vkusercontent.com"
+    CORS_ORIGIN_REGEX: str | None = None
 
     # --- 152-ФЗ ---
     PRIVACY_POLICY_VERSION: str = "1.0"

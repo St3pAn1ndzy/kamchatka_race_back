@@ -16,3 +16,11 @@ class SeasonRepository(BaseRepository[Season]):
         """Возращаем список сезонов"""
         stmt = select(Season).order_by(Season.year.desc())
         return list((await self.session.execute(stmt)).scalars().all())
+
+    async def get_active(self) -> Season | None:
+        """Активный сезон. None, если ни один не помечен is_active=True."""
+        stmt = (
+            select(Season).where(Season.is_active.is_(True)).order_by(Season.year.desc()).limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()

@@ -190,11 +190,15 @@ async def test_revoke_admin_session_idempotent(db_session, create_admin) -> None
     assert second.revoked_at == first_revoked_at
 
     audits = (
-        await db_session.execute(
-            select(AuditLog).where(
-                AuditLog.action == "admin_logout",
-                AuditLog.entity_id == str(admin_session.id),
+        (
+            await db_session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "admin_logout",
+                    AuditLog.entity_id == str(admin_session.id),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(audits) == 1

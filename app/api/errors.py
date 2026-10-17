@@ -34,13 +34,12 @@ def _clean_errors(errors: list[dict]) -> list[dict]:
 async def request_validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    """FastAPI-обёртка над ошибками Pydantic."""
     errors = _clean_errors(exc.errors())
 
-    # В логи — только безопасные поля. Без input, ctx, body.
     logger.warning(
         "request_validation_error",
         extra={
+            "request_id": getattr(request.state, "request_id", "-"),
             "path": request.url.path,
             "method": request.method,
             "error_count": len(errors),
@@ -54,15 +53,16 @@ async def request_validation_exception_handler(
 async def pydantic_validation_exception_handler(
     request: Request, exc: ValidationError
 ) -> JSONResponse:
-    """Чистый Pydantic ValidationError (вне FastAPI-обёртки)."""
     errors = _clean_errors(exc.errors())
 
     logger.warning(
         "pydantic_validation_error",
         extra={
+            "request_id": getattr(request.state, "request_id", "-"),
             "path": request.url.path,
             "method": request.method,
             "error_count": len(errors),
+            "error_locs": [e["loc"] for e in errors],
         },
     )
 
