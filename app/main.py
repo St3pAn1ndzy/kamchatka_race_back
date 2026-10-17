@@ -9,6 +9,7 @@ from sqladmin import Admin
 from sqlalchemy import create_engine
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse
+from starlette.staticfiles import StaticFiles
 
 from app.admin_panel import VIEWS
 from app.admin_panel.admin_auth import AdminPanelAuth
@@ -102,6 +103,8 @@ def create_app() -> FastAPI:
 
     # Безопасная схема ошибок в OpenAPI (без input/ctx).
     replace_default_validation_error_schema(app)
+
+    app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
     return app
 
