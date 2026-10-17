@@ -1,0 +1,106 @@
+{% extends "sqladmin/layout.html" %}
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <h3 class="card-title"><i class="fa-solid fa-people-group me-2 text-primary"></i>Участники</h3>
+    <input type="text" class="form-control form-control-sm w-auto" id="participantSearch" placeholder="Поиск по имени или номеру…">
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm" id="participantTable">
+        <thead><tr><th>№</th><th>Фото</th><th>Имя</th><th>Регион</th><th>Дисциплина</th><th>Статус</th><th>Болельщиков</th><th></th></tr></thead>
+        <tbody>
+          {% for p in participants %}
+          <tr class="participant-row" data-id="{{ p.id }}" data-name="{{ p.name }}" data-number="{{ p.number }}">
+            <td class="fw-bold">{{ p.number }}</td>
+            <td>
+              {% if p.photo_url %}
+              <img src="{{ p.photo_url }}" alt="" class="rounded" style="width:32px;height:32px;object-fit:cover;">
+              {% else %}
+              <span class="avatar avatar-sm bg-secondary text-white">{{ p.number }}</span>
+              {% endif %}
+            </td>
+            <td>{{ p.name }}</td>
+            <td class="text-muted">{{ p.region or '—' }}</td>
+            <td><span class="badge bg-info">{{ p.discipline_name or '—' }}</span></td>
+            <td>{% if p.status == 'active' %}<span class="badge bg-success">активен</span>
+                {% elif p.status == 'finished' %}<span class="badge bg-warning">финиш</span>
+                {% else %}<span class="badge bg-secondary">{{ p.status }}</span>{% endif %}</td>
+            <td><span class="badge bg-pink">{{ p.fans_count }}</span></td>
+            <td><button class="btn btn-sm btn-outline-primary view-participant" data-id="{{ p.id }}">Карточка</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{# ─── Модалка карточки участника ─── #}
+<div class="modal fade" id="participantModal" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="modalName"></h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+      <div class="row g-3">
+        <div class="col-md-4 text-center">
+          <img id="modalPhoto" src="" alt="" class="img-fluid rounded mb-2" style="max-height:200px;">
+        </div>
+        <div class="col-md-8">
+          <table class="table table-sm">
+            <tr><th>Номер</th><td id="modalNumber"></td></tr>
+            <tr><th>Регион</th><td id="modalRegion"></td></tr>
+            <tr><th>Дисциплина</th><td id="modalDiscipline"></td></tr>
+            <tr><th>Собак</th><td id="modalDogs"></td></tr>
+            <tr><th>Статус</th><td id="modalStatus"></td></tr>
+            <tr><th>Болельщиков</th><td id="modalFans"></td></tr>
+            <tr><th>Трекер</th><td id="modalDevice"></td></tr>
+          </table>
+          <p id="modalBio" class="text-muted small"></p>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script>
+(function(){
+  // Поиск
+  document.getElementById('participantSearch').addEventListener('input', function(){
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('.participant-row').forEach(function(r){
+      var name = (r.dataset.name || '').toLowerCase();
+      var num = (r.dataset.number || '').toLowerCase();
+      r.style.display = (name.includes(q) || num.includes(q)) ? '' : 'none';
+    });
+  });
+
+  // Модалка
+  document.querySelectorAll('.view-participant').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id = this.dataset.id;
+      fetch('/admin-panel/api/participant-card/' + id)
+        .then(function(r){ return r.json(); })
+        .then(function(p){
+          document.getElementById('modalName').textContent = p.name;
+          document.getElementById('modalNumber').textContent = p.number;
+          document.getElementById('modalRegion').textContent = p.region || '—';
+          document.getElementById('modalDiscipline').textContent = p.discipline_name || '—';
+          document.getElementById('modalDogs').textContent = p.dogs_count || '—';
+          document.getElementById('modalStatus').textContent = p.status;
+          document.getElementById('modalFans').textContent = p.fans_count;
+          document.getElementById('modalDevice').textContent = p.device_status || 'нет трекера';
+          document.getElementById('modalBio').textContent = p.bio || '';
+          var img = document.getElementById('modalPhoto');
+          img.src = p.photo_url || '/static/placeholder.png';
+          var modal = new bootstrap.Modal(document.getElementById('participantModal'));
+          modal.show();
+        });
+    });
+  });
+})();
+</script>
+{% endblock %}
