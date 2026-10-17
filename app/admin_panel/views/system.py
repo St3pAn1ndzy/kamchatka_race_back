@@ -1,7 +1,6 @@
 """Views для системных сущностей: админы, сессии, аудит."""
 
-from sqladmin import ModelView
-
+from app.admin_panel.base import BaseAdminView
 from app.admin_panel.categories import CategoryAdminEnum
 from app.admin_panel.formatters import fmt_bool, fmt_datetime
 from app.db.models.admin_account import AdminAccount
@@ -9,7 +8,7 @@ from app.db.models.admin_session import AdminSession
 from app.db.models.audit_log import AuditLog
 
 
-class AdminAccountAdmin(ModelView, model=AdminAccount):
+class AdminAccountAdmin(BaseAdminView, model=AdminAccount):
     name = "Администратор"
     name_plural = "Администраторы"
     icon = "fa-solid fa-user-shield"
@@ -29,8 +28,6 @@ class AdminAccountAdmin(ModelView, model=AdminAccount):
     }
     column_searchable_list = [AdminAccount.login, AdminAccount.display_name]
 
-    can_delete = False
-
     form_columns = [
         AdminAccount.login,
         AdminAccount.display_name,
@@ -44,7 +41,7 @@ class AdminAccountAdmin(ModelView, model=AdminAccount):
     }
 
 
-class AdminSessionAdmin(ModelView, model=AdminSession):
+class AdminSessionAdmin(BaseAdminView, model=AdminSession):
     name = "Сессия"
     name_plural = "Сессии админов"
     icon = "fa-solid fa-key"
@@ -53,6 +50,9 @@ class AdminSessionAdmin(ModelView, model=AdminSession):
     # Сессии создаются через login. Вручную — только просмотр.
     can_create = False
     can_edit = False
+
+    column_selectinload = [AdminSession.admin]
+
     column_list = [
         AdminSession.admin,
         AdminSession.created_at,
@@ -73,7 +73,7 @@ class AdminSessionAdmin(ModelView, model=AdminSession):
     }
 
 
-class AuditLogAdmin(ModelView, model=AuditLog):
+class AuditLogAdmin(BaseAdminView, model=AuditLog):
     name = "Запись аудита"
     name_plural = "Журнал аудита"
     icon = "fa-solid fa-clipboard-list"
@@ -82,7 +82,9 @@ class AuditLogAdmin(ModelView, model=AuditLog):
     # Журнал — только просмотр.
     can_create = False
     can_edit = False
-    can_delete = False
+
+    column_selectinload = [AuditLog.admin]
+
     column_list = [
         AuditLog.id,
         AuditLog.admin,
