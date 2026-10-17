@@ -83,8 +83,9 @@ class TrackingMetricsService:
 
         if previous is not None:
             seconds = (point.recorded_at - previous.recorded_at).total_seconds()
-            distance = _distance_km(previous.lat, previous.lon, point.lat, point.lon)
-            point.average_speed_kmh = distance * 3600 / seconds
+            if seconds > 0:  # <-- ЗАЩИТА ОТ ДЕЛЕНИЯ НА НОЛЬ
+                distance = _distance_km(previous.lat, previous.lon, point.lat, point.lon)
+                point.average_speed_kmh = distance * 3600 / seconds
 
         if point.stage_id is not None:
             if point.stage_id not in self._routes_by_stage:
