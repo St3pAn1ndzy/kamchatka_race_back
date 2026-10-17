@@ -10,6 +10,7 @@ from app.admin_panel.views.content import (
     ScheduleEventAdmin,
     ViewerLocationAdmin,
 )
+from app.admin_panel.views.content_admin import ContentAdminView
 from app.admin_panel.views.dashboard import DashboardView
 from app.admin_panel.views.event import (
     CheckpointAdmin,
@@ -17,16 +18,20 @@ from app.admin_panel.views.event import (
     SeasonAdmin,
     StageAdmin,
 )
+from app.admin_panel.views.participant_card import ParticipantCardView
 from app.admin_panel.views.participants import (
     DeviceAdmin,
     ParticipantAdmin,
 )
 from app.admin_panel.views.push_sender import PushSenderView
 from app.admin_panel.views.race_control import RaceControlView
+from app.admin_panel.views.race_route import RaceRouteView
 from app.admin_panel.views.results import (
     OfficialMarkAdmin,
     TrackPointAdmin,
 )
+from app.admin_panel.views.results_admin import ResultsAdminView
+from app.admin_panel.views.statistics_view import StatisticsView
 from app.admin_panel.views.system import (
     AdminAccountAdmin,
     AdminSessionAdmin,
@@ -66,4 +71,9 @@ VIEWS = [
     TrackerMonitorView,
     RaceControlView,
     PushSenderView,
+    RaceRouteView,
+    ParticipantCardView,
+    ResultsAdminView,
+    ContentAdminView,
+    StatisticsView,
 ]
