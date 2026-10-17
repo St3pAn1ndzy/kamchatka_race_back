@@ -30,7 +30,6 @@ class RaceControlRow:
     freshness_status: str
 
 
-
 @dataclass
 class RaceControlState:
     stage_name: str | None
