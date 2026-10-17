@@ -10,6 +10,7 @@ from app.admin_panel.views.content import (
     ScheduleEventAdmin,
     ViewerLocationAdmin,
 )
+from app.admin_panel.views.dashboard import DashboardView
 from app.admin_panel.views.event import (
     CheckpointAdmin,
     DisciplineAdmin,
@@ -20,6 +21,8 @@ from app.admin_panel.views.participants import (
     DeviceAdmin,
     ParticipantAdmin,
 )
+from app.admin_panel.views.push_sender import PushSenderView
+from app.admin_panel.views.race_control import RaceControlView
 from app.admin_panel.views.results import (
     OfficialMarkAdmin,
     TrackPointAdmin,
@@ -29,6 +32,7 @@ from app.admin_panel.views.system import (
     AdminSessionAdmin,
     AuditLogAdmin,
 )
+from app.admin_panel.views.tracker_monitor import TrackerMonitorView
 from app.admin_panel.views.users import UserAdmin
 
 VIEWS = [
@@ -57,4 +61,9 @@ VIEWS = [
     NotificationQueueAdmin,
     # Пользователи
     UserAdmin,
+    # Кастомные
+    DashboardView,
+    TrackerMonitorView,
+    RaceControlView,
+    PushSenderView,
 ]
