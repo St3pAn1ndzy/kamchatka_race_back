@@ -1,12 +1,17 @@
-from sqladmin import ModelView
+from sqladmin import action
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
 from wtforms.validators import NumberRange
 
+from app.admin_panel.base import BaseAdminView
 from app.admin_panel.categories import CategoryAdminEnum
 from app.admin_panel.formatters import fmt_bool, fmt_datetime
-from app.db.models import OfficialMark, TrackPoint
+from app.db.base import async_session_factory
+from app.db.models import AuditLog, OfficialMark, TrackPoint
+from app.security.admin_sessions import get_active_admin_for_session
 
 
-class OfficialMarkAdmin(ModelView, model=OfficialMark):
+class OfficialMarkAdmin(BaseAdminView, model=OfficialMark):
     name = "Отметка"
     name_plural = "Отметки"
     icon = "fa-solid fa-stopwatch"
@@ -48,7 +53,12 @@ class OfficialMarkAdmin(ModelView, model=OfficialMark):
     # Отметку нельзя редактировать или удалять.
     # Исправление — через API (correct), старые помечаются is_cancelled.
     can_edit = False
-    can_delete = False
+
+    column_selectinload = [
+        OfficialMark.participant,
+        OfficialMark.checkpoint,
+        OfficialMark.entered_by,
+    ]
 
     form_columns = [
         OfficialMark.participant,
@@ -66,8 +76,58 @@ class OfficialMarkAdmin(ModelView, model=OfficialMark):
         "mandatory_stop_minutes": {"validators": [NumberRange(min=0, max=600)]},
     }
 
+    can_export = True
+    column_export_list = [
+        OfficialMark.mark_time,
+        OfficialMark.participant,
+        OfficialMark.checkpoint,
+        OfficialMark.penalty_minutes,
+        OfficialMark.mandatory_stop_minutes,
+    ]
 
-class TrackPointAdmin(ModelView, model=TrackPoint):
+    # --- BULK ACTIONS ---
+
+    @action(
+        name="cancel-marks",
+        label="Отменить отметки",
+        confirmation_message="Отменить выбранные отметки? Они будут помечены как отмененные (is_cancelled=True) и не попадут в протокол.",
+        add_in_list=True,
+        add_in_detail=True,
+    )
+    async def action_cancel_marks(self, request: Request) -> RedirectResponse:
+        pks = await self._parse_pks(request)
+        if not pks:
+            return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
+
+        session_id = request.session.get("admin_session_id")
+
+        async with async_session_factory() as session:
+            admin = await get_active_admin_for_session(session, str(session_id or ""))
+            admin_id = admin.id if admin else None
+
+            for pk in pks:
+                mark = await session.get(OfficialMark, pk)
+                if mark is None or mark.is_cancelled:
+                    continue  # Уже отменена — пропускаем
+
+                mark.is_cancelled = True
+                mark.cancel_reason = f"Отменено администратором ({admin.display_name if admin else 'Admin'}) через панель"
+
+                session.add(
+                    AuditLog(
+                        admin_id=admin_id,
+                        action="official_mark_cancelled",
+                        entity_type="official_mark",
+                        entity_id=str(mark.id),
+                        payload={"is_cancelled": True, "reason": mark.cancel_reason},
+                    )
+                )
+            await session.commit()
+
+        return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
+
+
+class TrackPointAdmin(BaseAdminView, model=TrackPoint):
     name = "Точка трека"
     name_plural = "Точки трека"
     icon = "fa-solid fa-location-dot"
@@ -76,7 +136,8 @@ class TrackPointAdmin(ModelView, model=TrackPoint):
 
     can_create = False
     can_edit = False
-    can_delete = False
+
+    column_selectinload = [TrackPoint.participant, TrackPoint.stage]
 
     column_list = [
         TrackPoint.recorded_at,
