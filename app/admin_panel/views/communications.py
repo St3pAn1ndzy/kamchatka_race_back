@@ -1,11 +1,10 @@
-from sqladmin import ModelView
-
+from app.admin_panel.base import BaseAdminView
 from app.admin_panel.categories import CategoryAdminEnum
 from app.admin_panel.formatters import fmt_datetime, fmt_notification_event, fmt_notification_status
 from app.db.models import FanSubscription, NotificationQueue
 
 
-class FanSubscriptionAdmin(ModelView, model=FanSubscription):
+class FanSubscriptionAdmin(BaseAdminView, model=FanSubscription):
     name = "Подписка «Болею за»"
     name_plural = "Подписки «Болею за»"
     icon = "fa-solid fa-heart"
@@ -14,6 +13,7 @@ class FanSubscriptionAdmin(ModelView, model=FanSubscription):
     # Только просмотр — создаётся через API.
     can_create = False
     can_edit = False
+    can_delete = True
     column_list = [
         FanSubscription.id,
         FanSubscription.user,
@@ -26,8 +26,10 @@ class FanSubscriptionAdmin(ModelView, model=FanSubscription):
     }
     column_sortable_list = [FanSubscription.created_at]
 
+    column_selectinload = [FanSubscription.user, FanSubscription.participant]
 
-class NotificationQueueAdmin(ModelView, model=NotificationQueue):
+
+class NotificationQueueAdmin(BaseAdminView, model=NotificationQueue):
     name = "Уведомление"
     name_plural = "Очередь уведомлений"
     icon = "fa-solid fa-bell"
@@ -36,7 +38,6 @@ class NotificationQueueAdmin(ModelView, model=NotificationQueue):
 
     can_create = False
     can_edit = False
-    can_delete = False
 
     column_list = [
         NotificationQueue.scheduled_at,
@@ -62,3 +63,5 @@ class NotificationQueueAdmin(ModelView, model=NotificationQueue):
         NotificationQueue.sent_at: lambda m, a: fmt_datetime(m.sent_at),
     }
     column_default_sort = (NotificationQueue.scheduled_at, True)
+
+    column_selectinload = [NotificationQueue.user]
