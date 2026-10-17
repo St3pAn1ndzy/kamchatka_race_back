@@ -20,11 +20,22 @@ class DashboardView(BaseView):
             service = AdminDashboardService(session)
             stats = await service.get_stats()
             sos_devices = await service.get_sos_devices()
+            stages_timeline = await service.get_stages_timeline()
+            race_mode = await service.get_race_mode()
+            recent_activity = await service.get_recent_activity()
+            attention_devices = await service.get_attention_devices()
 
         return await self.templates.TemplateResponse(
             request,
             "sqladmin/dashboard.html",
-            {"stats": stats, "sos_devices": sos_devices},
+            {
+                "stats": stats,
+                "sos_devices": sos_devices,
+                "stages_timeline": stages_timeline,
+                "race_mode": race_mode,
+                "recent_activity": recent_activity,
+                "attention_devices": attention_devices,
+            },
         )
 
     @expose("/api/dashboard-stats", methods=["GET"])
@@ -56,3 +67,10 @@ class DashboardView(BaseView):
                 ],
             }
         )
+
+    @expose("/api/dashboard-map-data", methods=["GET"])
+    async def map_data_api(self, request: Request) -> JSONResponse:
+        async with async_session_factory() as session:
+            service = AdminDashboardService(session)
+            data = await service.get_map_data()
+        return JSONResponse(data)
