@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from sqladmin import Admin
 from sqlalchemy import create_engine
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import RedirectResponse
 
 from app.admin_panel import VIEWS
 from app.admin_panel.admin_auth import AdminPanelAuth
@@ -81,6 +82,11 @@ def create_app() -> FastAPI:
     # SQLAdmin на синхронном движке.
     admin_engine = create_engine(settings.SYNC_DATABASE_URL, pool_pre_ping=True)
     app.state.admin_engine = admin_engine
+
+    @app.get("/admin-panel", include_in_schema=False)
+    @app.get("/admin-panel/", include_in_schema=False)
+    async def redirect_to_dashboard():
+        return RedirectResponse(url="/admin-panel/dashboard")
 
     # SQLAdmin на синхронном движке, доступ закрыт через AdminPanelAuth
     admin = Admin(
