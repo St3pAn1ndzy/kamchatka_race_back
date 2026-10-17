@@ -164,3 +164,12 @@ _CHECKPOINT_KIND_MAP: dict[str, tuple[str, str]] = {
 def fmt_checkpoint_kind(kind: str) -> Markup:
     text, color = _CHECKPOINT_KIND_MAP.get(kind, (kind, "secondary"))
     return fmt_badge(text, color)
+
+
+def map_freshness_to_color(status: str) -> str:
+    """Превращает статус свежести в цвет для UI."""
+    if status == "fresh":
+        return "success"
+    if status == "delayed":
+        return "warning"
+    return "danger"  # stale, no_signal
