@@ -1,107 +1,141 @@
 {% extends "sqladmin/layout.html" %}
 
 {% block content %}
-<div class="container-xl">
 
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Мониторинг оборудования (Iridium)</h3>
-            <div class="card-actions">
-                <span class="text-muted small" id="last-updated">Обновлено только что</span>
-            </div>
-        </div>
-
-        <div class="table-responsive">
-            <table class="table table-vcenter card-table">
-                <thead>
-                <tr>
-                    <th class="w-1"></th>
-                    <th>Трекер</th>
-                    <th>Участник</th>
-                    <th>Батарея</th>
-                    <th>Последний сигнал</th>
-                    <th>Координаты</th>
-                </tr>
-                </thead>
-                <tbody>
-                {% for t in trackers %}
-                <tr>
-                    <td>
-                        <!-- Индикатор статуса -->
-                        <span class="status-dot status-{{ t.status_color }} status-dot-animated"></span>
-                    </td>
-                    <td>
-                        <div class="font-weight-medium">{{ t.iridium }}</div>
-                        <div class="text-muted small">{{ t.name }}</div>
-                        {% if t.sos_active %}
-                        <span class="badge bg-danger text-white mt-1">SOS</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if t.participant_name %}
-                        {{ t.participant_name }}
-                        {% else %}
-                        <span class="text-muted">Не привязан</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if t.battery is not none %}
-                        <div class="d-flex align-items-center">
-                            <span class="me-2">{{ t.battery }}%</span>
-                            {% if t.battery < 20 %}
-                            <i class="fa-solid fa-battery-empty text-danger"></i>
-                            {% elif t.battery < 50 %}
-                            <i class="fa-solid fa-battery-half text-warning"></i>
-                            {% else %}
-                            <i class="fa-solid fa-battery-full text-success"></i>
-                            {% endif %}
-                        </div>
-                        {% else %}
-                        <span class="text-muted">—</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if t.freshness_status == 'no_signal' %}
-                        <span class="text-danger font-weight-bold">Нет данных</span>
-                        {% elif t.freshness_status == 'stale' %}
-                        <span class="text-danger font-weight-bold">{{ t.last_seen_minutes }} мин назад (Нет связи)</span>
-                        {% elif t.freshness_status == 'delayed' %}
-                        <span class="text-warning">{{ t.last_seen_minutes }} мин назад (Задержка)</span>
-                        {% else %}
-                        <span class="text-success">{{ t.last_seen_minutes }} мин назад (В норме)</span>
-                        {% endif %}
-                    </td>
-                    <td class="text-muted font-monospace small">
-                        {% if t.lat is not none and t.lon is not none %}
-                        {{ "%.4f"|format(t.lat) }}, {{ "%.4f"|format(t.lon) }}
-                        {% else %}
-                        —
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-
-                {% if not trackers %}
-                <tr>
-                    <td colspan="6" class="text-center text-muted py-4">
-                        Нет активных трекеров
-                    </td>
-                </tr>
-                {% endif %}
-                </tbody>
-            </table>
-        </div>
+<div class="card">
+  <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div>
+      <h3 class="card-title">
+        <i class="fa-solid fa-satellite-dish me-2 text-primary"></i>Мониторинг оборудования
+      </h3>
+      <div class="card-subtitle text-muted small">
+        Iridium360 — состояние трекеров и последние координаты
+      </div>
     </div>
+    <div class="d-flex align-items-center gap-3">
+      <span class="status-badge status-badge--info" id="devices-count">{{ trackers|length }} трекеров</span>
+      <span class="text-muted small" id="last-updated">Обновлено только что</span>
+    </div>
+  </div>
 
+  {# ─── Легенда фильтров ─── #}
+  <div class="px-3 pt-3 d-flex flex-wrap align-items-center gap-2">
+    <span class="status-badge status-badge--success"><i class="fa-solid fa-circle me-1" style="font-size:8px;"></i> В норме</span>
+    <span class="status-badge status-badge--warning"><i class="fa-solid fa-circle me-1" style="font-size:8px;"></i> Задержка</span>
+    <span class="status-badge status-badge--danger"><i class="fa-solid fa-circle me-1" style="font-size:8px;"></i> Потеря связи</span>
+    <span class="status-badge status-badge--danger" style="background:rgba(214,57,57,0.2);"><i class="fa-solid fa-triangle-exclamation me-1"></i> SOS</span>
+    <span class="status-badge" style="background:rgba(108,117,125,0.1);color:#6c757d;"><i class="fa-solid fa-minus me-1"></i> Нет данных</span>
+  </div>
+
+  <div class="table-responsive mt-2">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th class="w-1"></th>
+          <th>Трекер</th>
+          <th>Участник</th>
+          <th>Батарея</th>
+          <th>Последний сигнал</th>
+          <th>Координаты</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in trackers %}
+        <tr class="{% if t.sos_active %}table-danger{% elif t.freshness_status == 'stale' %}table-warning{% endif %}">
+          <td>
+            <span class="status-dot status-{{ t.status_color }} status-dot-animated"></span>
+          </td>
+          <td>
+            <a href="/admin-panel/device/details/{{ t.device_id }}"
+               class="text-reset text-decoration-none fw-bold"
+               title="Открыть карточку трекера">
+              {{ t.iridium }}
+            </a>
+            <div class="text-muted small">{{ t.name }}</div>
+            {% if t.sos_active %}
+            <span class="badge bg-danger text-white mt-1 sos-pulse-dot">SOS</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if t.participant_id %}
+            <a href="/admin-panel/participant/details/{{ t.participant_id }}"
+               class="text-reset text-decoration-none fw-semibold"
+               title="Открыть карточку участника">
+              {{ t.participant_name }}
+            </a>
+            {% else %}
+            <span class="text-muted">Не привязан</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if t.battery is not none %}
+            <div class="d-flex align-items-center gap-1">
+              <div class="progress-thin flex-grow-1" style="max-width:60px;">
+                <div class="progress-fill {% if t.battery > 70 %}{% elif t.battery > 30 %}is-leader{% endif %}"
+                     style="width:{{ t.battery }}%;{% if t.battery <= 30 %}background:#d63939{% endif %}"></div>
+              </div>
+              <span class="small fw-semibold {{ 'text-danger' if t.battery < 20 else 'text-muted' }}">{{ t.battery }}%</span>
+            </div>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if t.freshness_status == 'no_signal' %}
+            <span class="status-badge status-badge--danger">Нет данных</span>
+            {% elif t.freshness_status == 'stale' %}
+            <span class="status-badge status-badge--danger">{{ t.last_seen_minutes }} мин</span>
+            <span class="text-muted small ms-1">(потеря связи)</span>
+            {% elif t.freshness_status == 'delayed' %}
+            <span class="status-badge status-badge--warning">{{ t.last_seen_minutes }} мин</span>
+            <span class="text-muted small ms-1">(задержка)</span>
+            {% else %}
+            <span class="status-badge status-badge--success">{{ t.last_seen_minutes }} мин</span>
+            <span class="text-muted small ms-1">(в норме)</span>
+            {% endif %}
+          </td>
+          <td class="text-muted font-monospace small">
+            {% if t.lat is not none and t.lon is not none %}
+            {{ "%.4f"|format(t.lat) }}, {{ "%.4f"|format(t.lon) }}
+            {% else %}
+            —
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-4">
+            <div class="empty-state">
+              <div class="empty-icon"><i class="fa-solid fa-satellite-dish"></i></div>
+              <div class="empty-title">Нет активных трекеров</div>
+              <div class="empty-text">Добавьте устройства в разделе «Оборудование».</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
+
 {% endblock %}
 
-{% block scripts %}
+{% block tail %}
 {{ super() }}
 <script>
-    // Автообновление страницы каждые 30 секунд
-    setTimeout(function () {
-        window.location.reload();
-    }, 30000);
+(function(){
+  var updatedEl = document.getElementById('last-updated');
+
+  function updateTimestamp(){
+    var now = new Date();
+    var time = now.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
+    if (updatedEl) updatedEl.textContent = 'Обновлено в ' + time;
+  }
+
+  updateTimestamp();
+  setInterval(updateTimestamp, 10000);
+  // Полная перезагрузка страницы раз в 60 секунд для обновления данных
+  setTimeout(function(){ window.location.reload(); }, 60000);
+})();
 </script>
 {% endblock %}
