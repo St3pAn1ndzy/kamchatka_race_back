@@ -1,0 +1,107 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+<div class="container-xl">
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Мониторинг оборудования (Iridium)</h3>
+            <div class="card-actions">
+                <span class="text-muted small" id="last-updated">Обновлено только что</span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+                <thead>
+                <tr>
+                    <th class="w-1"></th>
+                    <th>Трекер</th>
+                    <th>Участник</th>
+                    <th>Батарея</th>
+                    <th>Последний сигнал</th>
+                    <th>Координаты</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for t in trackers %}
+                <tr>
+                    <td>
+                        <!-- Индикатор статуса -->
+                        <span class="status-dot status-{{ t.status_color }} status-dot-animated"></span>
+                    </td>
+                    <td>
+                        <div class="font-weight-medium">{{ t.iridium }}</div>
+                        <div class="text-muted small">{{ t.name }}</div>
+                        {% if t.sos_active %}
+                        <span class="badge bg-danger text-white mt-1">SOS</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.participant_name %}
+                        {{ t.participant_name }}
+                        {% else %}
+                        <span class="text-muted">Не привязан</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.battery is not none %}
+                        <div class="d-flex align-items-center">
+                            <span class="me-2">{{ t.battery }}%</span>
+                            {% if t.battery < 20 %}
+                            <i class="fa-solid fa-battery-empty text-danger"></i>
+                            {% elif t.battery < 50 %}
+                            <i class="fa-solid fa-battery-half text-warning"></i>
+                            {% else %}
+                            <i class="fa-solid fa-battery-full text-success"></i>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.freshness_status == 'no_signal' %}
+                        <span class="text-danger font-weight-bold">Нет данных</span>
+                        {% elif t.freshness_status == 'stale' %}
+                        <span class="text-danger font-weight-bold">{{ t.last_seen_minutes }} мин назад (Нет связи)</span>
+                        {% elif t.freshness_status == 'delayed' %}
+                        <span class="text-warning">{{ t.last_seen_minutes }} мин назад (Задержка)</span>
+                        {% else %}
+                        <span class="text-success">{{ t.last_seen_minutes }} мин назад (В норме)</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-muted font-monospace small">
+                        {% if t.lat is not none and t.lon is not none %}
+                        {{ "%.4f"|format(t.lat) }}, {{ "%.4f"|format(t.lon) }}
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+
+                {% if not trackers %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        Нет активных трекеров
+                    </td>
+                </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    // Автообновление страницы каждые 30 секунд
+    setTimeout(function () {
+        window.location.reload();
+    }, 30000);
+</script>
+{% endblock %}
