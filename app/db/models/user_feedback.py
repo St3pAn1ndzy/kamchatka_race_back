@@ -61,3 +61,9 @@ class UserFeedback(Base):
     )
 
     user: Mapped[Optional["User"]] = relationship(back_populates="feedback_items")
+
+    def __str__(self) -> str:
+        return f"[{self.kind}] {self.message[:80]}"
+
+    def __repr__(self) -> str:
+        return f"<UserFeedback id={self.id} kind={self.kind!r}>"

@@ -44,3 +44,9 @@ class FanSubscription(Base):
 
     user: Mapped["User"] = relationship(back_populates="favorites")
     participant: Mapped["Participant"] = relationship(back_populates="fans")
+
+    def __str__(self) -> str:
+        return f"Пользователь {self.user_id} → участник {self.participant_id}"
+
+    def __repr__(self) -> str:
+        return f"<FanSubscription id={self.id} user_id={self.user_id} participant_id={self.participant_id}>"

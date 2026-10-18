@@ -102,3 +102,9 @@ class ViewerLocation(Base):
     )
 
     stage: Mapped[Optional["Stage"]] = relationship(back_populates="viewer_locations")
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f"<ViewerLocation id={self.id} name={self.name!r}>"

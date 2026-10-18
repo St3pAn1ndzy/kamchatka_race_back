@@ -28,3 +28,9 @@ class StageRoutePoint(Base):
     lon: Mapped[float] = mapped_column(Float, nullable=False)
 
     stage: Mapped["Stage"] = relationship(back_populates="route_points")
+
+    def __str__(self) -> str:
+        return f"Точка #{self.position} ({self.lat:.5f}, {self.lon:.5f})"
+
+    def __repr__(self) -> str:
+        return f"<StageRoutePoint id={self.id} position={self.position}>"

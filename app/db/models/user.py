@@ -72,3 +72,9 @@ class User(Base):
         back_populates="user",
         passive_deletes=True,
     )
+
+    def __str__(self) -> str:
+        return f"{self.first_name} {self.last_name}".strip() or f"VK#{self.vk_user_id}"
+
+    def __repr__(self) -> str:
+        return f"<User id={self.id} vk_user_id={self.vk_user_id}>"

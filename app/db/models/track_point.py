@@ -87,3 +87,9 @@ class TrackPoint(Base):
     participant: Mapped[Optional["Participant"]] = relationship(back_populates="track_points")
 
     stage: Mapped[Optional["Stage"]] = relationship(back_populates="track_points")
+
+    def __str__(self) -> str:
+        return f"Трек #{self.id} (уч. {self.participant_id}, {self.recorded_at})"
+
+    def __repr__(self) -> str:
+        return f"<TrackPoint id={self.id} participant_id={self.participant_id} recorded_at={self.recorded_at!r}>"

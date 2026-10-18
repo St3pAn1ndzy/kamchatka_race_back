@@ -102,3 +102,9 @@ class NewsPost(Base):
     )
 
     stage: Mapped[Optional["Stage"]] = relationship()
+
+    def __str__(self) -> str:
+        return self.title
+
+    def __repr__(self) -> str:
+        return f"<NewsPost id={self.id} title={self.title!r}>"
