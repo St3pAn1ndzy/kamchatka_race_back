@@ -1,5 +1,6 @@
 """Views для сущностей события: сезоны, дисциплины, этапы, КП."""
 
+from starlette.requests import Request
 from wtforms import SelectField
 from wtforms.validators import NumberRange
 
@@ -14,6 +15,7 @@ from app.admin_panel.formatters import (
 )
 from app.db.models import Checkpoint, Discipline, Season, Stage
 from app.enums import PublicationStatus, StageStatus
+from app.services.cache import cache
 
 _LABELS_STAGE = {
     StageStatus.PLANNED: "Запланирован",
@@ -211,3 +213,17 @@ class StageAdmin(BaseAdminView, model=Stage):
         "status": SelectField,
         "results_publication": SelectField,
     }
+
+    async def after_model_change(
+        self, data: dict, model: Stage, is_created: bool, request: Request
+    ) -> None:
+        """Инвалидация кэша после изменения или создания этапа."""
+        await cache.invalidate_pattern("public:stages:*")
+        await cache.invalidate_pattern("public:disciplines:*")
+        await cache.invalidate_pattern(f"public:map:model:{model.id}:*")
+        await cache.delete(f"public:map:checkpoint:{model.id}")
+        await cache.invalidate_pattern(f"public:map:track:{model.id}:*")
+        await cache.delete(f"public:results:stage:{model.id}")
+        await cache.delete("public:results:standings")
+        await cache.invalidate_pattern("public:results:leaderboard:*")
+        return await super().after_model_change(data, model, is_created, request)

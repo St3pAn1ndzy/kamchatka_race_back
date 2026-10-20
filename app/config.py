@@ -84,6 +84,12 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "https://vk.com,https://m.vk.com,https://prod-apps.vkusercontent.com"
     CORS_ORIGIN_REGEX: str | None = None
 
+    # --- Кэширование Redis ---
+    CACHE_TTL_STAGES: int = 3600  # 1 час — справочники (этапы, дисциплины)
+    CACHE_TTL_RESULTS: int = 300  # 5 мин — протоколы, standings
+    CACHE_TTL_MAP: int = 15  # 15 сек — данные карты
+    CACHE_TTL_STATS: int = 30  # 30 сек — статистика
+
     # --- 152-ФЗ ---
     PRIVACY_POLICY_VERSION: str = "1.0"
 

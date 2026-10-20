@@ -3,7 +3,7 @@
 Только чтение. Все запросы собраны в одном месте, чтобы view оставался тонким.
 """
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select
@@ -20,6 +20,7 @@ from app.db.models.race_status import RaceStatus
 from app.db.models.season import Season
 from app.db.models.stage import Stage
 from app.enums import ParticipantStatus, PublicationStatus, RaceState, StageStatus
+from app.services.cache import cache
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,11 @@ class AdminDashboardService:
         self.settings = get_settings()
 
     async def get_stats(self) -> DashboardStats:
+        """Снимок метрик для дашборда. Кэшируется на 30 секунд."""
+        cached = await cache.get("admin:dashboard:stats")
+        if cached is not None:
+            return DashboardStats(**cached)
+
         now = datetime.now(tz=UTC)
         stale_interval_minutes = (
             self.settings.TRACKING_POLL_INTERVAL_SECONDS
@@ -120,7 +126,7 @@ class AdminDashboardService:
         active_season = await self._get_active_season()
         season_id = active_season.id if active_season else None
 
-        return DashboardStats(
+        stats = DashboardStats(
             participants_total=await self._count(Participant),
             participants_active=await self._count(
                 Participant, Participant.status == ParticipantStatus.ACTIVE.value
@@ -154,6 +160,15 @@ class AdminDashboardService:
             ),
             devices_sos=await self._count(Device, Device.sos_active.is_(True)),
         )
+
+        # Сохраняем в кэш на 30 секунд
+        await cache.set(
+            "admin:dashboard:stats",
+            asdict(stats),
+            ttl=self.settings.CACHE_TTL_STATS,
+        )
+
+        return stats
 
     async def get_sos_devices(self) -> list[SosDevice]:
         """Активные SOS-сигналы.

@@ -20,6 +20,7 @@ from app.schemas.admin_directory import (
     StageCreateRequest,
     StageUpdateRequest,
 )
+from app.services.cache import cache
 
 
 class AdminDirectoryService:
@@ -59,6 +60,10 @@ class AdminDirectoryService:
         self._audit(admin_id, "season_created", "season", season.id, {"new": audit_data})
         await self.session.commit()
         await self.session.refresh(season)
+
+        # Инвалидация кэша справочников
+        await self._invalidate_directory_cache()
+
         return season
 
     async def update_season(
@@ -107,6 +112,10 @@ class AdminDirectoryService:
         )
         await self.session.commit()
         await self.session.refresh(season)
+
+        # Инвалидация кэша справочников — могли изменить is_active
+        await self._invalidate_directory_cache()
+
         return season
 
     async def list_disciplines(self, *, season_id: int | None = None) -> list[Discipline]:
@@ -148,6 +157,10 @@ class AdminDirectoryService:
         )
         await self.session.commit()
         await self.session.refresh(discipline)
+
+        # Инвалидация кэша справочников
+        await self._invalidate_directory_cache()
+
         return discipline
 
     async def update_discipline(
@@ -195,6 +208,10 @@ class AdminDirectoryService:
         )
         await self.session.commit()
         await self.session.refresh(discipline)
+
+        # Инвалидация кэша справочников
+        await self._invalidate_directory_cache()
+
         return discipline
 
     async def list_stages(self, *, season_id: int | None = None) -> list[Stage]:
@@ -227,6 +244,11 @@ class AdminDirectoryService:
         self._audit(admin_id, "stage_created", "stage", stage.id, {"new": audit_data})
         await self.session.commit()
         await self.session.refresh(stage)
+
+        # Инвалидация кэша справочников — добавился новый этап
+        await cache.invalidate_pattern("public:stages:*")
+        await cache.invalidate_pattern("public:disciplines:*")
+
         return stage
 
     async def update_stage(
@@ -277,7 +299,27 @@ class AdminDirectoryService:
         self._audit(admin_id, "stage_updated", "stage", stage.id, {"old": old, "new": audit_data})
         await self.session.commit()
         await self.session.refresh(stage)
+
+        # Инвалидация кэша — этап изменился
+        await self._invalidate_stage_cache(stage.id)
+
         return stage
+
+    async def _invalidate_directory_cache(self) -> None:
+        """Сброс кэша справочников (этапы, дисциплины)."""
+        await cache.invalidate_pattern("public:stages:*")
+        await cache.invalidate_pattern("public:disciplines:*")
+
+    async def _invalidate_stage_cache(self, stage_id: int) -> None:
+        """Сброс кэша справочников, карты и результатов для этапа."""
+        await cache.invalidate_pattern("public:stages:*")
+        await cache.invalidate_pattern("public:disciplines:*")
+        await cache.invalidate_pattern(f"public:map:model:{stage_id}:*")
+        await cache.delete(f"public:map:checkpoint:{stage_id}")
+        await cache.invalidate_pattern(f"public:map:track:{stage_id}:*")
+        await cache.delete(f"public:results:stage:{stage_id}")
+        await cache.delete("public:results:standings")
+        await cache.invalidate_pattern("public:results:leaderboard:*")
 
     async def _require_season(self, season_id: int) -> None:
         season = await self.session.get(Season, season_id)

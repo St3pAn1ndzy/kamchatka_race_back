@@ -9,6 +9,7 @@ from app.admin_panel.formatters import fmt_bool, fmt_datetime
 from app.db.base import async_session_factory
 from app.db.models import AuditLog, OfficialMark, TrackPoint
 from app.security.admin_sessions import get_active_admin_for_session
+from app.services.cache import cache
 
 
 class OfficialMarkAdmin(BaseAdminView, model=OfficialMark):
@@ -123,6 +124,9 @@ class OfficialMarkAdmin(BaseAdminView, model=OfficialMark):
                     )
                 )
             await session.commit()
+
+        # Сброс кэша результатов (отметки изменились)
+        await cache.invalidate_pattern("public:results:*")
 
         return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
 

@@ -2,12 +2,16 @@
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.discipline import Discipline
+from app.config import get_settings
 from app.db.models.season import Season
-from app.db.models.stage import Stage
 from app.repositories.discipline import DisciplineRepository
 from app.repositories.season import SeasonRepository
 from app.repositories.stage import StageRepository
+from app.schemas.public_directory import (
+    DisciplinePublicResponse,
+    StagePublicResponse,
+)
+from app.services.cache import cache
 
 
 class PublicDirectoryService:
@@ -24,29 +28,71 @@ class PublicDirectoryService:
         self,
         *,
         season_id: int | None = None,
-    ) -> list[Discipline]:
-        """Активные дисциплины. По умолчанию — активного сезона."""
+    ) -> list[DisciplinePublicResponse]:
+        """Активные дисциплины. По умолчанию — активного сезона.
+
+        Результат кэшируется на 1 час для активного сезона (season_id=None).
+        """
+        use_cache = season_id is None
+
+        if use_cache:
+            cached = await cache.get("public:disciplines:active")
+            if cached is not None:
+                return [DisciplinePublicResponse(**item) for item in cached]
+
         if season_id is None:
             season = await self.get_active_season()
             if season is None:
                 return []
             season_id = season.id
 
-        return await self.disciplines.list_ordered(
+        disciplines = await self.disciplines.list_ordered(
             season_id=season_id,
             include_inactive=False,
         )
+        result = [DisciplinePublicResponse.model_validate(d) for d in disciplines]
+
+        if use_cache:
+            settings = get_settings()
+            await cache.set(
+                "public:disciplines:active",
+                [r.model_dump(mode="json") for r in result],
+                settings.CACHE_TTL_STAGES,
+            )
+
+        return result
 
     async def list_stages(
         self,
         *,
         season_id: int | None = None,
-    ) -> list[Stage]:
-        """Этапы сезона, отсортированы по order_index. По умолчанию — активного сезона."""
+    ) -> list[StagePublicResponse]:
+        """Этапы сезона, отсортированы по order_index. По умолчанию — активного сезона.
+
+        Результат кэшируется на 1 час для активного сезона.
+        """
+        use_cache = season_id is None
+
+        if use_cache:
+            cached = await cache.get("public:stages:active")
+            if cached is not None:
+                return [StagePublicResponse(**item) for item in cached]
+
         if season_id is None:
             season = await self.get_active_season()
             if season is None:
                 return []
             season_id = season.id
 
-        return await self.stages.list_ordered(season_id=season_id)
+        stages = await self.stages.list_ordered(season_id=season_id)
+        result = [StagePublicResponse.model_validate(s) for s in stages]
+
+        if use_cache:
+            settings = get_settings()
+            await cache.set(
+                "public:stages:active",
+                [r.model_dump(mode="json") for r in result],
+                settings.CACHE_TTL_STAGES,
+            )
+
+        return result
