@@ -18,7 +18,11 @@ from app.schemas.map import (
     MapPosition,
     MapTrackResponse,
 )
+from app.services.cache import cache
 from app.services.tracking_freshness import get_freshness_status
+
+_PREFIX_MODEL = "public:map:model:"
+_PREFIX_CHECKPOINT = "public:map:checkpoint:"
 
 
 class PublicMapService:
@@ -28,6 +32,7 @@ class PublicMapService:
         self.participants = ParticipantRepository(session)
         self.track_points = TrackPointRepository(session)
         self.checkpoints = CheckpointRepository(session)
+        self.settings = get_settings()
 
     async def _stage(self, stage_id: int) -> Stage:
         stage = await self.stages.get_by_id(stage_id)
@@ -38,6 +43,12 @@ class PublicMapService:
     async def get_participants(
         self, stage_id: int, *, limit: int, offset: int
     ) -> MapParticipantsResponse:
+        # Попытка достать из кэша
+        cache_key = f"{_PREFIX_MODEL}{stage_id}:{limit}:{offset}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return MapParticipantsResponse(**cached)
+
         stage = await self._stage(stage_id)
         if stage.season_id is not None:
             disciplines = await self.disciplines.list_ordered(season_id=stage.season_id)
@@ -57,11 +68,10 @@ class PublicMapService:
             stage_id, [participant.id for participant in participants]
         )
         latest_by_participant = {point.participant_id: point for point in points}
-        settings = get_settings()
         interval = (
             stage.tracker_interval_seconds
             if stage.tracker_interval_seconds > 0
-            else settings.TRACKING_POLL_INTERVAL_SECONDS
+            else self.settings.TRACKING_POLL_INTERVAL_SECONDS
         )
         now = datetime.now(tz=UTC)
 
@@ -72,7 +82,7 @@ class PublicMapService:
                 point.recorded_at if point else None,
                 now=now,
                 interval_seconds=interval,
-                stale_missed_intervals=settings.TRACKING_STALE_MISSED_INTERVALS,
+                stale_missed_intervals=self.settings.TRACKING_STALE_MISSED_INTERVALS,
             )
             items.append(
                 MapParticipant(
@@ -88,13 +98,22 @@ class PublicMapService:
                     position=MapPosition.model_validate(point) if point else None,
                 )
             )
-        return MapParticipantsResponse(
+        result = MapParticipantsResponse(
             stage_id=stage_id, items=items, total=total, limit=limit, offset=offset
         )
+        # Сохраняем в кэш
+        await cache.set(cache_key, result.model_dump(mode="json"), self.settings.CACHE_TTL_MAP)
+        return result
 
     async def get_track(
         self, stage_id: int, participant_id: int, *, limit: int, offset: int
     ) -> MapTrackResponse:
+        # Попытка достать из кэша
+        cache_key = f"public:map:track:{stage_id}:{participant_id}:{limit}:{offset}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return MapTrackResponse(**cached)
+
         stage = await self._stage(stage_id)
         participant = await self.participants.get_by_id(participant_id)
         if participant is None:
@@ -113,7 +132,7 @@ class PublicMapService:
         )
         if stage.season_id is None and total == 0:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Участник не найден на этапе")
-        return MapTrackResponse(
+        result = MapTrackResponse(
             stage_id=stage_id,
             participant_id=participant_id,
             points=[MapPosition.model_validate(point) for point in points],
@@ -121,11 +140,23 @@ class PublicMapService:
             limit=limit,
             offset=offset,
         )
+        # Сохраняем в кэш
+        await cache.set(cache_key, result.model_dump(mode="json"), self.settings.CACHE_TTL_MAP)
+        return result
 
     async def get_checkpoints(self, stage_id: int) -> MapCheckpointsResponse:
+        # Попытка достать из кэша
+        cache_key = f"{_PREFIX_CHECKPOINT}{stage_id}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return MapCheckpointsResponse(**cached)
+
         await self._stage(stage_id)
         checkpoints = await self.checkpoints.list_public_for_stage(stage_id)
-        return MapCheckpointsResponse(
+        result = MapCheckpointsResponse(
             stage_id=stage_id,
             items=[MapCheckpoint.model_validate(checkpoint) for checkpoint in checkpoints],
         )
+        # Сохраняем в кэш
+        await cache.set(cache_key, result.model_dump(mode="json"), self.settings.CACHE_TTL_MAP)
+        return result
