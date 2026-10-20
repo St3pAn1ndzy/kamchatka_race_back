@@ -25,7 +25,7 @@ class OfficialMarkCorrectRequest(BaseSchema):
     penalty_minutes: int = Field(default=0, ge=0)
     mandatory_stop_minutes: int = Field(default=0, ge=0)
     comment: str | None = Field(default=None, max_length=2000)
-    cancel_reason: CancelReason
+    cancel_reason: CancelReason | None = None
 
 
 class OfficialMarkResponse(BaseSchema):
