@@ -18,10 +18,26 @@ from app.security.passwords import hash_password
 from app.services.cache import cache
 
 
+def assert_test_resources(settings) -> None:
+    """Не допускает очистку рабочих PostgreSQL и Redis тестовыми фикстурами"""
+    if settings.ENV != "test":
+        raise RuntimeError("Для запуска тестов требуется ENV=test")
+    if not settings.POSTGRES_DB.endswith("_test"):
+        raise RuntimeError("Имя тестовой базы PostgreSQL должно оканчиваться на _test")
+    if settings.POSTGRES_HOST not in {"localhost", "127.0.0.1", "postgres"}:
+        raise RuntimeError("PostgreSQL для тестов должен быть локальным или тестовым контейнером")
+    if settings.REDIS_DB != 15:
+        raise RuntimeError("Redis DB для тестов должен быть равен 15")
+    if settings.REDIS_HOST not in {"localhost", "127.0.0.1", "redis"}:
+        raise RuntimeError("Redis для тестов должен быть локальным или тестовым контейнером")
+
+
 @pytest.fixture(scope="session")
 def test_settings():
     """Настройки приложения (session-scoped, один раз за сессию)."""
-    return get_settings()
+    settings = get_settings()
+    assert_test_resources(settings)
+    return settings
 
 
 @pytest.fixture(scope="session")
@@ -45,7 +61,7 @@ async def _prepare_db(engine):
 
 
 @pytest.fixture(autouse=True)
-async def _clear_cache(request):
+async def _clear_cache(test_settings):
     """Очищает Redis-кэш до и после каждого теста."""
     await cache.invalidate_pattern("*")
     yield
