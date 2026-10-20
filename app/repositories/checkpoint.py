@@ -18,3 +18,12 @@ class CheckpointRepository(BaseRepository[Checkpoint]):
     async def get_for_update(self, checkpoint_id: int) -> Checkpoint | None:
         stmt = select(Checkpoint).where(Checkpoint.id == checkpoint_id).with_for_update()
         return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def list_for_stage(self, stage_id: int) -> list[Checkpoint]:
+        """Получить ВСЕ КП этапа (включая непубличные), отсортированные по порядку."""
+        stmt = (
+            select(Checkpoint)
+            .where(Checkpoint.stage_id == stage_id)
+            .order_by(Checkpoint.order_index, Checkpoint.id)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
