@@ -17,6 +17,7 @@ from app.admin_panel.formatters import (
 from app.db.base import async_session_factory
 from app.db.models import AuditLog, FAQItem, NewsPost, ScheduleEvent, ViewerLocation
 from app.security.admin_sessions import get_active_admin_for_session
+from app.services.cache import cache
 
 
 class FAQItemAdmin(BaseAdminView, model=FAQItem):
@@ -163,6 +164,10 @@ class NewsPostAdmin(BaseAdminView, model=NewsPost):
                 )
             await session.commit()
 
+        # Сброс кэша публичных данных (новости, расписание)
+        await cache.invalidate_pattern("public:news:*")
+        await cache.invalidate_pattern("public:schedule:*")
+
         return RedirectResponse(
             request.url_for("admin:list", identity=self.identity),
             status_code=302,
@@ -220,6 +225,9 @@ class NewsPostAdmin(BaseAdminView, model=NewsPost):
                     )
                 )
             await session.commit()
+
+        # Сброс кэша публичных данных (новости)
+        await cache.invalidate_pattern("public:news:*")
 
         return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
 
