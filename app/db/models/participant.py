@@ -20,6 +20,7 @@ class Participant(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
     number: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     region: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Каждый игрок имеет какую-либо дисциплину в гонке
     discipline_id: Mapped[int | None] = mapped_column(
