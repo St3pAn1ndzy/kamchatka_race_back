@@ -11,6 +11,7 @@ from app.db.base import async_session_factory
 from app.db.models import AuditLog, Device, Participant
 from app.enums import ParticipantStatus
 from app.security.admin_sessions import get_active_admin_for_session
+from app.services.cache import cache
 
 _LABELS = {
     ParticipantStatus.REGISTERED: "Заявлен",
@@ -76,6 +77,13 @@ class DeviceAdmin(BaseAdminView, model=Device):
         Device.name: {"placeholder": "Трекер №001"},
     }
 
+    async def after_model_change(
+        self, data: dict, model: Device, is_created: bool, request: Request
+    ) -> None:
+        """Инвалидация кэша карты после изменения трекера."""
+        await cache.invalidate_pattern("public:map:*")
+        return await super().after_model_change(data, model, is_created, request)
+
     # --- BULK ACTIONS ---
 
     async def _set_active(
@@ -108,6 +116,9 @@ class DeviceAdmin(BaseAdminView, model=Device):
                     )
                 )
             await session.commit()
+
+        # Инвалидация кэша карты — изменилось состояние трекеров
+        await cache.invalidate_pattern("public:map:*")
 
         return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
 
