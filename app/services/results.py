@@ -13,6 +13,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db.models.official_mark import OfficialMark
 from app.db.models.participant import Participant
 from app.db.models.stage import Stage
@@ -26,6 +27,7 @@ from app.schemas.results import (
     StageProtocolRow,
     StandingRow,
 )
+from app.services.cache import cache
 
 logger = logging.getLogger("avacha.results")
 
@@ -40,7 +42,15 @@ class ResultService:
     # ── Протокол этапа ─────────────────────────────────────────────────
 
     async def get_stage_protocol(self, stage_id: int) -> StageProtocol | None:
-        """Протокол этапа. None если этап не найден или publication=draft."""
+        """Протокол этапа. None если этап не найден или publication=draft.
+
+        Результат кэшируется на CACHE_TTL_RESULTS секунд.
+        """
+        # Попытка достать из кэша
+        cached = await cache.get(f"public:results:stage:{stage_id}")
+        if cached is not None:
+            return StageProtocol(**cached)
+
         stage = await self.session.get(Stage, stage_id)
         if stage is None:
             return None
@@ -114,17 +124,34 @@ class ResultService:
                 position += 1
                 row.position = position
 
-        return StageProtocol(
+        protocol = StageProtocol(
             stage_id=stage.id,
             stage_name=stage.name,
             publication=PublicationStatus(stage.results_publication),
             rows=rows,
         )
 
+        # Сохраняем в кэш
+        settings = get_settings()
+        await cache.set(
+            f"public:results:stage:{stage.id}",
+            protocol.model_dump(mode="json"),
+            settings.CACHE_TTL_RESULTS,
+        )
+
+        return protocol
+
     # ── Сводная таблица лидеров ────────────────────────────────────────
 
     async def get_standings(self) -> RaceStandings:
-        """Сводная таблица — сумма этапов с publication=(provisional|official)."""
+        """Сводная таблица — сумма этапов с publication=(provisional|official).
+
+        Результат кэшируется на CACHE_TTL_RESULTS секунд.
+        """
+        cached = await cache.get("public:results:standings")
+        if cached is not None:
+            return RaceStandings(**cached)
+
         stages = await self._get_published_stages()
         if not stages:
             return RaceStandings(mode="official", rows=[])
@@ -189,7 +216,17 @@ class ResultService:
                 position += 1
                 row.position = position
 
-        return RaceStandings(mode="official", rows=standing_rows)
+        standings = RaceStandings(mode="official", rows=standing_rows)
+
+        # Сохраняем в кэш
+        settings = get_settings()
+        await cache.set(
+            "public:results:standings",
+            standings.model_dump(mode="json"),
+            settings.CACHE_TTL_RESULTS,
+        )
+
+        return standings
 
     # ── Таблица лидеров (краткая) ──────────────────────────────────────
 
@@ -201,7 +238,14 @@ class ResultService:
 
         mode=official — из OfficialMark (опубликованные этапы).
         mode=live — TODO: из трекера (следующий эпик).
+
+        Результат кэшируется на CACHE_TTL_RESULTS секунд.
         """
+        cache_key = f"public:results:leaderboard:{limit}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return [LeaderboardEntry(**item) for item in cached]
+
         standings = await self.get_standings()
         entries: list[LeaderboardEntry] = []
         for row in standings.rows[:limit]:
@@ -216,6 +260,15 @@ class ResultService:
                     mode="official",
                 )
             )
+
+        # Сохраняем в кэш
+        settings = get_settings()
+        await cache.set(
+            cache_key,
+            [e.model_dump(mode="json") for e in entries],
+            settings.CACHE_TTL_RESULTS,
+        )
+
         return entries
 
     # ── Отметки участника ──────────────────────────────────────────────
