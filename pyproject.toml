@@ -51,6 +51,7 @@ testpaths = ["tests"]
 env = [
     "POSTGRES_DB=avacha_test",
     "ENV=test",
+    "REDIS_DB=15",
 ]
 
 
