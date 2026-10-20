@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_log import AuditLog
 from app.db.models.official_mark import OfficialMark
+from app.enums import CheckpointKind, ParticipantStatus
 from app.repositories.checkpoint import CheckpointRepository
 from app.repositories.discipline import DisciplineRepository
 from app.repositories.official_mark import OfficialMarkRepository
@@ -11,6 +12,7 @@ from app.repositories.participant import ParticipantRepository
 from app.repositories.stage import StageRepository
 from app.schemas.admin_marks import OfficialMarkCorrectRequest, OfficialMarkCreateRequest
 from app.services.cache import cache
+from app.services.mark_import import parse_csv
 
 _MARK_CONFLICTS = {
     "uq_official_marks_active_participant_checkpoint": "Действующая отметка уже существует",
@@ -187,3 +189,80 @@ class AdminMarkService:
         await self._invalidate_results_cache(checkpoint.stage_id)
 
         return new_mark
+
+    async def import_from_csv(self, file_content: bytes, stage_id: int, admin_id: int) -> int:
+        """Импортирует отметки из CSV. Возвращает количество созданных записей."""
+        # 1. Получаем этап
+        stage = await self.stages.get_by_id(stage_id)
+        if not stage:
+            from fastapi import HTTPException
+
+            raise HTTPException(404, "Этап не найден")
+
+        # 2. Получаем КП (Старт и Финиш)
+        checkpoints = await self.checkpoints.list_for_stage(stage_id)
+        cp_start = next((c for c in checkpoints if c.kind == CheckpointKind.START.value), None)
+        cp_finish = next((c for c in checkpoints if c.kind == CheckpointKind.FINISH.value), None)
+
+        if not cp_start or not cp_finish:
+            from fastapi import HTTPException
+
+            raise HTTPException(400, "У этапа не настроены КП Старт/Финиш")
+
+        # 3. Парсим файл (заглушка или реальный парсер)
+        parsed_data = parse_csv(file_content, stage.start_time, stage.number)
+
+        created_count = 0
+
+        # 4. Сохраняем в БД
+        for item in parsed_data:
+            participant = await self.participants.get_by_number(item["number"])
+            if not participant:
+                continue
+
+            # Обновляем статус участника, если нужно
+            if item["status"] == "WITHDRAWN":
+                participant.status = ParticipantStatus.WITHDRAWN.value
+            elif item["status"] == "DISQUALIFIED":
+                participant.status = ParticipantStatus.DISQUALIFIED.value
+
+            # Создаем отметки
+            if item["type"] == "start":
+                self.session.add(
+                    OfficialMark(
+                        participant_id=participant.id,
+                        checkpoint_id=cp_start.id,
+                        mark_time=item["time"],
+                        entered_by_admin_id=admin_id,
+                        comment="Импорт (Старт)",
+                    )
+                )
+                created_count += 1
+            elif item["type"] == "finish":
+                self.session.add(
+                    OfficialMark(
+                        participant_id=participant.id,
+                        checkpoint_id=cp_finish.id,
+                        mark_time=item["time"],
+                        entered_by_admin_id=admin_id,
+                        comment="Импорт (Финиш)",
+                    )
+                )
+                created_count += 1
+
+        self.session.add(
+            AuditLog(
+                admin_id=admin_id,
+                action="official_marks_imported",
+                entity_type="stage",
+                entity_id=str(stage_id),
+                payload={"imported_count": created_count},
+            )
+        )
+
+        await self.session.commit()
+
+        # Сброс кэша
+        await cache.invalidate_pattern("public:results:*")
+
+        return created_count
