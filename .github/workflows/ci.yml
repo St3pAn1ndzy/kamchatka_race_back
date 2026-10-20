@@ -66,6 +66,7 @@ jobs:
       POSTGRES_USER: avacha
       POSTGRES_PASSWORD: avacha
       POSTGRES_DB: avacha_test
+      REDIS_DB: "15"
 
     steps:
       - uses: actions/checkout@v4
