@@ -1,0 +1,76 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="page-title" style="font-weight: 800; font-size: 24px; margin: 0;">Импорт протокола (CSV)</h1>
+</div>
+
+{% if request.query_params.get('success') %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fa-solid fa-check-circle me-2"></i> Успешно импортировано записей: <strong>{{
+    request.query_params.get('success') }}</strong>.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fa-solid fa-triangle-exclamation me-2"></i> Произошла ошибка при импорте файла. Проверьте лог сервера.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Загрузка файла</h3>
+            </div>
+            <div class="card-body">
+                <form action="/admin-panel/mark-import" method="POST" enctype="multipart/form-data">
+
+                    <div class="mb-3">
+                        <label class="form-label required">Выберите этап</label>
+                        <select name="stage_id" class="form-select" required>
+                            <option value="" disabled selected>-- Выберите этап --</option>
+                            {% for stage in stages %}
+                            <option value="{{ stage.id }}">Этап {{ stage.number }} ({{ stage.name }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label required">CSV файл протокола</label>
+                        <input type="file" name="file" class="form-control" accept=".csv" required>
+                        <small class="form-hint">Убедитесь, что файл сохранен в кодировке UTF-8.</small>
+                    </div>
+
+                    <div class="form-footer">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fa-solid fa-upload me-2"></i> Загрузить и импортировать
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card bg-light border-0">
+            <div class="card-body">
+                <h4 class="card-title mb-3"><i class="fa-solid fa-circle-info text-primary me-2"></i> Как это работает?
+                </h4>
+                <p class="text-muted">Система прочитает CSV-файл, находит участников по стартовым номерам и
+                    автоматически создаст судейские отметки (Старт и Финиш) для выбранного этапа.</p>
+                <ul class="text-muted small mb-0">
+                    <li>Если в файле указано <strong>DNF</strong> — участнику будет создана только отметка старта, а
+                        статус изменится на «Сошёл».
+                    </li>
+                    <li>Если указано <strong>DNS</strong> — отметки не создаются.</li>
+                    <li>Все старые результаты этапа будут перезаписаны.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

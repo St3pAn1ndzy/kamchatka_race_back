@@ -125,3 +125,8 @@ class ParticipantRepository(BaseRepository[Participant]):
         if row is None:
             return None
         return row[0], int(row[1] or 0)
+
+    async def get_by_number(self, number: int) -> Participant | None:
+        """Найти участника по стартовому номеру."""
+        stmt = select(Participant).where(Participant.number == number)
+        return (await self.session.execute(stmt)).scalar_one_or_none()

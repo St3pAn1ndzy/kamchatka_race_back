@@ -1,0 +1,13 @@
+{% extends "sqladmin/list.html" %}
+
+{% block content %}
+<!-- Наша кастомная кнопка -->
+<div class="mb-3 d-flex justify-content-end">
+    <a href="/admin-panel/mark-import" class="btn btn-primary">
+        <i class="fa-solid fa-file-csv me-2"></i> Импорт протокола (CSV)
+    </a>
+</div>
+
+<!-- Выводим стандартный список SQLAdmin (таблицу, поиск, пагинацию) -->
+{{ super() }}
+{% endblock %}

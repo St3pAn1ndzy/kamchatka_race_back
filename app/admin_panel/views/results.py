@@ -19,6 +19,8 @@ class OfficialMarkAdmin(BaseAdminView, model=OfficialMark):
     category = CategoryAdminEnum.CATEGORY_RESULTS
     category_icon = "fa-solid fa-trophy"
 
+    list_template = "sqladmin/official_mark_list.html"
+
     column_list = [
         OfficialMark.mark_time,
         OfficialMark.participant,
