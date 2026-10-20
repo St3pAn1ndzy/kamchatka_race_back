@@ -56,3 +56,9 @@ class Participant(Base):
     )
 
     discipline_ref: Mapped[Optional["Discipline"]] = relationship(back_populates="participants")
+
+    def __str__(self) -> str:
+        return f"№{self.number} {self.name}"
+
+    def __repr__(self) -> str:
+        return f"<Participant id={self.id} number={self.number} name={self.name!r}>"

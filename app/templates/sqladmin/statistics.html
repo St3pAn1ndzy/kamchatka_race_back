@@ -1,0 +1,88 @@
+{% extends "sqladmin/layout.html" %}
+{% block content %}
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card card-sm">
+      <div class="card-body text-center">
+        <div class="text-muted">Болельщиков</div>
+        <div class="display-6 fw-bold text-pink">{{ stats.total_fans }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card card-sm">
+      <div class="card-body text-center">
+        <div class="text-muted">Участников</div>
+        <div class="display-6 fw-bold text-primary">{{ stats.total_participants }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card card-sm">
+      <div class="card-body text-center">
+        <div class="text-muted">Точек трека</div>
+        <div class="display-6 fw-bold text-success">{{ stats.total_track_points }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header"><h4 class="card-title">Топ болельщиков</h4></div>
+      <div class="card-body">
+        <canvas id="topFansChart" height="250"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header"><h4 class="card-title">Топ-10 участников</h4></div>
+      <div class="card-body p-0">
+        <table class="table table-sm">
+          <thead><tr><th>#</th><th>Участник</th><th>Болельщиков</th></tr></thead>
+          <tbody>
+            {% for t in stats.top_fans %}
+            <tr>
+              <td class="fw-bold">{{ t.participant_number }}</td>
+              <td>{{ t.participant_name }}</td>
+              <td><span class="badge bg-pink">{{ t.fans_count }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+  var data = {{ top_fans_data | tojson | safe }};
+  var labels = data.map(function(t){ return '№' + t.participant_number; });
+  var values = data.map(function(t){ return t.fans_count; });
+  new Chart(document.getElementById('topFansChart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Болельщиков',
+        data: values,
+        backgroundColor: '#d63384',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    }
+  });
+})();
+</script>
+{% endblock %}

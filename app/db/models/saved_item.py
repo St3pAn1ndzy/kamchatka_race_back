@@ -69,3 +69,9 @@ class SavedItem(Base):
     schedule_event: Mapped[Optional["ScheduleEvent"]] = relationship()
 
     viewer_location: Mapped[Optional["ViewerLocation"]] = relationship()
+
+    def __str__(self) -> str:
+        return f"Закладка #{self.id} (пользователь {self.user_id})"
+
+    def __repr__(self) -> str:
+        return f"<SavedItem id={self.id} user_id={self.user_id}>"

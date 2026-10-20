@@ -62,3 +62,6 @@ class Device(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+    def __str__(self) -> str:
+        return f"Трекер {self.iridium_number or self.imei}"

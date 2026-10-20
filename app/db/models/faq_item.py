@@ -53,3 +53,9 @@ class FAQItem(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    def __str__(self) -> str:
+        return self.question[:80]
+
+    def __repr__(self) -> str:
+        return f"<FAQItem id={self.id} question={self.question[:50]!r}>"

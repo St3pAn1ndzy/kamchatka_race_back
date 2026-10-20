@@ -1,0 +1,146 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+
+{% if not states %}
+<div class="card mb-4">
+  <div class="empty-state">
+    <div class="empty-icon"><i class="fa-solid fa-flag-checkered"></i></div>
+    <div class="empty-title">Нет активных этапов</div>
+    <div class="empty-text">
+      Чтобы запустить оперативный штаб, переведите этап в статус «Идёт» (active)
+      в разделе <a href="/admin-panel/stage/list">Управление этапами</a>.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% for state in states %}
+<div class="card mb-4">
+  <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <div>
+      <h3 class="card-title">
+        <i class="fa-solid fa-flag me-2 text-primary"></i>{{ state.stage_name }}
+      </h3>
+      <div class="card-subtitle text-muted small">
+        Дистанция: {{ state.stage_distance }} км · {{ state.rows|length }} участников
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="status-badge status-badge--success">
+        <i class="fa-solid fa-circle me-1" style="font-size:8px;"></i> В эфире
+      </span>
+    </div>
+  </div>
+
+  {# ─── Шапка лидеров ─── #}
+  {% set podium = state.rows[:3] %}
+  {% if podium %}
+  <div class="px-3 pt-2 pb-1 d-flex flex-wrap gap-3 align-items-center">
+    {% for row in podium %}
+    <div class="d-flex align-items-center gap-2">
+      <span class="status-badge
+        {% if row.position == 1 %}status-badge--warning
+        {% elif row.position == 2 %}status-badge--muted
+        {% else %}status-badge--muted{% endif %}"
+        style="font-size:0.85rem;padding:4px 12px;">
+        <span class="fw-bold">#{{ row.position }}</span>
+        <span class="mx-2">№{{ row.number }} {{ row.name }}</span>
+        <span class="fw-semibold" {% if row.position == 1 %}style="color:#f59f00;"{% endif %}>
+          {{ "%.1f"|format(row.km_from_start) }} км
+        </span>
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th class="w-1 text-center">#</th>
+          <th>Участник</th>
+          <th class="w-25">Прогресс</th>
+          <th>Скорость</th>
+          <th>Последний сигнал</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in state.rows %}
+        <tr>
+          <td class="text-center">
+            <span class="fw-bold fs-5 {% if row.position == 1 %}text-warning{% elif row.position == 2 %}text-muted{% elif row.position == 3 %}{% endif %}">
+              {{ row.position }}
+            </span>
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <span class="status-dot status-{{ row.status_color }} status-dot-animated"></span>
+              <div>
+                <div class="fw-bold">
+                  №{{ row.number }} {{ row.name }}
+                </div>
+                <div class="text-muted small">{{ row.region or '—' }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="text-muted small fw-semibold" style="min-width:50px;">
+                {{ "%.1f"|format(row.km_from_start) }} км
+              </div>
+              <div class="progress-thin flex-grow-1">
+                <div class="progress-fill {% if row.position == 1 %}is-leader{% endif %}"
+                     style="width:{{ row.progress_percent }}%;"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            {% if row.average_speed_kmh %}
+            <span class="text-muted small">
+              <i class="fa-solid fa-gauge-high me-1"></i>
+              {{ "%.1f"|format(row.average_speed_kmh) }} км/ч
+            </span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.last_seen_minutes is not none %}
+            <span class="small fw-semibold
+              {% if row.last_seen_minutes > 45 %}text-danger
+              {% elif row.last_seen_minutes > 20 %}text-warning
+              {% else %}text-muted{% endif %}">
+              {{ row.last_seen_minutes }} мин
+            </span>
+            {% else %}
+            <span class="status-badge status-badge--danger">Нет данных</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script>
+(function(){
+  var updatedEl = document.getElementById('last-updated');
+  function updateTimestamp(){
+    var now = new Date();
+    var time = now.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
+    if (updatedEl) updatedEl.textContent = 'Обновлено в ' + time;
+  }
+  updateTimestamp();
+  setInterval(updateTimestamp, 10000);
+  setTimeout(function(){ window.location.reload(); }, 20000);
+})();
+</script>
+{% endblock %}

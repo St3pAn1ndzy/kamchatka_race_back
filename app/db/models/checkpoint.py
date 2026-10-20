@@ -65,3 +65,9 @@ class Checkpoint(Base):
     official_marks: Mapped[list["OfficialMark"]] = relationship(
         back_populates="checkpoint",
     )
+
+    def __str__(self) -> str:
+        return f"{self.code} — {self.name}"
+
+    def __repr__(self) -> str:
+        return f"<Checkpoint id={self.id} code={self.code!r} kind={self.kind!r}>"

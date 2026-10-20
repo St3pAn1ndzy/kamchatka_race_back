@@ -26,3 +26,9 @@ class PushSubscription(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="push_subscription")
+
+    def __str__(self) -> str:
+        return f"Push-подписка пользователя {self.user_id}"
+
+    def __repr__(self) -> str:
+        return f"<PushSubscription id={self.id} user_id={self.user_id}>"

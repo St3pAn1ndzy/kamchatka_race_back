@@ -59,3 +59,11 @@ class ShareEvent(Base):
     )
 
     user: Mapped[Optional["User"]] = relationship(back_populates="share_events")
+
+    def __str__(self) -> str:
+        return f"Шаринг {self.target_kind}#{self.target_id} ({self.channel})"
+
+    def __repr__(self) -> str:
+        return (
+            f"<ShareEvent id={self.id} target_kind={self.target_kind!r} target_id={self.target_id}>"
+        )

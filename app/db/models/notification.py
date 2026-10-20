@@ -83,3 +83,9 @@ class NotificationQueue(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="notifications")
+
+    def __str__(self) -> str:
+        return f"[{self.status}] {self.title[:80]}"
+
+    def __repr__(self) -> str:
+        return f"<NotificationQueue id={self.id} status={self.status!r}>"

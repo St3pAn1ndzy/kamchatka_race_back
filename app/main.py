@@ -8,9 +8,11 @@ from pydantic import ValidationError
 from sqladmin import Admin
 from sqlalchemy import create_engine
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import RedirectResponse
+from starlette.staticfiles import StaticFiles
 
-from app.admin_auth import AdminPanelAuth
 from app.admin_panel import VIEWS
+from app.admin_panel.admin_auth import AdminPanelAuth
 from app.api.admin.router import admin_router
 from app.api.errors import (
     pydantic_validation_exception_handler,
@@ -82,11 +84,18 @@ def create_app() -> FastAPI:
     admin_engine = create_engine(settings.SYNC_DATABASE_URL, pool_pre_ping=True)
     app.state.admin_engine = admin_engine
 
+    @app.get("/admin-panel", include_in_schema=False)
+    @app.get("/admin-panel/", include_in_schema=False)
+    async def redirect_to_dashboard():
+        return RedirectResponse(url="/admin-panel/dashboard")
+
     # SQLAdmin на синхронном движке, доступ закрыт через AdminPanelAuth
     admin = Admin(
         app,
         engine=admin_engine,
         base_url="/admin-panel",
+        title="Авача — админ панель",
+        templates_dir="app/templates",
         authentication_backend=AdminPanelAuth(secret_key=settings.ADMIN_PANEL_SESSION_SECRET),
     )
     for view in VIEWS:
@@ -94,6 +103,8 @@ def create_app() -> FastAPI:
 
     # Безопасная схема ошибок в OpenAPI (без input/ctx).
     replace_default_validation_error_schema(app)
+
+    app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
     return app
 

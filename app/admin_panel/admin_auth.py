@@ -30,6 +30,9 @@ class AdminPanelAuth(AuthenticationBackend):
             await session.commit()
 
             request.session["admin_session_id"] = admin_session.session_id
+            request.session["admin_id"] = admin.id
+            request.session["admin_login"] = admin.login or ""
+            request.session["admin_display_name"] = admin.display_name
             return True
 
     async def logout(self, request: Request) -> bool:
@@ -51,4 +54,13 @@ class AdminPanelAuth(AuthenticationBackend):
 
         async with async_session_factory() as session:
             admin = await get_active_admin_for_session(session, str(session_id))
-            return admin is not None
+            if admin is None:
+                return False
+
+            request.state.admin_id = admin.id
+            request.state.admin_login = admin.login or ""
+            request.state.admin_display_name = admin.display_name
+            request.session["admin_id"] = admin.id
+            request.session["admin_login"] = admin.login or ""
+            request.session["admin_display_name"] = admin.display_name
+            return True

@@ -75,3 +75,9 @@ class ScheduleEvent(Base):
     )
 
     stage: Mapped[Optional["Stage"]] = relationship(back_populates="schedule_events")
+
+    def __str__(self) -> str:
+        return self.title
+
+    def __repr__(self) -> str:
+        return f"<ScheduleEvent id={self.id} title={self.title!r}>"

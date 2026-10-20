@@ -29,3 +29,9 @@ class RaceStatus(Base):
     )
 
     current_stage: Mapped[Optional["Stage"]] = relationship(foreign_keys=[current_stage_id])
+
+    def __str__(self) -> str:
+        return f"Статус гонки: {self.status}"
+
+    def __repr__(self) -> str:
+        return f"<RaceStatus id={self.id} status={self.status!r}>"

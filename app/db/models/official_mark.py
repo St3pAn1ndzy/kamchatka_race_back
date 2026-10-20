@@ -110,3 +110,9 @@ class OfficialMark(Base):
         remote_side=[id],
         foreign_keys=[cancels_mark_id],
     )
+
+    def __str__(self) -> str:
+        return f"Отметка #{self.id} (уч. {self.participant_id}, КП {self.checkpoint_id})"
+
+    def __repr__(self) -> str:
+        return f"<OfficialMark id={self.id} participant_id={self.participant_id} checkpoint_id={self.checkpoint_id}>"
