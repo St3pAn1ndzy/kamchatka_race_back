@@ -15,6 +15,7 @@ from app.db.base import Base, get_session
 from app.db.models import AdminAccount, Discipline, Season, Stage
 from app.main import app as fastapi_app
 from app.security.passwords import hash_password
+from app.services.cache import cache
 
 
 @pytest.fixture(scope="session")
@@ -41,6 +42,14 @@ async def _prepare_db(engine):
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest.fixture(autouse=True)
+async def _clear_cache(request):
+    """Очищает Redis-кэш до и после каждого теста."""
+    await cache.invalidate_pattern("*")
+    yield
+    await cache.invalidate_pattern("*")
 
 
 @pytest.fixture
