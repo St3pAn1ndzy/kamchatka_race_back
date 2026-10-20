@@ -10,6 +10,7 @@ from app.repositories.official_mark import OfficialMarkRepository
 from app.repositories.participant import ParticipantRepository
 from app.repositories.stage import StageRepository
 from app.schemas.admin_marks import OfficialMarkCorrectRequest, OfficialMarkCreateRequest
+from app.services.cache import cache
 
 _MARK_CONFLICTS = {
     "uq_official_marks_active_participant_checkpoint": "Действующая отметка уже существует",
@@ -36,6 +37,12 @@ class AdminMarkService:
         self.participants = ParticipantRepository(session)
         self.stages = StageRepository(session)
         self.disciplines = DisciplineRepository(session)
+
+    async def _invalidate_results_cache(self, stage_id: int) -> None:
+        """Сброс кэша результатов для указанного этапа и общих standings."""
+        await cache.delete(f"public:results:stage:{stage_id}")
+        await cache.delete("public:results:standings")
+        await cache.invalidate_pattern("public:results:leaderboard:*")
 
     async def create(self, body: OfficialMarkCreateRequest, *, admin_id: int) -> OfficialMark:
         participant = await self.participants.get_by_id(body.participant_id)
@@ -95,6 +102,10 @@ class AdminMarkService:
                 raise HTTPException(status.HTTP_409_CONFLICT, detail) from exc
             raise
         await self.session.refresh(mark)
+
+        # Инвалидация кэша протокола для этапа, к которому относится КП
+        await self._invalidate_results_cache(checkpoint.stage_id)
+
         return mark
 
     async def correct(
@@ -171,4 +182,8 @@ class AdminMarkService:
                 raise HTTPException(status.HTTP_409_CONFLICT, detail) from exc
             raise
         await self.session.refresh(new_mark)
+
+        # Инвалидация кэша протокола для этапа, к которому относится КП
+        await self._invalidate_results_cache(checkpoint.stage_id)
+
         return new_mark
