@@ -18,6 +18,7 @@ from app.admin_panel.views.event import (
     SeasonAdmin,
     StageAdmin,
 )
+from app.admin_panel.views.mark_import import MarkImportView
 from app.admin_panel.views.participant_card import ParticipantCardView
 from app.admin_panel.views.participants import (
     DeviceAdmin,
@@ -76,4 +77,5 @@ VIEWS = [
     ResultsAdminView,
     ContentAdminView,
     StatisticsView,
+    MarkImportView,
 ]
