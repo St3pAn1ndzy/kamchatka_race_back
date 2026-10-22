@@ -1,0 +1,119 @@
+# ============================================================================
+# Production-конфигурация для деплоя.
+#
+# Отличия от docker-compose.yml (dev):
+#   - Uvicorn: 4 воркера вместо 1, без --reload, backlog 2048
+#   - Postgres и Redis не публикуют порты наружу (доступ только по внутренней сети)
+#   - Нет volume-маунтов (код запечён в Docker-образ)
+#   - ENV=prod, restart: always
+#   - Redis: maxmemory 512mb с LRU-эвикцией
+#   - Celery worker: concurrency 4 вместо 2
+#   - Health-check для API
+#
+# Запуск:
+#   docker compose -f docker-compose.prod.yml up --build -d
+#
+# Остановка:
+#   docker compose -f docker-compose.prod.yml down
+# ============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-avacha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-avacha}
+      POSTGRES_DB: ${POSTGRES_DB:-avacha}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Порты НЕ публикуются наружу — доступ только по внутренней сети Docker.
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-avacha}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    # Ограничение памяти и политика эвикции — старые ключи удаляются, когда память заполнена.
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    # Порты НЕ публикуются наружу.
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: always
+
+  api:
+    build: .
+    # 4 воркера Uvicorn распределяют нагрузку по ядрам CPU.
+    # backlog 2048 — увеличиваем очередь TCP-подключений (решает RemoteDisconnected).
+    # proxy-headers + forwarded-allow-ips — работа с X-Forwarded-* за обратным прокси.
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+      --backlog 2048
+      --proxy-headers
+      --forwarded-allow-ips=*
+    env_file:
+      - .env
+    environment:
+      ENV: prod
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    ports:
+      - "8000:8000"
+    # НЕТ volumes — код запечён в образ.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+    env_file: .env
+    environment:
+      ENV: prod
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    env_file: .env
+    environment:
+      ENV: prod
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  pgdata:
