@@ -5,10 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db.models.stage import Stage
+from app.repositories import OfficialMarkRepository
 from app.repositories.checkpoint import CheckpointRepository
 from app.repositories.discipline import DisciplineRepository
 from app.repositories.participant import ParticipantRepository
 from app.repositories.stage import StageRepository
+from app.repositories.stage_route_point import StageRoutePointRepository
 from app.repositories.track_point import TrackPointRepository
 from app.schemas.map import (
     MapCheckpoint,
@@ -32,6 +34,8 @@ class PublicMapService:
         self.participants = ParticipantRepository(session)
         self.track_points = TrackPointRepository(session)
         self.checkpoints = CheckpointRepository(session)
+        self.route_points = StageRoutePointRepository(session)
+        self.marks = OfficialMarkRepository(session)
         self.settings = get_settings()
 
     async def _stage(self, stage_id: int) -> Stage:
@@ -159,4 +163,153 @@ class PublicMapService:
         )
         # Сохраняем в кэш
         await cache.set(cache_key, result.model_dump(mode="json"), self.settings.CACHE_TTL_MAP)
+        return result
+
+    async def get_stage_route_geojson(self, stage_id: int) -> dict:
+        """Возвращает GeoJSON LineString (нитку всего маршрута этапа)."""
+        cache_key = f"public:map:route:{stage_id}"
+        if cached := await cache.get(cache_key):
+            return cached
+
+        await self._stage(stage_id)
+
+        # Берем точки маршрута из БД
+
+        points = await self.route_points.list_for_stage(stage_id)
+
+        # Формируем GeoJSON (lon, lat)
+        coordinates = [[p.lon, p.lat] for p in points]
+
+        result = {"type": "LineString", "coordinates": coordinates}
+
+        # Кэшируем надолго (трасса не меняется)
+        await cache.set(cache_key, result, self.settings.CACHE_TTL_STAGES)
+        return result
+
+    async def get_positions(self, stage_id: int, since: datetime | None = None) -> list[dict]:
+        """Последние координаты участников + last_cp_id для карты."""
+        cache_key = f"public:map:positions:{stage_id}"
+
+        # Кэшируем только если нет фильтра since
+        if not since and (cached := await cache.get(cache_key)):
+            return cached
+
+        # 1. Получаем всех участников с их последними координатами и freshness
+        participants_resp = await self.get_participants(stage_id, limit=1000, offset=0)
+
+        # 2. Достаем все отметки этапа.
+
+        marks = await self.marks.get_for_stage(stage_id)
+
+        # 3. Собираем словарь {participant_id: last_checkpoint_id}
+        # Так как список отсортирован по времени, последняя запись для каждого
+        # участника и будет его последним пройденным КП.
+        last_cp_map: dict[int, int] = {}
+        for mark in marks:
+            last_cp_map[mark.participant_id] = mark.checkpoint_id
+
+        # 4. Формируем итоговый ответ
+        result = []
+        for item in participants_resp.items:
+            if not item.position:
+                continue  # Пропускаем, если нет GPS-данных
+
+            # Фильтр по времени, если передан since
+            if since and item.position.recorded_at <= since:
+                continue
+
+            result.append(
+                {
+                    "participant_id": item.id,
+                    "bib": item.number,
+                    "lat": item.position.lat,
+                    "lon": item.position.lon,
+                    "recorded_at": item.position.recorded_at,
+                    "source": "iridium",
+                    "last_cp_id": last_cp_map.get(item.id),
+                    "freshness": item.freshness_status,
+                }
+            )
+
+        # 5. Сохраняем в кэш
+        if not since:
+            await cache.set(cache_key, result, self.settings.CACHE_TTL_MAP)
+
+        return result
+
+    async def get_leaders(
+        self, stage_id: int, discipline: str | None = None, as_of: datetime | None = None
+    ) -> dict:
+        """Рейтинг лидеров на основе судейских отметок."""
+        cache_key = f"public:map:leaders:{stage_id}:{discipline or 'all'}:{as_of or 'now'}"
+        if cached := await cache.get(cache_key):
+            return cached
+
+        await self._stage(stage_id)
+
+        # Получаем все активные отметки на этапе
+        marks = await self.marks.get_for_stage(stage_id)
+
+        # Фильтруем по времени, если передан as_of
+        if as_of:
+            marks = [m for m in marks if m.mark_time <= as_of]
+
+        # Группируем по участнику
+        participant_marks: dict[int, list] = {}
+        for m in marks:
+            if m.participant_id not in participant_marks:
+                participant_marks[m.participant_id] = []
+            participant_marks[m.participant_id].append(m)
+
+        if not participant_marks:
+            return {"as_of": as_of or datetime.now(tz=UTC), "leaders": []}
+
+        p_ids = list(participant_marks.keys())
+        participants = await self.participants.get_many_with_disciplines(p_ids)
+        participants_map = {p.id: p for p in participants}
+
+        leaders_data = []
+        for p_id, p_marks in participant_marks.items():
+            participant = participants_map.get(p_id)
+            if not participant:
+                continue
+
+            if (
+                discipline
+                and participant.discipline_ref
+                and participant.discipline_ref.code != discipline
+            ):
+                continue
+
+            # Сортируем отметки по порядку КП (order_index)
+            p_marks.sort(key=lambda x: x.checkpoint.order_index)
+
+            # Последний пройденный КП
+            last_mark = p_marks[-1]
+
+            leaders_data.append(
+                {
+                    "participant_id": participant.id,
+                    "bib": participant.number,
+                    "last_cp_order": last_mark.checkpoint.order_index,
+                    "last_mark_time": last_mark.mark_time,
+                    "name": participant.name,
+                }
+            )
+
+        # Сортируем лидеров: сначала те, кто прошел больше КП (order_index),
+        # при равенстве — кто прошел последний КП раньше.
+        leaders_data.sort(key=lambda x: (-x["last_cp_order"], x["last_mark_time"]))
+
+        # Присваиваем места
+        now = datetime.now(tz=UTC)
+        result = {
+            "as_of": as_of or now,
+            "leaders": [
+                {"participant_id": item["participant_id"], "bib": item["bib"], "place": index + 1}
+                for index, item in enumerate(leaders_data)
+            ],
+        }
+
+        await cache.set(cache_key, result, self.settings.CACHE_TTL_MAP)
         return result
