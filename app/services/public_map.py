@@ -149,7 +149,6 @@ class PublicMapService:
         return result
 
     async def get_checkpoints(self, stage_id: int) -> MapCheckpointsResponse:
-        # Попытка достать из кэша
         cache_key = f"{_PREFIX_CHECKPOINT}{stage_id}"
         cached = await cache.get(cache_key)
         if cached is not None:
@@ -157,11 +156,24 @@ class PublicMapService:
 
         await self._stage(stage_id)
         checkpoints = await self.checkpoints.list_public_for_stage(stage_id)
-        result = MapCheckpointsResponse(
-            stage_id=stage_id,
-            items=[MapCheckpoint.model_validate(checkpoint) for checkpoint in checkpoints],
-        )
-        # Сохраняем в кэш
+
+        items = [
+            MapCheckpoint(
+                id=cp.id,
+                code=cp.code,
+                name=cp.name,
+                type=cp.kind,  # маппинг kind -> type
+                description=cp.description,
+                lat=cp.lat,
+                lon=cp.lon,
+                elevation=cp.altitude,  # маппинг altitude -> elevation
+                km=cp.km_from_race_start,  # маппинг km_from_race_start -> km
+                order_index=cp.order_index,
+            )
+            for cp in checkpoints
+        ]
+
+        result = MapCheckpointsResponse(stage_id=stage_id, items=items)
         await cache.set(cache_key, result.model_dump(mode="json"), self.settings.CACHE_TTL_MAP)
         return result
 
