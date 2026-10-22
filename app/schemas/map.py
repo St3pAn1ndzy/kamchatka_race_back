@@ -47,12 +47,12 @@ class MapCheckpoint(BaseSchema):
     id: int
     code: str
     name: str
-    kind: CheckpointKind
-    description: str | None
+    type: CheckpointKind
+    description: str | None = None
     lat: float
     lon: float
-    altitude: int | None
-    km_from_race_start: float | None
+    elevation: int | None = None
+    km: float | None = None
     order_index: int
 
 
