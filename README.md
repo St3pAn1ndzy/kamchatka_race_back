@@ -126,16 +126,17 @@ poetry run locust -f loadtests/locustfile.py --host=http://localhost:8000
 Файл `.env.template` содержит все необходимые ключи. Обязательные для запуска: `SECRET_KEY`, `VK_SECURE_KEY`,
 `POSTGRES_*`.
 
-| Переменная                       | Назначение                          | По умолчанию |
-|----------------------------------|-------------------------------------|--------------|
-| `ENV`                            | Окружение (`dev` / `prod`)          | `dev`        |
-| `SECRET_KEY`                     | Секрет JWT                          | `change-me`  |
-| `VK_APP_ID` / `VK_SECURE_KEY`    | Параметры VK Mini App               | —            |
-| `IRIDIUM_API_KEY`                | Ключ доступа к спутниковым трекерам | —            |
-| `TRACKING_POLL_INTERVAL_SECONDS` | Интервал опроса Iridium (сек)       | `900`        |
-| `CACHE_TTL_STAGES`               | TTL кэша справочников (сек)         | `3600`       |
-| `CACHE_TTL_RESULTS`              | TTL кэша протоколов (сек)           | `300`        |
-| `CACHE_TTL_MAP`                  | TTL кэша позиций на карте (сек)     | `15`         |
+| Переменная                       | Назначение                             | По умолчанию |
+|----------------------------------|----------------------------------------|--------------|
+| `ENV`                            | Окружение (`dev` / `prod`)             | `dev`        |
+| `SECRET_KEY`                     | Секрет JWT                             | `change-me`  |
+| `VK_APP_ID` / `VK_SECURE_KEY`    | Параметры VK Mini App                  | —            |
+| `IRIDIUM_API_KEY`                | Ключ доступа к спутниковым трекерам    | —            |
+| `TRACKING_POLL_INTERVAL_SECONDS` | Интервал опроса Iridium (сек)          | `900`        |
+| `CACHE_TTL_STAGES`               | TTL кэша справочников (сек)            | `3600`       |
+| `CACHE_TTL_RESULTS`              | TTL кэша протоколов (сек)              | `300`        |
+| `CACHE_TTL_MAP`                  | TTL кэша позиций на карте (сек)        | `15`         |
+| `CACHE_TTL_STATS`                | TTL кэша статистики для дашборда (сек) | `30`         |
 
 ## Структура проекта
 
