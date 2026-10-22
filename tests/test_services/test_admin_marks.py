@@ -153,7 +153,41 @@ def test_correct_endpoint_returns_replacement(monkeypatch: pytest.MonkeyPatch) -
     service.correct.assert_awaited_once_with(11, _correct_body(), admin_id=7)
 
 
-def test_mark_input_requires_aware_time_and_reason() -> None:
+def test_correct_endpoint_accepts_request_without_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Исправление отметки доступно без причины и передаёт в сервис None."""
+    app = FastAPI()
+    app.include_router(admin_router)
+    app.dependency_overrides[get_session] = lambda: MagicMock(spec=AsyncSession)
+    app.dependency_overrides[require_admin] = lambda: SimpleNamespace(id=7)
+    service = MagicMock()
+    mark = _old_mark()
+    mark.id = 12
+    mark.cancels_mark_id = 11
+    mark.created_at = MARK_TIME
+    service.correct = AsyncMock(return_value=mark)
+    monkeypatch.setattr("app.api.admin.marks.AdminMarkService", lambda _: service)
+
+    response = TestClient(app).post(
+        "/api/v1/admin/marks/11/correct",
+        json={"mark_time": MARK_TIME.isoformat()},
+    )
+
+    assert response.status_code == 200
+    body = service.correct.await_args.args[1]
+    assert body.cancel_reason is None
+
+
+@pytest.mark.parametrize("payload", [{}, {"cancel_reason": None}])
+def test_correction_reason_can_be_omitted_or_null(payload: dict) -> None:
+    """Схема принимает отсутствие причины и явное null, сохраняя время отметки."""
+    body = OfficialMarkCorrectRequest(mark_time=MARK_TIME, **payload)
+
+    assert body.cancel_reason is None
+    assert body.mark_time == MARK_TIME
+
+
+def test_mark_input_requires_aware_time_and_nonempty_reason_if_provided() -> None:
+    """Время должно содержать часовой пояс, а переданная причина не бывает пустой"""
     with pytest.raises(ValidationError):
         OfficialMarkCreateRequest(
             participant_id=2, checkpoint_id=3, mark_time="2026-10-12T12:00:00"
@@ -295,6 +329,27 @@ async def test_correction_cancels_old_mark_before_inserting_new() -> None:
     assert audit.payload["cancel_reason"] == "Ошибка времени"
     session.commit.assert_awaited_once()
     session.refresh.assert_awaited_once_with(new)
+
+
+@pytest.mark.asyncio
+async def test_correction_without_reason_preserves_audit_history() -> None:
+    """Без причины старая отметка отменяется, а аудит связывает её с заменой"""
+    service, session = _service()
+    old = _old_mark()
+    service.marks.get_by_id = AsyncMock(return_value=old)
+    service.marks.get_for_update = AsyncMock(return_value=old)
+    body = OfficialMarkCorrectRequest(mark_time=MARK_TIME)
+
+    new = await service.correct(11, body, admin_id=7)
+
+    assert old.is_cancelled is True
+    assert old.cancel_reason is None
+    assert new.cancels_mark_id == old.id
+    audit = session.add.call_args.args[0]
+    assert audit.payload["old"]["mark_id"] == old.id
+    assert audit.payload["new"]["mark_id"] == new.id
+    assert audit.payload["cancel_reason"] is None
+    session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
