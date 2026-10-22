@@ -7,6 +7,10 @@ from app.schemas.content import FAQItemResponse, FAQListResponse
 
 router = APIRouter(prefix="/content/faq", tags=["content"])
 
+# Защита от переполнения Postgres
+MAX_ID = 2147483647
+MAX_OFFSET = 100_000
+
 
 @router.get("", response_model=FAQListResponse)
 async def list_faq_items(
@@ -16,7 +20,7 @@ async def list_faq_items(
         Query(min_length=1, max_length=100),
     ] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Annotated[int, Query(ge=0, le=MAX_OFFSET)] = 0,
 ) -> FAQListResponse:
     """Получить опубликованные вопросы с фильтром и пагинацией."""
     items = await faq_items.list_public(
@@ -34,9 +38,13 @@ async def list_faq_items(
     )
 
 
-@router.get("/{faq_id}", response_model=FAQItemResponse)
+@router.get(
+    "/{faq_id}",
+    response_model=FAQItemResponse,
+    responses={404: {"description": "Вопрос не найден"}},
+)
 async def get_faq_item(
-    faq_id: Annotated[int, Path(gt=0)],
+    faq_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     faq_items: FAQItemRepoDep,
 ) -> FAQItemResponse:
     """Получить один опубликованный вопрос по идентификатору."""

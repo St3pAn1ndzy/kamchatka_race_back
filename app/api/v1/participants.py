@@ -1,6 +1,8 @@
 """Участники: список, карточка, «Болею за», рейтинг поддержки."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.api.deps import (
     FanSubscriptionRepoDep,
@@ -19,6 +21,9 @@ from app.schemas.participants import (
 )
 
 router = APIRouter(prefix="/participants", tags=["participants"])
+
+# Константа для максимального ID (INTEGER в Postgres)
+MAX_ID = 2147483647
 
 
 @router.get(
@@ -55,11 +60,11 @@ async def supporters_rating(
 async def list_participants(
     participants: ParticipantRepoDep,
     search: str | None = Query(None, description="Поиск по имени"),
-    discipline_id: int | None = Query(None, gt=0),
+    discipline_id: int | None = Query(None, gt=0, le=MAX_ID),
     status_filter: ParticipantStatus | None = Query(None, alias="status"),
     sort: str = Query("bib", pattern="^(bib|name|supporters)$"),
     limit: int = Query(100, ge=1, le=300),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=100000),
 ) -> list[ParticipantListItem]:
     """Список участников с фильтрами, сортировкой и пагинацией."""
     rows = await participants.list_filtered(
@@ -93,7 +98,7 @@ async def list_participants(
     summary="Карточка участника",
 )
 async def get_participant(
-    participant_id: int,
+    participant_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     participants: ParticipantRepoDep,
 ) -> ParticipantDetail:
     row = await participants.get_with_supporters_count(participant_id)
@@ -124,7 +129,7 @@ async def get_participant(
     summary="Счётчик болельщиков",
 )
 async def get_supporters(
-    participant_id: int,
+    participant_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     participants: ParticipantRepoDep,
     fans: FanSubscriptionRepoDep,
     user: User | None = Depends(get_optional_user),
@@ -149,7 +154,7 @@ async def get_supporters(
     summary="Нажать «Болею за» (идемпотентно)",
 )
 async def favorite_add(
-    participant_id: int,
+    participant_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     participants: ParticipantRepoDep,
     fans: FanSubscriptionRepoDep,
     user: User = Depends(get_current_user),
@@ -170,7 +175,7 @@ async def favorite_add(
     summary="Убрать «Болею за»",
 )
 async def favorite_remove(
-    participant_id: int,
+    participant_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     participants: ParticipantRepoDep,
     fans: FanSubscriptionRepoDep,
     user: User = Depends(get_current_user),

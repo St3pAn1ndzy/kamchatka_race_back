@@ -12,16 +12,20 @@ router = APIRouter(
     tags=["content"],
 )
 
+# Константы для защиты от переполнения Postgres
+MAX_ID = 2147483647
+MAX_OFFSET = 100_000
+
 
 @router.get("", response_model=ScheduleEventListResponse)
 async def list_schedule_events(
     schedule_events: ScheduleEventRepoDep,
     kind: Annotated[ScheduleKind | None, Query()] = None,
-    stage_id: Annotated[int | None, Query(gt=0)] = None,
-    starts_from: Annotated[AwareDatetime | None, Query()] = None,
-    starts_to: Annotated[AwareDatetime | None, Query()] = None,
+    stage_id: Annotated[int | None, Query(gt=0, le=MAX_ID)] = None,
+    starts_from: Annotated[AwareDatetime, Query()] | None = None,
+    starts_to: Annotated[AwareDatetime, Query()] | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Annotated[int, Query(ge=0, le=MAX_OFFSET)] = 0,
 ) -> ScheduleEventListResponse:
     """Получить опубликованные события программы с фильтрами и пагинацией."""
     if starts_from is not None and starts_to is not None and starts_from > starts_to:
@@ -56,7 +60,7 @@ async def list_schedule_events(
 
 @router.get("/{event_id}", response_model=ScheduleEventResponse)
 async def get_schedule_event(
-    event_id: Annotated[int, Path(gt=0)],
+    event_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     schedule_events: ScheduleEventRepoDep,
 ) -> ScheduleEventResponse:
     """Получить одно опубликованное событие по идентификатору."""
