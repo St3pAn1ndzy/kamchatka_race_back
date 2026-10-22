@@ -125,3 +125,18 @@ class ParticipantRepository(BaseRepository[Participant]):
         if row is None:
             return None
         return row[0], int(row[1] or 0)
+
+    async def get_many_with_disciplines(self, participant_ids: list[int]) -> list[Participant]:
+        """Получить участников по списку ID с сразу загруженными дисциплинами.
+
+        Нужно для избежания N+1 и ошибок MissingGreenlet при обращении к discipline_ref.
+        """
+        if not participant_ids:
+            return []
+
+        stmt = (
+            select(Participant)
+            .where(Participant.id.in_(participant_ids))
+            .options(selectinload(Participant.discipline_ref))
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
