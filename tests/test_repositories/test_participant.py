@@ -119,3 +119,30 @@ async def test_map_list_filters_and_paginates():
     assert all("participants.id IN" in str(query) for query in queries)
     assert "ORDER BY participants.number, participants.id" in str(queries[1])
     assert "LIMIT" in str(queries[1])
+
+
+async def test_get_many_with_disciplines_eager_loads(
+    db_session, create_season, create_discipline, create_participant
+) -> None:
+    """Метод get_many_with_disciplines должен предзагружать discipline_ref (без MissingGreenlet)."""
+    season = await create_season(is_active=True)
+    discipline = await create_discipline(season_id=season.id, name="Длинная")
+
+    p1 = await create_participant(number=1, name="Иван", discipline_id=discipline.id)
+    p2 = await create_participant(number=2, name="Петр", discipline_id=discipline.id)
+
+    repo = ParticipantRepository(db_session)
+    result = await repo.get_many_with_disciplines([p1.id, p2.id])
+
+    assert len(result) == 2
+    # Главная проверка: обращение к discipline_ref НЕ вызывает запрос к БД
+    # Если бы был lazy load, тест упал бы с MissingGreenlet в async-контексте
+    for p in result:
+        assert p.discipline_ref is not None
+        assert p.discipline_ref.name == "Длинная"
+
+
+async def test_get_many_with_disciplines_empty_list(db_session) -> None:
+    """Пустой список ID → пустой список."""
+    repo = ParticipantRepository(db_session)
+    assert await repo.get_many_with_disciplines([]) == []

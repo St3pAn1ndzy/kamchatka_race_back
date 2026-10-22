@@ -17,6 +17,9 @@ from app.schemas.results import (
 
 router = APIRouter(prefix="/results", tags=["results"])
 
+# Константа для максимального ID (INTEGER в Postgres)
+MAX_ID = 2147483647
+
 
 @router.get(
     "/standings",
@@ -40,7 +43,7 @@ async def standings(
     summary="Протокол этапа",
 )
 async def stage_protocol(
-    stage_id: Annotated[int, Path(gt=0)],
+    stage_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     service: ResultServiceDep,
 ) -> StageProtocol:
     """Протокол этапа: участники, время, штрафы, обязательные остановки."""
@@ -72,9 +75,9 @@ async def leaderboard(
     summary="Отметки участника на контрольных пунктах",
 )
 async def control_times(
-    participant_id: Annotated[int, Path(gt=0)],
+    participant_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     service: ResultServiceDep,
-    stage_id: int | None = Query(None, description="Фильтр по этапу"),
+    stage_id: Annotated[int | None, Query(gt=0, le=MAX_ID)] = None,
 ) -> list[ControlTimeEntry]:
     """Все отметки участника на КП (по этапу или по всем)."""
     return await service.get_control_times(participant_id, stage_id=stage_id)

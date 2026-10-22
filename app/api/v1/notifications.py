@@ -1,5 +1,7 @@
 """API уведомлений: история, preview."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Query
 
 from app.api.deps import CurrentUserDep, NotificationQueueRepoDep, SessionDep
@@ -17,17 +19,21 @@ from app.schemas.notifications import (
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
+MAX_OFFSET = 100_000
+AUTH_RESPONSES = {401: {"description": "Требуется авторизация"}}
+
 
 @router.get(
     "",
     response_model=NotificationListResponse,
     summary="История уведомлений",
+    responses=AUTH_RESPONSES,
 )
 async def list_notifications(
     user: CurrentUserDep,
     queue: NotificationQueueRepoDep,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0, le=MAX_OFFSET)] = 0,
 ) -> NotificationListResponse:
     """Мои уведомления с пагинацией."""
     items = await queue.list_by_user(user.id, limit=limit, offset=offset)
@@ -44,16 +50,9 @@ async def list_notifications(
     summary="Примеры текстов уведомлений",
 )
 async def preview_notifications() -> NotificationPreviewListResponse:
-    """Примеры — для экрана настроек уведомлений.
-
-    Формулировки с «данные на HH:MM», без «прямо сейчас».
-    """
+    """Примеры — для экрана настроек уведомлений."""
     templates = [
-        (
-            NotificationEventType.STAGE_START,
-            "Старт этапа",
-            "Этап 1 начался. Участники на трассе.",
-        ),
+        (NotificationEventType.STAGE_START, "Старт этапа", "Этап 1 начался. Участники на трассе."),
         (
             NotificationEventType.STAGE_FINISH,
             "Финиш этапа",
@@ -64,11 +63,7 @@ async def preview_notifications() -> NotificationPreviewListResponse:
             "Смена лидера",
             "Иван Петров вышел на первое место.",
         ),
-        (
-            NotificationEventType.CHECKPOINT_PASSED,
-            "Мой каюр на КП",
-            "Иван Петров прошёл КП-3.",
-        ),
+        (NotificationEventType.CHECKPOINT_PASSED, "Мой каюр на КП", "Иван Петров прошёл КП-3."),
         (
             NotificationEventType.PARTICIPANT_FINISHED,
             "Мой каюр финишировал",
@@ -82,8 +77,6 @@ async def preview_notifications() -> NotificationPreviewListResponse:
     )
 
 
-# Названия типов событий. Если добавили новый event_type —
-# добавь title в _EVENT_TITLES. Fallback: et.value.
 _EVENT_TITLES: dict[NotificationEventType, str] = {
     NotificationEventType.CHECKPOINT_PASSED: "Мой каюр прошёл КП",
     NotificationEventType.LEADER_CHANGED: "Смена лидера",
@@ -95,7 +88,6 @@ _EVENT_TITLES: dict[NotificationEventType, str] = {
 
 
 def _build_settings(user: User) -> NotificationSettingsResponse:
-    """Собрать ответ с настройками уведомлений."""
     return NotificationSettingsResponse(
         notifications_allowed=user.notifications_allowed,
         preferences=[
@@ -114,6 +106,7 @@ def _build_settings(user: User) -> NotificationSettingsResponse:
     "/settings",
     response_model=NotificationSettingsResponse,
     summary="Настройки уведомлений",
+    responses=AUTH_RESPONSES,
 )
 async def get_notification_settings(
     user: CurrentUserDep,
@@ -126,6 +119,7 @@ async def get_notification_settings(
     "/settings",
     response_model=NotificationSettingsResponse,
     summary="Изменить настройки уведомлений",
+    responses=AUTH_RESPONSES,
 )
 async def update_notification_settings(
     body: NotificationSettingsUpdate,

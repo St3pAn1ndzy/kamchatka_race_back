@@ -224,3 +224,245 @@ async def test_map_queries_filter_confirmation_stage_and_visibility() -> None:
     checkpoint_sql = str(checkpoint_stmt.compile(dialect=postgresql.dialect()))
     assert "checkpoints.is_public IS true" in checkpoint_sql
     assert "checkpoints.stage_id" in checkpoint_sql
+
+
+async def test_get_route_geojson_ok(
+    db_session, create_season, create_stage, create_route_point
+) -> None:
+    """GeoJSON имеет правильную структуру и порядок координат [lon, lat]."""
+    season = await create_season(is_active=True)
+    stage = await create_stage(season_id=season.id)
+
+    await create_route_point(stage_id=stage.id, position=0, lat=55.1, lon=160.1)
+    await create_route_point(stage_id=stage.id, position=1, lat=55.2, lon=160.2)
+    await create_route_point(stage_id=stage.id, position=2, lat=55.3, lon=160.3)
+
+    service = PublicMapService(db_session)
+    result = await service.get_stage_route_geojson(stage.id)
+
+    assert result["type"] == "LineString"
+    assert len(result["coordinates"]) == 3
+    # В GeoJSON СНАЧАЛА lon, ПОТОМ lat
+    assert result["coordinates"][0] == [160.1, 55.1]
+    assert result["coordinates"][2] == [160.3, 55.3]
+
+
+async def test_get_route_geojson_empty(db_session, create_season, create_stage) -> None:
+    """Пустой маршрут → пустой LineString (не 500)."""
+    season = await create_season(is_active=True)
+    stage = await create_stage(season_id=season.id)
+
+    service = PublicMapService(db_session)
+    result = await service.get_stage_route_geojson(stage.id)
+
+    assert result["type"] == "LineString"
+    assert result["coordinates"] == []
+
+
+async def test_get_route_geojson_stage_not_found(db_session) -> None:
+    """Несуществующий этап → 404."""
+    from fastapi import HTTPException
+
+    service = PublicMapService(db_session)
+    with pytest.raises(HTTPException) as exc:
+        await service.get_stage_route_geojson(99999)
+    assert exc.value.status_code == 404
+
+
+async def test_get_checkpoints_ok(
+    db_session, create_season, create_stage, create_checkpoint
+) -> None:
+    """КП этапа отдаются со всеми полями."""
+    season = await create_season(is_active=True)
+    stage = await create_stage(season_id=season.id)
+    await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
+    await create_checkpoint(stage_id=stage.id, kind="finish", code="Финиш")
+
+    service = PublicMapService(db_session)
+    result = await service.get_checkpoints(stage.id)
+
+    assert len(result.items) == 2
+    # Проверяем, что алиасы сработали
+    first = result.items[0]
+    assert first.type == "start"  # alias для kind
+    assert first.km is not None  # alias для km_from_race_start
+
+
+async def test_get_positions_returns_latest_point(
+    db_session,
+    create_discipline,
+    create_season,
+    create_stage,
+    create_participant,
+    create_track_point,
+    create_checkpoint,
+    create_official_mark,
+) -> None:
+    """Возвращает последнюю точку и last_cp_id."""
+    season = await create_season(is_active=True)
+    discipline = await create_discipline(season_id=season.id)
+    stage = await create_stage(season_id=season.id)
+    participant = await create_participant(number=14, name="Иван", discipline_id=discipline.id)
+    cp = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
+
+    now = datetime.now(tz=UTC)
+    # Две точки: старая и новая — должна вернуться только новая
+    await create_track_point(
+        participant_id=participant.id,
+        stage_id=stage.id,
+        lat=55.0,
+        lon=160.0,
+        recorded_at=now - timedelta(minutes=30),
+    )
+    await create_track_point(
+        participant_id=participant.id,
+        stage_id=stage.id,
+        lat=55.5,
+        lon=160.5,
+        recorded_at=now,
+    )
+    # Отметка на КП
+    await create_official_mark(participant_id=participant.id, checkpoint_id=cp.id)
+
+    service = PublicMapService(db_session)
+    result = await service.get_positions(stage.id)
+
+    assert len(result) == 1
+    assert result[0]["bib"] == 14
+    assert result[0]["lat"] == 55.5  # последняя
+    assert result[0]["last_cp_id"] == cp.id
+
+
+async def test_get_positions_since_filter(
+    db_session, create_season, create_stage, create_participant, create_track_point
+) -> None:
+    """?since= отсекает старые точки."""
+    season = await create_season(is_active=True)
+    stage = await create_stage(season_id=season.id)
+    participant = await create_participant(number=14)
+
+    now = datetime.now(tz=UTC)
+    await create_track_point(
+        participant_id=participant.id,
+        stage_id=stage.id,
+        recorded_at=now - timedelta(hours=2),
+    )
+
+    service = PublicMapService(db_session)
+    # since на 1 час назад — точка старая, должна быть отброшена
+    result = await service.get_positions(stage.id, since=now - timedelta(hours=1))
+    assert result == []
+
+
+async def test_get_leaders_sorted_by_cp_progress(
+    db_session,
+    create_season,
+    create_stage,
+    create_participant,
+    create_checkpoint,
+    create_official_mark,
+) -> None:
+    """Лидер — тот, кто прошел больше КП."""
+    season = await create_season(is_active=True)
+    stage = await create_stage(season_id=season.id)
+    cp1 = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт", order_index=0)
+    cp2 = await create_checkpoint(stage_id=stage.id, kind="checkpoint", code="КП-1", order_index=1)
+
+    p1 = await create_participant(number=1, name="Первый")
+    p2 = await create_participant(number=2, name="Второй")
+
+    now = datetime.now(tz=UTC)
+    # p1 прошел 2 КП, p2 только 1
+    await create_official_mark(
+        participant_id=p1.id, checkpoint_id=cp1.id, mark_time=now - timedelta(hours=2)
+    )
+    await create_official_mark(
+        participant_id=p1.id, checkpoint_id=cp2.id, mark_time=now - timedelta(hours=1)
+    )
+    await create_official_mark(
+        participant_id=p2.id, checkpoint_id=cp1.id, mark_time=now - timedelta(hours=2)
+    )
+
+    service = PublicMapService(db_session)
+    result = await service.get_leaders(stage.id)
+
+    assert len(result["leaders"]) == 2
+    assert result["leaders"][0]["bib"] == 1  # p1 первый
+    assert result["leaders"][0]["place"] == 1
+    assert result["leaders"][1]["bib"] == 2
+    assert result["leaders"][1]["place"] == 2
+
+
+async def test_get_leaders_excludes_cancelled(
+    db_session,
+    create_season,
+    create_stage,
+    create_participant,
+    create_checkpoint,
+    create_official_mark,
+) -> None:
+    """Отмененные отметки не влияют на места."""
+    season = await create_season(is_active=True)
+    stage = await create_stage(season_id=season.id)
+    cp = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
+
+    p1 = await create_participant(number=1)
+    await create_official_mark(participant_id=p1.id, checkpoint_id=cp.id, is_cancelled=True)
+
+    service = PublicMapService(db_session)
+    result = await service.get_leaders(stage.id)
+
+    # Отмененная отметка не учитывается → участник не в рейтинге
+    assert result["leaders"] == []
+
+
+async def test_get_leaders_filter_by_discipline(
+    db_session,
+    create_season,
+    create_discipline,
+    create_stage,
+    create_participant,
+    create_checkpoint,
+    create_official_mark,
+) -> None:
+    """?discipline=long фильтрует участников."""
+    season = await create_season(is_active=True)
+    d_long = await create_discipline(season_id=season.id, code="long", name="Длинная")
+    d_short = await create_discipline(season_id=season.id, code="sprint", name="Спринт")
+    stage = await create_stage(season_id=season.id)
+    cp = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
+
+    p_long = await create_participant(number=1, discipline_id=d_long.id)
+    p_short = await create_participant(number=2, discipline_id=d_short.id)
+    await create_official_mark(participant_id=p_long.id, checkpoint_id=cp.id)
+    await create_official_mark(participant_id=p_short.id, checkpoint_id=cp.id)
+
+    service = PublicMapService(db_session)
+    result = await service.get_leaders(stage.id, discipline="long")
+
+    assert len(result["leaders"]) == 1
+    assert result["leaders"][0]["bib"] == 1  # только длинная дистанция
+
+
+async def test_get_leaders_as_of_filters_marks(
+    db_session,
+    create_season,
+    create_stage,
+    create_participant,
+    create_checkpoint,
+    create_official_mark,
+) -> None:
+    """?as_of= отсекает отметки, сделанные позже указанного времени."""
+    season = await create_season(is_active=True)
+    stage = await create_stage(season_id=season.id)
+    cp = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
+
+    p1 = await create_participant(number=1)
+    now = datetime.now(tz=UTC)
+    # Отметка сделана "сейчас"
+    await create_official_mark(participant_id=p1.id, checkpoint_id=cp.id, mark_time=now)
+
+    service = PublicMapService(db_session)
+    # as_of = 1 час назад → отметки нет
+    result = await service.get_leaders(stage.id, as_of=now - timedelta(hours=1))
+    assert result["leaders"] == []

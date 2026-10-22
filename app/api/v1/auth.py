@@ -18,6 +18,9 @@ logger = logging.getLogger("avacha.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
 
+# Максимальное значение для BIGINT в Postgres
+MAX_BIGINT = 9223372036854775807
+
 
 # --- Хелперы 152-ФЗ ----------------------------------------------------------
 
@@ -40,7 +43,15 @@ def _user_profile(user: User) -> UserProfile:
     return profile
 
 
-@router.post("/vk", response_model=AuthResponse)
+@router.post(
+    "/vk",
+    response_model=AuthResponse,
+    responses={
+        400: {"description": "Некорректные параметры VK"},
+        401: {"description": "Неверная подпись VK"},
+        422: {"description": "Ошибка валидации данных"},
+    },
+)
 async def auth_vk(
     body: VKAuthRequest,
     users: UserRepoDep,
@@ -63,10 +74,13 @@ async def auth_vk(
 
     try:
         vk_user_id = int(params["vk_user_id"])
+        # Проверяем, чтобы ID не сломал базу данных
+        if vk_user_id <= 0 or vk_user_id > MAX_BIGINT:
+            raise ValueError("vk_user_id out of range")
     except (KeyError, TypeError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing vk_user_id",
+            detail="Missing or invalid vk_user_id",
         ) from None
 
     # User info приходит с фронта (VK Bridge: VKWebAppGetUserInfo)
@@ -81,11 +95,9 @@ async def auth_vk(
     platform = params.get("vk_platform")
     notifications_param = params.get("vk_are_notifications_enabled")
 
-    # --- Работа с БД через репозиторий ---
     user = await users.get_by_vk_user_id(vk_user_id)
     is_new_user = user is None
 
-    # Парсим параметр уведомлений заранее
     if notifications_param is not None:
         notifications_allowed: bool | None = notifications_param == "1"
     else:
@@ -122,12 +134,18 @@ async def auth_vk(
     )
 
 
-@router.get("/me", response_model=UserProfile)
+@router.get(
+    "/me", response_model=UserProfile, responses={401: {"description": "Требуется авторизация"}}
+)
 async def me(user: User = Depends(get_current_user)) -> UserProfile:
     return _user_profile(user)
 
 
-@router.post("/me/consent", response_model=UserProfile)
+@router.post(
+    "/me/consent",
+    response_model=UserProfile,
+    responses={401: {"description": "Требуется авторизация"}},
+)
 async def accept_consent(
     body: ConsentIn,
     user: User = Depends(get_current_user),
@@ -149,7 +167,12 @@ async def accept_consent(
     return _user_profile(user)
 
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+# 5. Описываем 401 ошибку для Swagger (ST103)
+@router.delete(
+    "/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={401: {"description": "Требуется авторизация"}},
+)
 async def delete_me(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
