@@ -16,15 +16,15 @@ from app.config import get_settings
 from app.db.base import Base, get_session
 from app.db.models import (
     AdminAccount,
+    Checkpoint,
+    Device,
     Discipline,
     OfficialMark,
+    Participant,
     Season,
     Stage,
     StageRoutePoint,
     TrackPoint,
-    Participant,
-    Checkpoint,
-    Device,
 )
 from app.main import app as fastapi_app
 from app.security.passwords import hash_password
