@@ -1,5 +1,7 @@
 """Базовые фикстуры для тестов: engine, db_session, app, client."""
 
+import hashlib
+import uuid
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 
@@ -12,7 +14,18 @@ from sqlalchemy.pool import NullPool
 import app.db.models  # noqa: F401
 from app.config import get_settings
 from app.db.base import Base, get_session
-from app.db.models import AdminAccount, Discipline, Season, Stage
+from app.db.models import (
+    AdminAccount,
+    Discipline,
+    OfficialMark,
+    Season,
+    Stage,
+    StageRoutePoint,
+    TrackPoint,
+    Participant,
+    Checkpoint,
+    Device,
+)
 from app.main import app as fastapi_app
 from app.security.passwords import hash_password
 from app.services.cache import cache
@@ -186,5 +199,175 @@ async def create_stage(db_session):
         db_session.add(stage)
         await db_session.flush()
         return stage
+
+    return _factory
+
+
+@pytest.fixture
+async def create_route_point(db_session):
+    async def _factory(
+        *,
+        stage_id: int,
+        position: int = 0,
+        lat: float = 55.0,
+        lon: float = 160.0,
+    ) -> StageRoutePoint:
+        point = StageRoutePoint(
+            stage_id=stage_id,
+            position=position,
+            lat=lat,
+            lon=lon,
+        )
+        db_session.add(point)
+        await db_session.flush()
+        return point
+
+    return _factory
+
+
+@pytest.fixture
+async def create_track_point(db_session, create_device):
+    async def _factory(
+        *,
+        participant_id: int,
+        stage_id: int,
+        device_id: int | None = None,
+        lat: float = 55.0,
+        lon: float = 160.0,
+        recorded_at: datetime | None = None,
+        km_from_start: float = 10.0,
+    ) -> TrackPoint:
+        if device_id is None:
+            # Создаем фейковый девайс, чтобы удовлетворить ForeignKey
+            device = await create_device(participant_id=participant_id, stage_id=stage_id)
+            device_id = device.id
+
+        ts = recorded_at or datetime.now(tz=UTC)
+        key = hashlib.sha256(f"{participant_id}:{ts.isoformat()}".encode()).hexdigest()
+
+        point = TrackPoint(
+            participant_id=participant_id,
+            stage_id=stage_id,
+            device_id=device_id,
+            lat=lat,
+            lon=lon,
+            recorded_at=ts,
+            km_from_start=km_from_start,
+            deduplication_key=key,
+            is_confirmed=True,
+        )
+        db_session.add(point)
+        await db_session.flush()
+        return point
+
+    return _factory
+
+
+@pytest.fixture
+async def create_official_mark(db_session, create_admin):
+    async def _factory(
+        *,
+        participant_id: int,
+        checkpoint_id: int,
+        mark_time: datetime | None = None,
+        is_cancelled: bool = False,
+    ) -> OfficialMark:
+        if not hasattr(_factory, "_admin"):
+            _factory._admin = await create_admin(login="test_admin")
+
+        mark = OfficialMark(
+            participant_id=participant_id,
+            checkpoint_id=checkpoint_id,
+            mark_time=mark_time or datetime.now(tz=UTC),
+            entered_by_admin_id=_factory._admin.id,
+            is_cancelled=is_cancelled,
+        )
+        db_session.add(mark)
+        await db_session.flush()
+        return mark
+
+    return _factory
+
+
+@pytest.fixture
+async def create_participant(db_session):
+    async def _factory(
+        *,
+        number: int = 1,
+        name: str = "Иван Иванов",
+        region: str = "Камчатский край",
+        discipline_id: int | None = None,
+        status: str = "registered",
+    ) -> Participant:
+        participant = Participant(
+            number=number,
+            name=name,
+            region=region,
+            discipline_id=discipline_id,
+            status=status,
+            dogs_count=8,
+        )
+        db_session.add(participant)
+        await db_session.flush()
+        return participant
+
+    return _factory
+
+
+@pytest.fixture
+async def create_checkpoint(db_session):
+    async def _factory(
+        *,
+        stage_id: int,
+        kind: str = "checkpoint",
+        code: str = "КП-1",
+        name: str = "Контрольный пункт",
+        order_index: int = 1,
+        lat: float = 55.0,
+        lon: float = 160.0,
+        km_from_race_start: float = 10.0,
+        is_public: bool = True,
+    ) -> Checkpoint:
+        checkpoint = Checkpoint(
+            stage_id=stage_id,
+            kind=kind,
+            code=code,
+            name=name,
+            order_index=order_index,
+            lat=lat,
+            lon=lon,
+            km_from_race_start=km_from_race_start,
+            is_public=is_public,
+        )
+        db_session.add(checkpoint)
+        await db_session.flush()
+        return checkpoint
+
+    return _factory
+
+
+@pytest.fixture
+async def create_device(db_session):
+    async def _factory(
+        *,
+        participant_id: int | None = None,
+        stage_id: int | None = None,
+        imei: str | None = None,
+    ) -> Device:
+        # Генерируем уникальный IMEI и Iridium номер для каждого вызова
+        unique_imei = imei or uuid.uuid4().hex[:15]
+        unique_iridium = uuid.uuid4().hex[:5]
+
+        device = Device(
+            iridium_number=unique_iridium,
+            imei=unique_imei,
+            name=f"Трекер {unique_iridium}",
+            participant_id=participant_id,
+            stage_id=stage_id,
+            is_active=True,
+        )
+        db_session.add(device)
+        await db_session.flush()
+        return device
 
     return _factory
