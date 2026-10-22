@@ -1,19 +1,32 @@
-# Авача — VK Mini App
+# Авача — VK Mini App Backend
 
-Бэкенд мини-приложения ВКонтакте для зимнего фестиваля «Берингия» и гонки на собачьих упряжках «Авача» (Камчатка): live-трекинг участников, результаты, карточки каюров и push-уведомления.
+Бэкенд мини-приложения ВКонтакте для зимнего фестиваля и гонки на собачьих упряжках «Авача» (Камчатка).
+Обеспечивает live-трекинг участников, расчёт официальных результатов, карточки каюров и push-уведомления.
 
-## Что внутри
+## ✨ Ключевые особенности
 
-- **Live-трекинг.** Положение участников на карте по данным спутниковых трекеров Iridium360. В ответах карты — статус свежести данных (`fresh` / `delayed` / `stale` / `no_data`). Трекеры доступны только через бэкенд, не напрямую из фронта.
-- **Участники.** Карточки каюров, кнопка «Болею за», счётчик болельщиков и рейтинг народной поддержки с динамикой за сутки.
-- **Результаты.** Сводная таблица лидеров, протоколы этапов, время на контрольных пунктах, штрафы и обязательные остановки. Официальное время — только судейские отметки (`OfficialMark`), трекер не считается источником времени.
-- **Контент и админка.** Расписание гонки и программы фестиваля, новости, FAQ, зрительские локации. Для организаторов — админ-API и SQLAdmin-панель: участники, этапы, отметки, мониторинг трекеров. SOS-сигнал отображается только в админ-API.
+- **Live-трекинг (Iridium360):** Спутниковый мониторинг упряжек. В ответах API отдаётся статус свежести данных
+  (`fresh` / `delayed` / `stale` / `no_data`). Прямой доступ к трекерам закрыт, всё идёт через кэшируемый бэкенд.
+- **Высокая нагрузка:** Redis-кэширование горячих эндпоинтов (карта, позиции). API выдерживает **1000+ одновременных
+  пользователей** (200+ RPS, p95 < 130ms) на локальной машине. Защита от переполнения БД (строгий `MAX_ID` на все ID).
+- **Официальные результаты:** Расчёт протоколов и общего зачёта строго по судейским отметкам (`OfficialMark`). Трекеры
+  не используются для времени.
+- **Кастомная админ-панель (SQLAdmin):**
+    - *Оперативный штаб (Race Control):* Live-таблица с прогрессом участников по дистанции.
+    - *Мониторинг оборудования:* Цветовая индикация состояния трекеров и батарей.
+    - *Импорт результатов:* Загрузка CSV-протоколов от судей с валидацией и записью в БД.
+    - *Центр уведомлений:* Массовая отправка push-сообщений.
+- **152-ФЗ:** Логирование с маскировкой чувствительных данных, эндпоинт анонимизации профиля пользователя.
 
 ## Стек
 
-- Backend: Python 3.12+, FastAPI, SQLAlchemy 2.0 (async), Alembic, Pydantic 2, Celery, uvicorn, SQLAdmin
-- БД: PostgreSQL 16, Redis 7
-- Инфраструктура: Docker Compose (postgres, redis, api, worker, beat), Poetry, GitHub Actions (ruff + генерация `openapi.json`)
+- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0 (async), Alembic, Pydantic v2
+- **Фоновые задачи:** Celery, Redis (Broker), Celery Beat
+- **БД:** PostgreSQL 16
+- **Кэш:** Redis 7
+- **Админка:** SQLAdmin + Jinja2 + Tabler UI
+- **Инфраструктура:** Docker Compose, Poetry
+- **Тестирование:** Pytest, Schemathesis, Locust, Ruff
 
 ## Быстрый старт
 
@@ -21,146 +34,141 @@
 
 - Python 3.12+
 - Poetry
-- Docker + Docker Compose (для PostgreSQL и Redis)
+- Docker + Docker Compose
 
-### Установка
+### Установка и запуск
 
 ```sh
+# 1. Клонируем и ставим зависимости
 poetry install
+
+# 2. Поднимаем БД и Redis
 docker compose up -d postgres redis
+
+# 3. Настраиваем окружение
 cp .env.template .env
+# Отредактируйте .env: VK_SECURE_KEY, SECRET_KEY, IRIDIUM_API_KEY
+
+# 4. Применяем миграции
 poetry run alembic upgrade head
-```
 
-После установки заполнить `.env` — минимум `SECRET_KEY`, `VK_APP_ID`, `VK_SECURE_KEY` (см. раздел «Переменные окружения»).
-
-### Запуск
-
-```sh
+# 5. Запускаем API
 poetry run uvicorn app.main:app --reload
 ```
 
-Приложение: <http://localhost:8000>
-Swagger: <http://localhost:8000/docs>
-Redoc: <http://localhost:8000/redoc>
-Админ-панель SQLAdmin: <http://localhost:8000/admin-panel>
-Health-check: <http://localhost:8000/health>
+**Точки входа:**
 
-Полный стек с фоном (API + Celery worker + beat):
+- API: http://localhost:8000
+- Swagger: http://localhost:8000/docs
+- Админ-панель: http://localhost:8000/admin-panel (admin / admin123)
+- Health-check: http://localhost:8000/health
 
-```sh
-docker compose up
-```
-
-## Переменные окружения
-
-Файл-шаблон: `.env.template`. Дефолты — из `app/config.py`. Обязательные для запуска помечены «да».
-
-| Переменная | Назначение | Обязательна | По умолчанию |
-|---|---|---|---|
-| `ENV` | Окружение; сид БД работает только в `dev` | нет | `dev` |
-| `DEBUG` | Режим отладки (логи, https_only для cookie) | нет | `true` |
-| `SECRET_KEY` | Секрет для подписи JWT | да | `change-me` |
-| `API_HOST` / `API_PORT` | Адрес uvicorn | нет | `0.0.0.0` / `8000` |
-| `POSTGRES_HOST` / `POSTGRES_PORT` | Хост и порт PostgreSQL | нет | `localhost` / `5432` |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Учётка и база PostgreSQL | нет | `avacha` / `avacha` / `avacha` |
-| `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` | Redis для Celery | нет | `localhost` / `6379` / `0` |
-| `CELERY_BROKER_DB` / `CELERY_RESULT_DB` | Номера баз Redis для брокера и результатов | нет | `1` / `2` |
-| `VK_APP_ID` | ID приложения VK Mini App | да | пусто |
-| `VK_GROUP_ID` | ID сообщества ВКонтакте | нет | пусто |
-| `VK_SECURE_KEY` | Секретный ключ для проверки launch params | да | пусто |
-| `VK_SERVICE_TOKEN` | Сервисный токен VK API (интеграции) | для интеграций | пусто |
-| `VK_API_VERSION` | Версия VK API | нет | `5.199` |
-| `IRIDIUM_BASE_URL` | Базовый URL API Iridium360 | нет | `https://api.iridium360.ru` |
-| `IRIDIUM_API_KEY` | Ключ доступа Iridium360 | для трекинга | пусто |
-| `TRACKING_POLL_INTERVAL_SECONDS` | Интервал опроса Iridium (сек) | нет | `900` |
-| `TRACKING_STALE_MISSED_INTERVALS` | Сколько пропущенных интервалов до статуса «устарело» | нет | `2` |
-| `NOTIFICATION_RATE_LIMIT_PER_HOUR` / `_PER_DAY` | Лимиты push-уведомлений | нет | `2` / `10` |
-| `ADMIN_PANEL_SESSION_SECRET` | Секрет cookie-сессий SQLAdmin | да (в проде) | `change-me-admin-panel` |
-| `ADMIN_SESSION_TTL_SECONDS` | Время жизни админ-сессии (сек) | нет | `28800` |
-| `JWT_ALGORITHM` / `JWT_USER_TTL_SECONDS` | Параметры JWT пользователя | нет | `HS256` / `86400` |
-| `CORS_ORIGINS` | Разрешённые origin для CORS | нет | vk.com, m.vk.com, prod-apps.vkusercontent.com |
-| `PRIVACY_POLICY_VERSION` | Версия политики конфиденциальности (152-ФЗ) | нет | `1.0` |
-
-## Тестовые данные (dev)
-
-Скрипт `scripts/seed_mock.py` заполняет dev-БД: сезон «Авача 2027», три дисциплины, три этапа, контрольные пункты, 15 каюров, трекеры, треки и судейские отметки, болельщиков с подписками «Болею за», push-подписки, очередь уведомлений, новости, расписание, FAQ и зрительские локации. При повторном запуске существующие данные не дублируются. Работает только при `ENV=dev` (без `--force` завершится ошибкой).
+**Запуск полного стека:**
 
 ```sh
-poetry run python -m scripts.seed_mock
-poetry run python -m scripts.seed_mock --reset
-poetry run python -m scripts.seed_mock --users 50 --no-track
+docker compose up --build
 ```
 
-Флаги:
+## 🧪 Тестирование и надежность
 
-- `--reset` — очистить таблицы перед наполнением
-- `--users N` — число болельщиков (по умолчанию 30)
-- `--no-track` — без треков, маршрутов и судейских отметок
-- `--force` — разрешить запуск вне `ENV=dev`
+Проект покрыт тестами на нескольких уровнях.
 
-Тестовый администратор: `admin` / `admin123`. В конце скрипт печатает тестовый JWT первого пользователя.
+### 1. Unit & Integration (Pytest)
 
-## Структура проекта
-
-```text
-app/
-  main.py              # create_app(), middleware, lifespan
-  config.py            # Settings(BaseSettings)
-  enums.py             # все Enum проекта
-  admin_panel.py       # представления SQLAdmin
-  admin_auth.py        # авторизация SQLAdmin через admin-сессии
-  api/
-    deps.py            # зависимости: сессии, auth, репозитории
-    middleware.py      # RequestID, Logging
-    health.py          # GET /health
-    v1/                # публичный API /api/v1 (по одному файлу на фичу)
-    admin/             # админ-API /api/v1/admin (SOS только здесь)
-  services/            # бизнес-логика
-  repositories/        # доступ к БД (SQLAlchemy)
-  db/
-    base.py            # Base, engine, async_sessionmaker
-    models/            # один файл = одна модель
-  schemas/             # Pydantic-схемы
-  security/            # JWT, VK launch params, пароли, admin-сессии
-  integrations/        # внешние API: Iridium360 и VK
-  tasks/               # Celery app + задачи (уведомления, опрос Iridium)
-alembic/versions/      # миграции
-scripts/
-  seed_mock.py         # заполнение dev-БД тестовыми данными
-  export_openapi.py    # генерация openapi.json
-tests/                 # pytest: unit-уровень, моки БД и клиентов
-```
-
-## API
-
-Полная спецификация — Swagger: `/docs`
-
-## Разработка
-
-### Линтеры и форматирование
-
-```sh
-poetry run ruff check app/ tests/
-poetry run ruff format app/ tests/
-```
-
-В CI: `ruff check app/` и `ruff format --check app/`.
-
-### Тесты
+Интеграционные тесты используют изоляцию транзакций (`SAVEPOINT`), что позволяет тестировать реальные запросы к БД без
+загрязнения данных между тестами.
 
 ```sh
 poetry run pytest
 ```
 
-Тесты — unit-уровень, мокают БД и внешние клиенты.
+### 2. Fuzz-тестирование (Schemathesis)
 
-### Миграции
+Прогон всех эндпоинтов невалидными данными (SQL-инъекции, переполнения, `null`).
 
 ```sh
-poetry run alembic revision --autogenerate -m "..."
-poetry run alembic upgrade head
+poetry run schemathesis run http://localhost:8000/openapi.json --checks all
 ```
 
+**Результат:** 3298+ сгенерированных тест-кейсов. **0 ошибок 500 (Server Error).** Все некорректные данные отбиваются
+422
+Unprocessable Content.
+
+### 3. Нагрузочное тестирование (Locust)
+
+Эмуляция поведения болельщиков в VK Mini App.
+
+```sh
+poetry run locust -f loadtests/locustfile.py --host=http://localhost:8000
+```
+
+**Результаты (1000 users, локальный Docker):**
+
+- Пропускная способность: **201 RPS**
+- Медиана (p50): **5 ms**
+- 95-й процентиль (p95): **130 ms**
+- Ошибки: **0.03%** (ограничение TCP backlog на 1 воркере Uvicorn).
+
+> *Артефакты тестирования доступны в папке [`docs/`](./docs).*
+
+## 🛠 Админ-панель для организаторов
+
+В проекте развернута кастомная админка на базе SQLAdmin:
+
+- **Дашборд:** SOS-сигналы, метрики гонки, автообновление.
+- **Мониторинг:** Таблица трекеров с цветовой индикацией (зеленый/желтый/красный).
+- **Race Control:** Таблица лидеров с прогресс-барами.
+- **Push Sender:** Форма массовой рассылки.
+- **Импорт CSV:** Автоматическое создание судейских отметок из протокола.
+
+## Переменные окружения
+
+Файл `.env.template` содержит все необходимые ключи. Обязательные для запуска: `SECRET_KEY`, `VK_SECURE_KEY`,
+`POSTGRES_*`.
+
+| Переменная                       | Назначение                             | По умолчанию |
+|----------------------------------|----------------------------------------|--------------|
+| `ENV`                            | Окружение (`dev` / `prod`)             | `dev`        |
+| `SECRET_KEY`                     | Секрет JWT                             | `change-me`  |
+| `VK_APP_ID` / `VK_SECURE_KEY`    | Параметры VK Mini App                  | —            |
+| `IRIDIUM_API_KEY`                | Ключ доступа к спутниковым трекерам    | —            |
+| `TRACKING_POLL_INTERVAL_SECONDS` | Интервал опроса Iridium (сек)          | `900`        |
+| `CACHE_TTL_STAGES`               | TTL кэша справочников (сек)            | `3600`       |
+| `CACHE_TTL_RESULTS`              | TTL кэша протоколов (сек)              | `300`        |
+| `CACHE_TTL_MAP`                  | TTL кэша позиций на карте (сек)        | `15`         |
+| `CACHE_TTL_STATS`                | TTL кэша статистики для дашборда (сек) | `30`         |
+
+## Структура проекта
+
+```text
+app/
+  main.py              # create_app(), middleware
+  config.py            # Pydantic Settings
+  enums.py             # Все Enums
+  api/                 # Роутеры (v1/ и admin/)
+  services/            # Бизнес-логика (кэш, трекинг, результаты)
+  repositories/        # Слой доступа к данным (SQLAlchemy)
+  db/                  # Base, engine, модели
+  schemas/             # Pydantic схемы
+  security/            # JWT, VK Auth, Admin Sessions
+  integrations/        # Клиенты Iridium360 и VK API
+  tasks/               # Celery задачи (пуши, парсинг Iridium)
+  admin_panel/         # Кастомная админка (views, templates)
+alembic/versions/      # Миграции
+loadtests/             # Скрипты Locust
+tests/                 # Pytest + Schemathesis
+docs/                  # Скриншоты нагрузочных тестов
+```
+
+## Тестовые данные (Seed)
+
+```sh
+# Очистить БД и заполнить тестовыми данными (15 каюров, треки, отметки, юзеры)
+poetry run python -m scripts.seed_mock --reset
+```
+
+**Админ:** `admin` / `admin123`. *Работает только при `ENV=dev`.*
+
 ## Ссылки
+
 - Официальное сообщество гонки: https://vk.ru/avacha.race
