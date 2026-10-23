@@ -22,8 +22,10 @@ class ParticipantCardView(BaseView):
             {"participants": participants},
         )
 
-    @expose("/api/participant-card/<int:participant_id>", methods=["GET"])
-    async def participant_api(self, request: Request, participant_id: int) -> JSONResponse:
+    @expose("/api/participant-card/{participant_id:int}", methods=["GET"])
+    async def participant_api(self, request: Request) -> JSONResponse:
+        """Отдаёт карточку участника по числовому параметру URL"""
+        participant_id = request.path_params["participant_id"]
         async with async_session_factory() as session:
             p = await AdminParticipantService(session).get_participant_detail(participant_id)
         if not p:
