@@ -10,7 +10,14 @@ from app.security.tokens import create_admin_token
 router = APIRouter(prefix="/auth", tags=["admin-auth"])
 
 
-@router.post("/login", response_model=AdminLoginResponse)
+@router.post(
+    "/login",
+    response_model=AdminLoginResponse,
+    responses={
+        429: {"description": "Превышен общий для API и админки лимит входов с одного IP"},
+        503: {"description": "Счётчик попыток входа временно недоступен"},
+    },
+)
 async def login_admin(body: AdminLoginRequest, session: SessionDep) -> AdminLoginResponse:
     """Проверяем логин/пароль администратора и выдаём JWT"""
     admin = await authenticate_admin_by_password(session, body.login, body.password)
