@@ -13,23 +13,22 @@ from app.services.tracking_freshness import get_freshness_status
 settings = get_settings()
 
 
+def get_device_health_status(device: Device) -> str:
+    """Возвращает единый технический статус для оборудования и карточки участника"""
+    if not device.is_active:
+        return "inactive"
+    if device.sos_active:
+        return "sos"
+    if device.battery_percent is not None and device.battery_percent <= 20:
+        return "low_battery"
+    return "ok"
+
+
 class AdminEquipmentService:
     """Бизнес-логика состояния трекеров для админки"""
 
     def __init__(self, session: AsyncSession) -> None:
         self.devices = DeviceRepository(session)
-
-    @staticmethod
-    def _device_health_status(device: Device) -> str:
-        """Собираем короткий технический статус трекера"""
-        if not device.is_active:
-            return "inactive"
-        if device.sos_active:
-            return "sos"
-        if device.battery_percent is not None and device.battery_percent <= 20:
-            return "low_battery"
-
-        return "ok"
 
     async def get_health(self) -> EquipmentHealthResponse:
         now = datetime.now(tz=UTC)
@@ -56,7 +55,7 @@ class AdminEquipmentService:
                     battery_percent=device.battery_percent,
                     sos_active=device.sos_active,
                     last_message_at=device.last_message_at,
-                    health_status=self._device_health_status(device),
+                    health_status=get_device_health_status(device),
                     freshness_status=get_freshness_status(
                         device.last_message_at,
                         now=now,
