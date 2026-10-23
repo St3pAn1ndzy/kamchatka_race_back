@@ -12,6 +12,7 @@ from typing import Any
 import redis.asyncio as aioredis
 
 from app.config import get_settings
+from app.metrics import CACHE_HITS, CACHE_MISSES
 
 
 class CacheService:
@@ -45,15 +46,24 @@ class CacheService:
         Returns:
             Десериализованное значение или None (промах кэша / ошибка Redis).
         """
+        # Достаем namespace из ключа: "public:stages:active" -> "stages"
+        parts = key.split(":")
+        namespace = parts[1] if len(parts) > 1 else "unknown"
+
         try:
             client = await self._get_client()
             if client is None:
+                # Redis недоступен — считаем как промах (сигнал, что кэш не работает)
+                CACHE_MISSES.labels(namespace=namespace).inc()
                 return None
             val = await client.get(key)
             if val is None:
+                CACHE_MISSES.labels(namespace=namespace).inc()
                 return None
+            CACHE_HITS.labels(namespace=namespace).inc()
             return json.loads(val)
         except Exception:
+            CACHE_MISSES.labels(namespace=namespace).inc()
             return None
 
     async def set(self, key: str, value: Any, ttl: int) -> None:

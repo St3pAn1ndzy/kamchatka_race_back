@@ -8,6 +8,7 @@ from app.api.deps import UserRepoDep, get_current_user
 from app.config import get_settings
 from app.db.base import get_session
 from app.db.models.user import User
+from app.metrics import USER_LOGINS
 from app.schemas.public import AuthResponse, ConsentIn, UserProfile, VKAuthRequest
 from app.security.tokens import create_user_token
 from app.security.vk_auth import verify_vk_launch_params
@@ -126,6 +127,9 @@ async def auth_vk(
     await session.commit()
 
     token, expires_in = create_user_token(user.id, user.vk_user_id)
+
+    USER_LOGINS.labels(platform="vk").inc()
+    
     return AuthResponse(
         access_token=token,
         expires_in=expires_in,
