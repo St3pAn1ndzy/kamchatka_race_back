@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import ValidationError
 from sqladmin import Admin
 from sqlalchemy import create_engine
@@ -105,6 +106,18 @@ def create_app() -> FastAPI:
     replace_default_validation_error_schema(app)
 
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+    Instrumentator(
+        should_group_status_codes=True,
+        should_ignore_untemplated=True,
+        excluded_handlers=["/metrics", "/health", "/docs", "/openapi.json"],
+        inprogress_name="avacha_http_requests_inprogress",
+        inprogress_labels=True,
+    ).instrument(app).expose(
+        app,
+        include_in_schema=False,
+        endpoint="/metrics",
+    )
 
     return app
 
