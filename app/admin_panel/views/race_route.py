@@ -22,8 +22,10 @@ class RaceRouteView(BaseView):
             {"stages": stages},
         )
 
-    @expose("/api/race-route/<int:stage_id>", methods=["GET"])
-    async def route_api(self, request: Request, stage_id: int) -> JSONResponse:
+    @expose("/api/race-route/{stage_id:int}", methods=["GET"])
+    async def route_api(self, request: Request) -> JSONResponse:
+        """Отдаёт маршрут и КП этапа, указанного в адресе запроса"""
+        stage_id = request.path_params["stage_id"]
         async with async_session_factory() as session:
             svc = AdminRouteService(session)
             route = await svc.get_route_by_stage(stage_id)

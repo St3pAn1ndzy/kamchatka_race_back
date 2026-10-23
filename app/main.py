@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
+from redis.asyncio import Redis
 from sqladmin import Admin
 from sqlalchemy import create_engine
 from starlette.middleware.sessions import SessionMiddleware
@@ -25,6 +26,8 @@ from app.api.v1.router import api_router
 from app.config import get_settings
 from app.db.base import async_engine
 from app.logging_setup import setup_logging
+from app.security.login_rate_limit import AdminLoginRateLimiter, LoginRateLimitMiddleware
+from app.services.cache import cache
 
 logger = logging.getLogger("avacha")
 
@@ -33,6 +36,8 @@ logger = logging.getLogger("avacha")
 async def lifespan(app: FastAPI):
     logger.info("Avacha API starting up")
     yield
+    await app.state.admin_login_limiter.close()
+    await cache.close()
     await async_engine.dispose()
     admin_engine = getattr(app.state, "admin_engine", None)
     if admin_engine is not None:
@@ -52,6 +57,18 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    login_limiter = AdminLoginRateLimiter(
+        Redis.from_url(
+            settings.REDIS_URL,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+            decode_responses=True,
+        ),
+        max_attempts=settings.ADMIN_LOGIN_MAX_ATTEMPTS,
+        window_seconds=settings.ADMIN_LOGIN_WINDOW_SECONDS,
+    )
+    app.state.admin_login_limiter = login_limiter
+
     # SQLAdmin использует cookie-сессию для входа в админ-панель
     app.add_middleware(
         SessionMiddleware,
@@ -59,6 +76,7 @@ def create_app() -> FastAPI:
         same_site="lax",
         https_only=not settings.DEBUG,
     )
+    app.add_middleware(LoginRateLimitMiddleware, limiter=login_limiter)
     # Порядок: сначала внутренние, потом внешние. CORS — последним.
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(RequestIDMiddleware)
