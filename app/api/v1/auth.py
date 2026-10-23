@@ -129,7 +129,7 @@ async def auth_vk(
     token, expires_in = create_user_token(user.id, user.vk_user_id)
 
     USER_LOGINS.labels(platform="vk").inc()
-    
+
     return AuthResponse(
         access_token=token,
         expires_in=expires_in,
