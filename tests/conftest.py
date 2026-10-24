@@ -25,6 +25,8 @@ from app.db.models import (
     Stage,
     StageRoutePoint,
     TrackPoint,
+    FanSubscription,
+    User,
 )
 from app.main import app as fastapi_app
 from app.security.passwords import hash_password
@@ -385,5 +387,54 @@ async def create_device(db_session):
         db_session.add(device)
         await db_session.flush()
         return device
+
+    return _factory
+
+
+@pytest.fixture
+async def create_user(db_session):
+    async def _factory(
+        *,
+        vk_user_id: int | None = None,
+        first_name: str = "Иван",
+        last_name: str = "Болельщик",
+        notifications_allowed: bool = False,
+    ) -> User:
+        if vk_user_id is None:
+            # Уникальный ID, чтобы не ловить UniqueViolationError
+            vk_user_id = uuid.uuid4().int % 10**9 + 1_000_000_000
+
+        user = User(
+            vk_user_id=vk_user_id,
+            first_name=first_name,
+            last_name=last_name,
+            notifications_allowed=notifications_allowed,
+        )
+        db_session.add(user)
+        await db_session.flush()
+        return user
+
+    return _factory
+
+
+@pytest.fixture
+async def create_fan_subscription(db_session):
+    async def _factory(
+        *,
+        user_id: int,
+        participant_id: int,
+        created_at: datetime | None = None,
+    ) -> FanSubscription:
+        sub = FanSubscription(
+            user_id=user_id,
+            participant_id=participant_id,
+        )
+        # Если передали created_at — переопределяем server_default
+        if created_at is not None:
+            sub.created_at = created_at
+
+        db_session.add(sub)
+        await db_session.flush()
+        return sub
 
     return _factory
