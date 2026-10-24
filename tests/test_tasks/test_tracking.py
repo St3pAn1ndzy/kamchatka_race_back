@@ -1,4 +1,5 @@
 """Тесты Celery-задачи poll_iridium (реальный формат Iridium360)."""
+
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -94,8 +95,7 @@ def _patch_session_factory(session, monkeypatch):
 
     # Подменяем функцию получения фабрики в модуле задачи
     monkeypatch.setattr(
-        "app.tasks.tracking.get_celery_session_factory",
-        lambda: _mock_session_factory
+        "app.tasks.tracking.get_celery_session_factory", lambda: _mock_session_factory
     )
 
 
