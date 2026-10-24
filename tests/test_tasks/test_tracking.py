@@ -1,5 +1,5 @@
 """Тесты Celery-задачи poll_iridium (реальный формат Iridium360)."""
-
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -85,11 +85,17 @@ def _make_session(
     return session
 
 
-def _patch_session_factory(session: AsyncMock, monkeypatch) -> None:
-    """Подменяет async_session_factory в tracking, отдавая наш мок-контекст."""
+def _patch_session_factory(session, monkeypatch):
+    """Мокает фабрику сессий для Celery-задач."""
+
+    @asynccontextmanager
+    async def _mock_session_factory():
+        yield session
+
+    # Подменяем функцию получения фабрики в модуле задачи
     monkeypatch.setattr(
-        "app.tasks.tracking.async_session_factory",
-        lambda: FakeCM(session),
+        "app.tasks.tracking.get_celery_session_factory",
+        lambda: _mock_session_factory
     )
 
 
