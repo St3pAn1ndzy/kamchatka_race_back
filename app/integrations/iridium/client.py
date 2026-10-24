@@ -9,6 +9,7 @@
 - Параметр запроса — number (не imei).
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -85,10 +86,16 @@ class IridiumClient:
                     "number": number,
                     "include_track": "true",
                 }
+
                 if last_point_id:
                     params["point_id_from"] = last_point_id
                 else:
-                    params["date_from"] = (datetime.now(tz=UTC) - timedelta(hours=2)).isoformat()
+                    # Iridium требует ОБА параметра: date_from И date_to
+                    now = datetime.now(tz=UTC)
+                    date_from = now - timedelta(hours=2)
+
+                    params["date_from"] = date_from.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    params["date_to"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
                 try:
                     resp = await client.get(
@@ -112,6 +119,8 @@ class IridiumClient:
                         extra={"number": number, "error": str(exc)},
                     )
                     continue
+                finally:
+                    await asyncio.sleep(0.5)
 
                 if not isinstance(data, list) or not data:
                     continue
