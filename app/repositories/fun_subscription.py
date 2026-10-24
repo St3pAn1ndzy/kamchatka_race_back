@@ -72,7 +72,7 @@ class FanSubscriptionRepository(BaseRepository[FanSubscription]):
                 func.count(FanSubscription.id).label("cnt"),
             )
             .group_by(FanSubscription.participant_id)
-            .order_by(desc("cnt"))
+            .order_by(desc("cnt"), FanSubscription.participant_id)
             .limit(limit)
         )
         result = await self.session.execute(stmt)
