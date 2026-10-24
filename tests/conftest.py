@@ -19,13 +19,13 @@ from app.db.models import (
     Checkpoint,
     Device,
     Discipline,
+    FanSubscription,
     OfficialMark,
     Participant,
     Season,
     Stage,
     StageRoutePoint,
     TrackPoint,
-    FanSubscription,
     User,
 )
 from app.main import app as fastapi_app
