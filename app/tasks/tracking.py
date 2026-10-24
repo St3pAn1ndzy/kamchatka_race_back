@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 
-from app.db.base import async_session_factory
+from app.db.base import celery_session_factory
 from app.db.models.device import Device
 from app.db.models.track_point import TrackPoint
 from app.integrations.iridium import get_iridium_client
@@ -26,7 +26,7 @@ def poll_iridium() -> dict:
 async def _poll_iridium() -> dict:
     client = get_iridium_client()
 
-    async with async_session_factory() as session:
+    async with celery_session_factory() as session:
         devices = (
             (await session.execute(select(Device).where(Device.is_active.is_(True))))
             .scalars()

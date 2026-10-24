@@ -4,7 +4,7 @@ import asyncio
 import logging
 
 from app.config import get_settings
-from app.db.base import async_session_factory
+from app.db.base import celery_session_factory
 from app.db.models.user import User
 from app.integrations.vk.client import VKClient
 from app.repositories.notification_queue import NotificationQueueRepository
@@ -24,7 +24,7 @@ async def _send_pending(limit: int) -> dict:
     vk = VKClient()
     sent = failed = skipped = 0
 
-    async with async_session_factory() as session:
+    async with celery_session_factory() as session:
         queue = NotificationQueueRepository(session)
         pending = await queue.get_pending(limit=limit)
 
