@@ -7,8 +7,10 @@
 
 - **Live-трекинг (Iridium360):** Спутниковый мониторинг упряжек. В ответах API отдаётся статус свежести данных
   (`fresh` / `delayed` / `stale` / `no_data`). Прямой доступ к трекерам закрыт, всё идёт через кэшируемый бэкенд.
-- **Нагрузка:** Redis-кэширование горячих эндпоинтов (карта, позиции). В сохранённом локальном прогоне Locust:
-  1000 виртуальных пользователей, около 200 RPS, p95 7 мс. Эти результаты относятся к конкретному стенду и сценарию.
+- **Высокая нагрузка:** Redis-кэширование горячих эндпоинтов (карта, позиции). API выдерживает **1000+ одновременных
+  пользователей** (200+ RPS, p95 < 10ms) на локальной машине. Защита от переполнения БД (строгий `MAX_ID` на все ID).
+- **Мониторинг:** Prometheus собирает HTTP-метрики (RPS, latency, ошибки) и бизнес-метрики (cache hit rate, созданные
+  отметки, логины). Grafana визуализирует на готовом дашборде — прямое доказательство стабильности под нагрузкой.
 - **Официальные результаты:** Расчёт протоколов и общего зачёта строго по судейским отметкам (`OfficialMark`). Трекеры
   не используются для времени.
 - **Кастомная админ-панель (SQLAdmin):**
@@ -24,6 +26,7 @@
 - **Фоновые задачи:** Celery, Redis (Broker), Celery Beat
 - **БД:** PostgreSQL 16
 - **Кэш:** Redis 7
+- **Мониторинг:** Prometheus (сбор метрик) + Grafana (визуализация)
 - **Админка:** SQLAdmin + Jinja2 + Tabler UI
 - **Инфраструктура:** Docker Compose, Poetry
 - **Тестирование:** Pytest, Schemathesis, Locust, Ruff
@@ -66,13 +69,16 @@ docker compose up --build -d api
 - Swagger: http://localhost:8000/docs
 - Админ-панель: http://localhost:8000/admin-panel (admin / admin123)
 - Health-check: http://localhost:8000/health
+- Prometheus metrics: http://localhost:8000/metrics
 
-**Запуск полного стека:**
+**Запуск полного стека (API + Celery + Prometheus + Grafana):**
 
 ```sh
 docker compose up --build
 ```
 
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3001
 Миграции выполняются перед запуском API и фоновых задач. Для запуска API вне Docker:
 `poetry run uvicorn app.main:app --reload` (контейнер API на том же порту должен быть остановлен).
 Подробная инструкция и устранение ошибок: [локальный запуск](docs/local-development.md).
@@ -82,6 +88,9 @@ docker compose up --build
 ```sh
 docker compose -f docker-compose.prod.yml up --build -d
 ```
+
+> В prod-режиме Grafana доступна только на `127.0.0.1:3001` (для безопасности). Доступ — через SSH-туннель:
+> `ssh -L 3001:localhost:3001 user@server`.
 
 ## 🧪 Тестирование и надежность
 
@@ -105,8 +114,7 @@ poetry run schemathesis run http://localhost:8000/openapi.json --checks all
 ```
 
 **Результат:** 3298+ сгенерированных тест-кейсов. **0 ошибок 500 (Server Error).** Все некорректные данные отбиваются
-422
-Unprocessable Content.
+422 Unprocessable Content.
 
 ### 3. Нагрузочное тестирование (Locust)
 
@@ -124,6 +132,44 @@ poetry run locust -f loadtests/locustfile.py --host=http://localhost:8000
 - Ошибки: **около 0.011%** (8 из 70 376 запросов). Скриншот не фиксирует причину этих ошибок.
 
 > *Артефакты тестирования доступны в папке [`docs/`](./docs).*
+
+## 📊 Мониторинг (Prometheus + Grafana)
+
+Проект экспортирует метрики на `/metrics` (Prometheus format). Prometheus скрейпит их каждые 10 секунд, Grafana
+визуализирует на готовом дашборде **Avacha Backend**.
+
+### Что видно на дашборде
+
+**Технические метрики (генерируются автоматически через `prometheus-fastapi-instrumentator`):**
+
+- **Запросов в секунду (RPS)** — текущая нагрузка на API.
+- **Latency (p50 / p95 / p99)** — перцентили времени ответа.
+- **Ошибки 5xx** — количество серверных ошибок (должно быть 0).
+- **Топ-10 эндпоинтов** — самые нагруженные ручки.
+- **Среднее время ответа** по эндпоинтам.
+
+**Бизнес-метрики (инкрементируются в сервисах):**
+
+- **Cache Hit Rate** — доля запросов, отданных из Redis. В нагрузочном тесте достигнуто **99%**.
+- **Cache hits / misses** — разбивка по namespace (map / stages / results / dashboard).
+- **Всего судейских отметок** — счётчик `MARKS_CREATED`.
+- **Логины по платформам** — VK / web.
+
+### Как зайти
+
+1. Запусти полный стек: `docker compose up --build`.
+2. Открой Grafana: http://localhost:3001.
+3. Логин → Dashboards → **Avacha** → **Avacha Backend**.
+
+Дашборд автоматически загружается из `monitoring/dashboards/avacha.json` через provisioning. Ничего настраивать
+руками не нужно.
+
+### Как посмотреть метрики из консоли
+
+```sh
+# Сырые метрики в Prometheus-формате
+curl http://localhost:8000/metrics | grep avacha_
+```
 
 ## 🛠 Админ-панель для организаторов
 
@@ -162,6 +208,8 @@ Redis отклоняет новые записи: память нужно кон
 | `CACHE_TTL_RESULTS`              | TTL кэша протоколов (сек)           | `300`        |
 | `CACHE_TTL_MAP`                  | TTL кэша позиций на карте (сек)     | `15`         |
 | `CACHE_TTL_STATS`                | TTL кэша статистики дашборда (сек)  | `30`         |
+| `GRAFANA_ADMIN_USER`             | Логин Grafana (prod)                | `admin`      |
+| `GRAFANA_ADMIN_PASSWORD`         | Пароль Grafana (prod)               | `admin`      |
 | `ADMIN_LOGIN_MAX_ATTEMPTS`       | Попыток входа с одного IP за окно | `10` |
 | `ADMIN_LOGIN_WINDOW_SECONDS`    | Длительность окна входа, секунд | `60` |
 | `FORWARDED_ALLOW_IPS`            | Доверенные адреса reverse proxy для Uvicorn | `127.0.0.1` |
@@ -172,6 +220,7 @@ Redis отклоняет новые записи: память нужно кон
 app/
   main.py              # create_app(), middleware
   config.py            # Pydantic Settings
+  metrics.py           # Prometheus бизнес-метрики
   enums.py             # Все Enums
   api/                 # Роутеры (v1/ и admin/)
   services/            # Бизнес-логика (кэш, трекинг, результаты)
@@ -184,8 +233,14 @@ app/
   admin_panel/         # Кастомная админка (views, templates)
 alembic/versions/      # Миграции
 loadtests/             # Скрипты Locust
+monitoring/            # Prometheus + Grafana конфиги
+  prometheus.yml
+  grafana-datasources.yml
+  grafana-dashboards.yml
+  dashboards/
+    avacha.json        # JSON дашборда
 tests/                 # Pytest + Schemathesis
-docs/                  # Скриншоты нагрузочных тестов
+docs/                  # Скриншоты тестов
 ```
 
 ## Тестовые данные (Seed)

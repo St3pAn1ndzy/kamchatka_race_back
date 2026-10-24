@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_log import AuditLog
 from app.db.models.official_mark import OfficialMark
+from app.metrics import MARKS_CREATED
 from app.repositories.checkpoint import CheckpointRepository
 from app.repositories.discipline import DisciplineRepository
 from app.repositories.official_mark import OfficialMarkRepository
@@ -95,6 +96,8 @@ class AdminMarkService:
                 )
             )
             await self.session.commit()
+
+            MARKS_CREATED.labels(stage_id=str(checkpoint.stage_id)).inc()
         except IntegrityError as exc:
             await self.session.rollback()
             detail = _mark_conflict_detail(exc)
