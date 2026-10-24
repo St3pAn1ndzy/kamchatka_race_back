@@ -1,8 +1,10 @@
 """Celery application для фоновых задач."""
 
 from celery import Celery
+from celery.signals import worker_process_init
 
 from app.config import get_settings
+from app.db.base import init_celery_engine
 
 settings = get_settings()
 
@@ -15,6 +17,13 @@ celery_app = Celery(
         "app.tasks.tracking",
     ],
 )
+
+
+@worker_process_init.connect
+def init_worker(**kwargs):
+    """Срабатывает один раз в каждом дочернем процессе после fork."""
+    init_celery_engine()
+
 
 celery_app.conf.update(
     task_serializer="json",
