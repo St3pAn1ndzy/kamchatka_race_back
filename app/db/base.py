@@ -1,3 +1,5 @@
+"""База данных: engine, session factory, Base."""
+
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -13,7 +15,7 @@ class Base(DeclarativeBase):
     pass
 
 
-# ── Engine для FastAPI (обычный пул, быстрое переиспользование) ──────────
+# Engine для FastAPI
 async_engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
@@ -28,17 +30,43 @@ async_session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
 )
 
 
-# ── Engine для Celery (NullPool — каждое соединение живёт только внутри одной задачи) ──
-celery_async_engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    poolclass=NullPool,
-    pool_pre_ping=True,
-)
+# Engine для Celery (создается после fork'а)
+# Глобальные переменные для хранения движка и фабрики сессий в рамках одного worker-процесса
+_celery_engine = None
+_celery_session_factory = None
 
-celery_session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
-    celery_async_engine, expire_on_commit=False, class_=AsyncSession
-)
+
+def init_celery_engine() -> None:
+    """Создает движок и фабрику сессий для Celery-воркера.
+
+    Вызывается один раз в каждом дочернем процессе через сигнал worker_process_init.
+    """
+    global _celery_engine, _celery_session_factory
+    if _celery_engine is None:
+        _celery_engine = create_async_engine(
+            settings.DATABASE_URL,
+            echo=settings.DEBUG,
+            poolclass=NullPool,
+            pool_pre_ping=True,
+        )
+        _celery_session_factory = async_sessionmaker(
+            _celery_engine, expire_on_commit=False, class_=AsyncSession
+        )
+
+
+def get_celery_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Возвращает фабрику сессий для Celery, создавая её при необходимости."""
+    if _celery_session_factory is None:
+        # Ленивая инициализация, если по какой-то причине сигнал не сработал (например, в тестах)
+        init_celery_engine()
+    return _celery_session_factory
+
+
+async def dispose_celery_engine() -> None:
+    """Закрывает соединения Celery-движка перед завершением event loop."""
+    global _celery_engine
+    if _celery_engine is not None:
+        await _celery_engine.dispose()
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
