@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -75,6 +76,8 @@ class Settings(BaseSettings):
     NOTIFICATION_RATE_LIMIT_PER_DAY: int = 10
 
     ADMIN_SESSION_TTL_SECONDS: int = 28800  # 8h
+    ADMIN_LOGIN_MAX_ATTEMPTS: int = Field(default=10, ge=1)
+    ADMIN_LOGIN_WINDOW_SECONDS: int = Field(default=60, ge=1)
     # Секрет для подписи cookie-сессий SQLAdmin. В проде нужно будет переопределить
     ADMIN_PANEL_SESSION_SECRET: str = "change-me-admin-panel"
 

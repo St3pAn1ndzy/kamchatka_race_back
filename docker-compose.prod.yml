@@ -6,7 +6,7 @@
 #   - Postgres и Redis не публикуют порты наружу (доступ только по внутренней сети)
 #   - Нет volume-маунтов (код запечён в Docker-образ)
 #   - ENV=prod, restart: always
-#   - Redis: maxmemory 512mb с LRU-эвикцией
+#   - Redis: maxmemory 512mb без вытеснения заданий и счётчиков защиты
 #   - Celery worker: concurrency 4 вместо 2
 #   - Health-check для API
 #
@@ -36,8 +36,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    # Ограничение памяти и политика эвикции — старые ключи удаляются, когда память заполнена.
-    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    # Redis хранит также задания Celery: их нельзя вытеснять как обычный кэш
+    command: redis-server --maxmemory 512mb --maxmemory-policy noeviction
     # Порты НЕ публикуются наружу.
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
@@ -58,13 +58,16 @@ services:
       --workers 4
       --backlog 2048
       --proxy-headers
-      --forwarded-allow-ips=*
+      --forwarded-allow-ips=${FORWARDED_ALLOW_IPS:-127.0.0.1}
     env_file:
       - .env
     environment:
       ENV: prod
+      DEBUG: "false"
       POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       REDIS_HOST: redis
+      REDIS_PORT: 6379
     ports:
       - "8000:8000"
     # НЕТ volumes — код запечён в образ.
@@ -89,8 +92,11 @@ services:
     env_file: .env
     environment:
       ENV: prod
+      DEBUG: "false"
       POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,8 +112,11 @@ services:
     env_file: .env
     environment:
       ENV: prod
+      DEBUG: "false"
       POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       postgres:
         condition: service_healthy

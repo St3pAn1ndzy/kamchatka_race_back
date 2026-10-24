@@ -59,6 +59,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     env:
       ENV: test
       POSTGRES_HOST: localhost
@@ -66,6 +75,8 @@ jobs:
       POSTGRES_USER: avacha
       POSTGRES_PASSWORD: avacha
       POSTGRES_DB: avacha_test
+      REDIS_HOST: localhost
+      REDIS_PORT: "6379"
       REDIS_DB: "15"
 
     steps:

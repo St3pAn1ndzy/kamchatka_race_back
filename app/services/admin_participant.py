@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.db.models.device import Device
 from app.db.models.fun_subscription import FanSubscription
 from app.db.models.participant import Participant
+from app.services.admin_equipment import get_device_health_status
 
 
 @dataclass
@@ -70,7 +71,7 @@ class AdminParticipantService:
                     device_id=d.id if d else None,
                     device_imei=d.imei if d else "",
                     fans_count=cnt or 0,
-                    device_status=d.status if d else None,
+                    device_status=get_device_health_status(d) if d else None,
                 )
             )
         return result
