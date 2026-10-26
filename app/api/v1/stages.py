@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, HTTPException, status
+from fastapi import APIRouter, HTTPException, Path, Query, status
 from pydantic import AwareDatetime
 
 from app.api.deps import SessionDep

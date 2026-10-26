@@ -13,8 +13,6 @@ from app.repositories.stage import StageRepository
 from app.repositories.stage_route_point import StageRoutePointRepository
 from app.repositories.track_point import TrackPointRepository
 from app.schemas.map import (
-    MapCheckpoint,
-    MapCheckpointsResponse,
     MapParticipant,
     MapParticipantsResponse,
     MapPosition,
@@ -22,10 +20,10 @@ from app.schemas.map import (
 )
 from app.schemas.public_stages import (
     CheckpointPublicResponse,
-    StageTrackResponse,
-    PositionPublicResponse,
-    LeadersResponse,
     LeaderRow,
+    LeadersResponse,
+    PositionPublicResponse,
+    StageTrackResponse,
 )
 from app.services.cache import cache
 from app.services.tracking_freshness import get_freshness_status
