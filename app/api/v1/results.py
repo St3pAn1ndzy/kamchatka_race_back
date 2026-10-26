@@ -41,17 +41,24 @@ async def standings(
     "/stage/{stage_id}",
     response_model=StageProtocol,
     summary="Протокол этапа",
+    responses={
+        404: {"description": "Этап не найден"},
+    },
 )
 async def stage_protocol(
     stage_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     service: ResultServiceDep,
 ) -> StageProtocol:
-    """Протокол этапа: участники, время, штрафы, обязательные остановки."""
+    """Протокол этапа: участники, время, штрафы, обязательные остановки.
+
+    Если этап существует, но результаты не опубликованы (draft),
+    возвращается 200 с publication=draft и пустым rows.
+    """
     protocol = await service.get_stage_protocol(stage_id)
     if protocol is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Stage not found or results are in draft",
+            detail="Stage not found",
         )
     return protocol
 
