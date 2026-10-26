@@ -7,6 +7,7 @@ from app.repositories.stage import StageRepository
 from app.repositories.stage_route_point import StageRoutePointRepository
 from app.repositories.track_point import TrackPointRepository
 from app.schemas.admin_stage_route import StageRouteReplaceRequest
+from app.services.cache import cache
 
 
 class AdminStageRouteService:
@@ -72,4 +73,5 @@ class AdminStageRouteService:
             )
         )
         await self.session.commit()
+        await cache.delete(f"public:map:route:{stage_id}")
         return saved
