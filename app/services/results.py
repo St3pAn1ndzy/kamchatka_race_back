@@ -42,9 +42,11 @@ class ResultService:
     # ── Протокол этапа ─────────────────────────────────────────────────
 
     async def get_stage_protocol(self, stage_id: int) -> StageProtocol | None:
-        """Протокол этапа. None если этап не найден или publication=draft.
+        """Протокол этапа. None только если этап не найден в БД.
 
-        Результат кэшируется на CACHE_TTL_RESULTS секунд.
+        Если этап существует, но результаты в DRAFT — возвращает
+        StageProtocol с publication=DRAFT и пустыми rows. Это позволяет
+        фронтенду отличать «этапа нет» (404) от «результаты не готовы» (200 + draft).
         """
         # Попытка достать из кэша
         cached = await cache.get(f"public:results:stage:{stage_id}")
@@ -54,9 +56,23 @@ class ResultService:
         stage = await self.session.get(Stage, stage_id)
         if stage is None:
             return None
-        # draft не показываем в публичном API
+
+        # Draft — возвращаем 200 с пустыми rows. Это позволяет фронтенду
+        # отличать «этапа нет» (404) от «результаты ещё не готовы» (200 + draft).
         if stage.results_publication == PublicationStatus.DRAFT.value:
-            return None
+            protocol = StageProtocol(
+                stage_id=stage.id,
+                stage_name=stage.name,
+                publication=PublicationStatus.DRAFT,
+                rows=[],
+            )
+            settings = get_settings()
+            await cache.set(
+                f"public:results:stage:{stage.id}",
+                protocol.model_dump(mode="json"),
+                settings.CACHE_TTL_RESULTS,
+            )
+            return protocol
 
         marks = await self.mark_repo.get_for_stage(stage_id)
 
