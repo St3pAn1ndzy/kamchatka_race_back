@@ -30,7 +30,6 @@ def _service(stage: Stage | None = None) -> PublicMapService:
     service.track_points.latest_for_map = AsyncMock(return_value=[])
     service.track_points.participant_ids_for_stage = AsyncMock(return_value=[])
     service.track_points.list_for_map_track = AsyncMock(return_value=([], 0))
-    service.checkpoints.list_public_for_stage = AsyncMock(return_value=[])
     return service
 
 
@@ -54,20 +53,20 @@ def test_public_map_routes_validate_stage_and_entry_ids() -> None:
     app.dependency_overrides[get_session] = lambda: MagicMock(spec=AsyncSession)
     client = TestClient(app)
 
-    assert client.get("/api/v1/map/participants").status_code == 422
+    # stage_id=0 и negative невалидны (Query(gt=0))
     assert client.get("/api/v1/map/participants?stage_id=0").status_code == 422
-    assert client.get("/api/v1/map/checkpoints?stage_id=-1").status_code == 422
     assert client.get("/api/v1/map/entry/0/track?stage_id=2").status_code == 422
     assert client.get("/api/v1/map/entry/1/track?stage_id=2&limit=2001").status_code == 422
+
     paths = app.openapi()["paths"]
     assert all(
         "get" in paths[path]
         for path in (
             "/api/v1/map/participants",
             "/api/v1/map/entry/{entry_id}/track",
-            "/api/v1/map/checkpoints",
         )
     )
+    assert "/api/v1/map/checkpoints" not in paths
 
 
 def test_participants_endpoint_is_public(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -120,14 +119,6 @@ async def test_participants_include_no_signal_and_only_public_fields(
 
 
 @pytest.mark.asyncio
-async def test_map_rejects_unknown_stage() -> None:
-    service = _service()
-    with pytest.raises(HTTPException) as error:
-        await service.get_checkpoints(99)
-    assert error.value.status_code == 404
-
-
-@pytest.mark.asyncio
 async def test_track_rejects_participant_from_another_season() -> None:
     service = _service(Stage(id=2, name="Stage", season_id=1))
     service.participants.get_by_id.return_value = Participant(
@@ -163,30 +154,6 @@ async def test_track_is_chronological_and_paginated() -> None:
     assert response.offset == 3
     assert len(response.points) == 1
     service.track_points.list_for_map_track.assert_awaited_once_with(2, 5, limit=1, offset=3)
-
-
-@pytest.mark.asyncio
-async def test_only_public_checkpoints_are_serialized() -> None:
-    service = _service(Stage(id=2, name="Stage"))
-    service.checkpoints.list_public_for_stage.return_value = [
-        Checkpoint(
-            id=4,
-            stage_id=2,
-            code="CP-1",
-            name="River",
-            kind="checkpoint",
-            lat=53.0,
-            lon=158.0,
-            order_index=1,
-            is_public=True,
-        )
-    ]
-
-    response = await service.get_checkpoints(2)
-
-    assert len(response) == 1
-    assert response[0].code == "CP-1"
-    service.checkpoints.list_public_for_stage.assert_awaited_once_with(2)
 
 
 @pytest.mark.asyncio
@@ -269,24 +236,6 @@ async def test_get_route_geojson_stage_not_found(db_session) -> None:
     assert exc.value.status_code == 404
 
 
-async def test_get_checkpoints_ok(
-    db_session, create_season, create_stage, create_checkpoint
-) -> None:
-    """КП этапа отдаются со всеми полями."""
-    season = await create_season(is_active=True)
-    stage = await create_stage(season_id=season.id)
-    await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
-    await create_checkpoint(stage_id=stage.id, kind="finish", code="Финиш")
-
-    service = PublicMapService(db_session)
-    result = await service.get_checkpoints(stage.id)
-
-    assert len(result) == 2
-    first = result[0]
-    assert first.type == "start"  # alias для kind
-    assert first.km is not None  # alias для km_from_race_start
-
-
 async def test_get_positions_returns_latest_point(
     db_session,
     create_discipline,
@@ -351,117 +300,3 @@ async def test_get_positions_since_filter(
     # since на 1 час назад — точка старая, должна быть отброшена
     result = await service.get_positions(stage.id, since=now - timedelta(hours=1))
     assert result == []
-
-
-async def test_get_leaders_sorted_by_cp_progress(
-    db_session,
-    create_season,
-    create_stage,
-    create_participant,
-    create_checkpoint,
-    create_official_mark,
-) -> None:
-    """Лидер — тот, кто прошел больше КП."""
-    season = await create_season(is_active=True)
-    stage = await create_stage(season_id=season.id)
-    cp1 = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт", order_index=0)
-    cp2 = await create_checkpoint(stage_id=stage.id, kind="checkpoint", code="КП-1", order_index=1)
-
-    p1 = await create_participant(number=1, name="Первый")
-    p2 = await create_participant(number=2, name="Второй")
-
-    now = datetime.now(tz=UTC)
-    # p1 прошел 2 КП, p2 только 1
-    await create_official_mark(
-        participant_id=p1.id, checkpoint_id=cp1.id, mark_time=now - timedelta(hours=2)
-    )
-    await create_official_mark(
-        participant_id=p1.id, checkpoint_id=cp2.id, mark_time=now - timedelta(hours=1)
-    )
-    await create_official_mark(
-        participant_id=p2.id, checkpoint_id=cp1.id, mark_time=now - timedelta(hours=2)
-    )
-
-    service = PublicMapService(db_session)
-    result = await service.get_leaders(stage.id)
-
-    assert len(result.leaders) == 2
-    assert result.leaders[0].bib == 1
-    assert result.leaders[0].place == 1
-    assert result.leaders[1].bib == 2
-    assert result.leaders[1].place == 2
-
-
-async def test_get_leaders_excludes_cancelled(
-    db_session,
-    create_season,
-    create_stage,
-    create_participant,
-    create_checkpoint,
-    create_official_mark,
-) -> None:
-    """Отмененные отметки не влияют на места."""
-    season = await create_season(is_active=True)
-    stage = await create_stage(season_id=season.id)
-    cp = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
-
-    p1 = await create_participant(number=1)
-    await create_official_mark(participant_id=p1.id, checkpoint_id=cp.id, is_cancelled=True)
-
-    service = PublicMapService(db_session)
-    result = await service.get_leaders(stage.id)
-
-    # Отмененная отметка не учитывается → участник не в рейтинге
-    assert result.leaders == []
-
-
-async def test_get_leaders_filter_by_discipline(
-    db_session,
-    create_season,
-    create_discipline,
-    create_stage,
-    create_participant,
-    create_checkpoint,
-    create_official_mark,
-) -> None:
-    """?discipline=long фильтрует участников."""
-    season = await create_season(is_active=True)
-    d_long = await create_discipline(season_id=season.id, code="long", name="Длинная")
-    d_short = await create_discipline(season_id=season.id, code="sprint", name="Спринт")
-    stage = await create_stage(season_id=season.id)
-    cp = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
-
-    p_long = await create_participant(number=1, discipline_id=d_long.id)
-    p_short = await create_participant(number=2, discipline_id=d_short.id)
-    await create_official_mark(participant_id=p_long.id, checkpoint_id=cp.id)
-    await create_official_mark(participant_id=p_short.id, checkpoint_id=cp.id)
-
-    service = PublicMapService(db_session)
-    result = await service.get_leaders(stage.id, discipline="long")
-
-    assert len(result.leaders) == 1
-    assert result.leaders[0].bib == 1
-
-
-async def test_get_leaders_as_of_filters_marks(
-    db_session,
-    create_season,
-    create_stage,
-    create_participant,
-    create_checkpoint,
-    create_official_mark,
-) -> None:
-    """?as_of= отсекает отметки, сделанные позже указанного времени."""
-    season = await create_season(is_active=True)
-    stage = await create_stage(season_id=season.id)
-    cp = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
-
-    p1 = await create_participant(number=1)
-    now = datetime.now(tz=UTC)
-    # Отметка сделана "сейчас"
-    await create_official_mark(participant_id=p1.id, checkpoint_id=cp.id, mark_time=now)
-
-    service = PublicMapService(db_session)
-    # as_of = 1 час назад → отметки нет
-    result = await service.get_leaders(stage.id, as_of=now - timedelta(hours=1))
-    assert result.leaders == []
