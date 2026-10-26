@@ -98,6 +98,7 @@ class PublicMapService:
                     id=participant.id,
                     number=participant.number,
                     name=participant.name,
+                    stage_id=stage_id,
                     discipline_id=participant.discipline_id,
                     discipline=(
                         participant.discipline_ref.name if participant.discipline_ref else None
