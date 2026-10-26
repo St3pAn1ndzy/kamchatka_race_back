@@ -27,6 +27,7 @@ from app.db.models import (
     StageRoutePoint,
     TrackPoint,
     User,
+    ViewerLocation,
 )
 from app.main import app as fastapi_app
 from app.security.passwords import hash_password
@@ -436,5 +437,34 @@ async def create_fan_subscription(db_session):
         db_session.add(sub)
         await db_session.flush()
         return sub
+
+    return _factory
+
+
+@pytest.fixture
+async def create_viewer_location(db_session):
+    async def _factory(
+        *,
+        name: str = "Тестовая локация",
+        kind: str = "start",
+        lat: float = 53.0,
+        lon: float = 158.7,
+        is_public: bool = True,
+        travel_time_minutes: int | None = 30,
+    ) -> ViewerLocation:
+        location = ViewerLocation(
+            name=name,
+            kind=kind,
+            lat=lat,
+            lon=lon,
+            is_public=is_public,
+            description=f"Описание: {name}",
+            directions="Как добраться (тест)",
+            travel_time_minutes=travel_time_minutes,
+            safety_notes="Техника безопасности (тест)",
+        )
+        db_session.add(location)
+        await db_session.flush()
+        return location
 
     return _factory
