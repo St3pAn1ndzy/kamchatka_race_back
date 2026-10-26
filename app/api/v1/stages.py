@@ -62,7 +62,7 @@ async def get_stage_positions(
     return await PublicMapService(session).get_positions(stage_id, since=since)
 
 
-@router.get("/{stage_id}/leaders", response_model=LeadersResponse)
+@router.get("/{stage_id}/leaders", response_model=LeadersResponse, deprecated=True)
 async def get_stage_leaders(
     session: SessionDep,
     stage_id: Annotated[int, Path(gt=0, le=MAX_ID)],
