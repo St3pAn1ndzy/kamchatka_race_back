@@ -1,41 +1,62 @@
 {% extends "sqladmin/layout.html" %}
 {% block content %}
-<div class="card">
-  <div class="card-header">
-    <h3 class="card-title"><i class="fa-solid fa-route me-2 text-primary"></i>Маршрут гонки</h3>
+<div class="row row-cards">
+  <!-- ЛЕВАЯ КОЛОНКА: КАРТА -->
+  <div class="col-lg-8 d-flex">
+    <div class="card w-100">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fa-solid fa-route me-2 text-primary"></i>Маршрут гонки</h3>
+        <div class="card-actions">
+           <span class="text-muted small d-none d-sm-block">Кликните на этап справа, чтобы приблизить</span>
+        </div>
+      </div>
+      <div class="card-body p-2 flex-grow-1">
+        <!-- Высота карты привязана к экрану -->
+        <div id="routeMap" style="height: calc(100vh - 220px); min-height: 500px; width:100%; border-radius: 8px;"></div>
+      </div>
+    </div>
   </div>
-  <div class="card-body p-0">
-    <div id="routeMap" style="height:480px;width:100%;"></div>
-  </div>
-</div>
 
-<div class="row g-3 mt-1">
-  <div class="col-md-4">
-    <div class="card">
-      <div class="card-header"><h4 class="card-title">Этапы</h4></div>
-      <div class="card-body p-0">
+  <!-- ПРАВАЯ КОЛОНКА: ЭТАПЫ И КП -->
+  <div class="col-lg-4 d-flex flex-column gap-3">
+    <!-- Блок Этапов -->
+    <div class="card flex-grow-1" style="max-height: 50%;">
+      <div class="card-header py-2">
+        <h4 class="card-title">Этапы</h4>
+      </div>
+      <div class="card-body p-0 overflow-auto">
         <div class="list-group list-group-flush" id="stageList">
           {% for s in stages %}
-          <button class="list-group-item list-group-item-action d-flex align-items-center gap-2 stage-btn"
+          <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 stage-btn py-3"
                   data-stage-id="{{ s.id }}"
                   data-name="{{ s.name }}"
                   data-route='{{ s.route_points | tojson if s.route_points else "[]" }}'
                   data-checkpoints='{{ s.checkpoints | tojson if s.checkpoints else "[]" }}'>
-            <span class="badge bg-primary rounded-pill">{{ s.number }}</span>
-            <span>{{ s.name }}</span>
-            <span class="ms-auto text-muted small">{{ s.distance_km }} км</span>
+            <span class="avatar avatar-sm bg-primary-lt text-primary fw-bold">{{ s.number }}</span>
+            <div class="flex-grow-1 text-start">
+              <div class="fw-bold text-body">{{ s.name }}</div>
+              <div class="text-muted small">{{ s.distance_km }} км</div>
+            </div>
           </button>
           {% endfor %}
         </div>
       </div>
     </div>
-  </div>
-  <div class="col-md-8">
-    <div class="card">
-      <div class="card-header"><h4 class="card-title">Контрольные пункты</h4></div>
-      <div class="card-body">
-        <table class="table table-sm" id="cpTable">
-          <thead><tr><th>Код</th><th>Название</th></tr></thead>
+
+    <!-- Блок КП -->
+    <div class="card flex-grow-1" style="max-height: 50%;">
+      <div class="card-header py-2">
+        <h4 class="card-title">Контрольные пункты</h4>
+      </div>
+      <div class="card-body p-0 overflow-auto">
+        <table class="table table-sm table-vcenter card-table mb-0">
+          <!-- Убрали bg-white, заменили на bg-surface-secondary для нормального вида в темной теме -->
+          <thead class="sticky-top bg-surface-secondary" style="z-index: 1;">
+            <tr>
+              <th class="text-secondary">Код</th>
+              <th class="text-secondary">Название</th>
+            </tr>
+          </thead>
           <tbody id="cpBody"></tbody>
         </table>
       </div>
@@ -54,7 +75,7 @@
     var map = new ymaps.Map('routeMap', {
       center: [53.0, 158.7],
       zoom: 7,
-      controls: ['zoomControl']
+      controls: ['zoomControl', 'fullscreenControl']
     });
 
     function applyStage(btn){
@@ -69,12 +90,12 @@
         if (routeData.length) {
           var coords = routeData.map(function(p){ return [p.lat, p.lon]; });
           routeLayer = new ymaps.Polyline(coords, {}, {
-            strokeColor: '#005A9C', strokeWidth: 3
+            strokeColor: '#005A9C', strokeWidth: 4, strokeOpacity: 0.8
           });
           map.geoObjects.add(routeLayer);
           bounds = bounds.concat(coords);
         }
-      } catch(e) {}
+      } catch(e) { console.error('Route parse error', e); }
 
       // КП
       try {
@@ -84,6 +105,7 @@
           var pt = [cp.lat, cp.lon];
           bounds.push(pt);
           var color = cp.kind === 'start' ? '#2fb344' : cp.kind === 'finish' ? '#d63939' : '#f59f00';
+
           var pm = new ymaps.Placemark(pt, {
             hintContent: cp.code + ' — ' + cp.name
           }, {
@@ -91,26 +113,34 @@
             iconColor: color
           });
           cpLayer.add(pm);
-          cpHtml += '<tr><td><span class="badge" style="background:'+color+'">'+cp.code+'</span></td><td>'+cp.name+'</td></tr>';
+
+          // ФИКС: Добавили text-white и fw-bold, чтобы текст был белым и жирным на цветном фоне
+          // А тексту названия добавили fw-medium и text-body для контраста
+          cpHtml += '<tr><td><span class="badge text-white fw-bold" style="background:'+color+';">'+cp.code+'</span></td><td class="text-body fw-medium">'+cp.name+'</td></tr>';
         });
         map.geoObjects.add(cpLayer);
         document.getElementById('cpBody').innerHTML = cpHtml;
-      } catch(e) {}
+      } catch(e) { console.error('CP parse error', e); }
 
       if (bounds.length) {
-        map.setBounds(bounds, {checkZoomRange:true, zoomMargin:30});
+        map.setBounds(bounds, {checkZoomRange:true, zoomMargin:40});
       }
     }
 
     var btns = document.querySelectorAll('.stage-btn');
     btns.forEach(function(btn){
       btn.addEventListener('click', function(){
-        btns.forEach(function(b){ b.classList.remove('active'); });
-        btn.classList.add('active');
+        // Снимаем выделение со всех
+        btns.forEach(function(b){ b.classList.remove('active', 'bg-primary-lt'); });
+        // Выделяем текущий
+        btn.classList.add('active', 'bg-primary-lt');
         applyStage(btn);
       });
     });
-    if (btns.length) applyStage(btns[0]);
+    // Автоматически выбираем первый этап
+    if (btns.length) {
+      btns[0].click();
+    }
   });
 })();
 </script>
