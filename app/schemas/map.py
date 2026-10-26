@@ -19,6 +19,7 @@ class MapParticipant(BaseSchema):
     id: int
     number: int
     name: str
+    stage_id: int
     discipline_id: int | None
     discipline: str | None
     status: ParticipantStatus
