@@ -84,8 +84,12 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_USER_TTL_SECONDS: int = 86400  # 24h
 
-    CORS_ORIGINS: str = "https://vk.com,https://m.vk.com,https://prod-apps.vkusercontent.com"
-    CORS_ORIGIN_REGEX: str | None = None
+    CORS_ORIGINS: str = (
+        "https://vk.com,https://m.vk.com,https://vk.ru,https://m.vk.ru,"
+        "https://prod-apps.vkusercontent.com"
+    )
+
+    CORS_ORIGIN_REGEX: str | None = r"https://.*\.vk-apps\.com"
 
     # --- Кэширование Redis ---
     CACHE_TTL_STAGES: int = 3600  # 1 час — справочники (этапы, дисциплины)

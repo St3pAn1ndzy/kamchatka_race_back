@@ -3,7 +3,7 @@ name = "kamchatka-race-back"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "Stepan Obukhov",email = "stepanobukhov2009@gmail.com"}
+    { name = "Stepan Obukhov", email = "stepanobukhov2009@gmail.com" }
 ]
 requires-python = ">=3.12,<4"
 dependencies = [
@@ -56,6 +56,9 @@ env = [
     "POSTGRES_DB=avacha_test",
     "ENV=test",
     "REDIS_DB=15",
+    # CORS для тестов — зафиксирован, чтобы не зависеть от .env
+    "CORS_ORIGINS=https://vk.com,https://m.vk.com,https://vk.ru,https://m.vk.ru",
+    "CORS_ORIGIN_REGEX=https://.*\\.vk-apps\\.com",
 ]
 
 
@@ -74,12 +77,12 @@ exclude = [
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort (сортировка импортов)
-    "B",   # flake8-bugbear
-    "UP",  # pyupgrade (устаревший синтаксис)
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings
+    "F", # pyflakes
+    "I", # isort (сортировка импортов)
+    "B", # flake8-bugbear
+    "UP", # pyupgrade (устаревший синтаксис)
     "SIM", # flake8-simplify
 ]
 
