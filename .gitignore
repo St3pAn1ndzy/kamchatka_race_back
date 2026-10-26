@@ -57,6 +57,7 @@ coverage.xml
 *.py.cover
 .hypothesis/
 .pytest_cache/
+.schemathesis/
 cover/
 
 # Translations
@@ -141,3 +142,4 @@ __marimo__/
 
 # Generated files
 openapi.json
+/output/
