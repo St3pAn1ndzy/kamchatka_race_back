@@ -548,17 +548,31 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         # --- TrackPoint ---
         track_points: list[TrackPoint] = []
         if not no_track and not await _exists(session, TrackPoint):
-            # Скрипт генерирует 20 точек на участника (первый этап).
             points_count = 20
             track_total_km = first_stage.distance_km
+
+            # Паттерн «возраста» последней точки (в минутах) — чтобы на карте
+            # были все три статуса freshness:
+            #   ≤20 мин  → fresh
+            #   ≤40 мин  → delayed
+            #   >40 мин  → stale
+            # Период 9 = 3 fresh + 3 delayed + 3 stale на 15 участников.
+            FRESHNESS_AGE_MINUTES = [5, 25, 120, 8, 30, 180, 3, 22, 60]
+
             for pi, participant in enumerate(participants):
                 if pi >= len(devices):
                     break
                 device = devices[pi]
-                # Перпендикулярный сдвиг трека — участники не идут по одной линии.
+
+                # Разные участники прошли разную долю трассы.
+                # pi=0 → ~6%, pi=14 → ~84%. Никто не на финише, никто на старте.
+                max_ratio = ((pi + 1) / (len(participants) + 1)) * 0.9
+
                 track_offset = rng.uniform(-0.01, 0.01)
+                last_age_min = FRESHNESS_AGE_MINUTES[pi % len(FRESHNESS_AGE_MINUTES)]
+
                 for j in range(points_count):
-                    ratio = j / (points_count - 1)
+                    ratio = (j / (points_count - 1)) * max_ratio
                     lat, lon = _interp_with_offset(
                         path_start.lat,
                         path_start.lon,
@@ -567,8 +581,21 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                         ratio,
                         track_offset,
                     )
-                    # Точки каждые 20 минут назад, старт участников сдвинут на 2 минуты.
-                    recorded_at = now - timedelta(minutes=20 * (points_count - 1 - j) + 2 * pi)
+
+                    # Все точки — «до» последней. Последняя отстаёт от now
+                    # на last_age_min, предыдущие — на +20 мин каждая.
+                    minutes_ago = last_age_min + 20 * (points_count - 1 - j)
+                    recorded_at = now - timedelta(minutes=minutes_ago)
+
+                    # Средняя скорость на отрезке от предыдущей точки.
+                    # Считаем только для j > 0, первая точка — без скорости.
+                    avg_speed = None
+                    if j > 0:
+                        prev_ratio = ((j - 1) / (points_count - 1)) * max_ratio
+                        km_delta = (ratio - prev_ratio) * track_total_km
+                        # 20 минут = 1/3 часа → speed = km * 3
+                        avg_speed = round(km_delta / (20 / 60), 1)
+
                     track_points.append(
                         TrackPoint(
                             iridium_point_id=None,
@@ -581,18 +608,31 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                             altitude=round(20 + ratio * 100, 1),
                             course_deg=None,
                             source_speed=None,
-                            average_speed_kmh=None,
+                            average_speed_kmh=avg_speed,
                             km_from_start=round(ratio * track_total_km, 2),
                             recorded_at=recorded_at,
                             is_confirmed=True,
                         )
                     )
+
             session.add_all(track_points)
             await session.flush()
             _note_created(created, "TrackPoint", len(track_points))
+
+            # Обновляем device.last_message_at по последней точке каждого
+            # устройства — для консистентности с экраном «Мониторинг трекеров».
+            last_by_device: dict[int, datetime] = {}
+            for tp in track_points:
+                if (
+                    tp.device_id not in last_by_device
+                    or tp.recorded_at > last_by_device[tp.device_id]
+                ):
+                    last_by_device[tp.device_id] = tp.recorded_at
+            for device in devices:
+                if device.id in last_by_device:
+                    device.last_message_at = last_by_device[device.id]
         elif not no_track:
             logger.info("TrackPoint уже есть — пропускаю")
-            # Для отметок используем уже существующие точки первого этапа.
             track_points = (
                 (
                     await session.execute(
