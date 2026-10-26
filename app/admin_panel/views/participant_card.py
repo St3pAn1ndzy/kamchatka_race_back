@@ -9,7 +9,7 @@ from app.services.admin_participant import AdminParticipantService
 
 
 class ParticipantCardView(BaseView):
-    name = "Участники"
+    name = "Превью карточек"
     icon = "fa-solid fa-people-group"
 
     @expose("/participants-card", methods=["GET"])
