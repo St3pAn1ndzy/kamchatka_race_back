@@ -299,3 +299,26 @@ async def test_get_positions_since_filter(
     # since на 1 час назад — точка старая, должна быть отброшена
     result = await service.get_positions(stage.id, since=now - timedelta(hours=1))
     assert result == []
+
+
+async def test_no_data_freshness_means_position_is_null(
+    db_session, create_season, create_discipline, create_stage, create_participant
+) -> None:
+    """Контракт: freshness_status='no_data' ⇔ position is None.
+
+    Если трекер не передавал данные — position должен быть null,
+    иначе фронт не поймёт, что отображать на карте.
+    """
+    season = await create_season(is_active=True)
+    discipline = await create_discipline(season_id=season.id)
+    stage = await create_stage(season_id=season.id)
+    await create_participant(number=1, discipline_id=discipline.id)
+    # НЕ создаём track_point
+
+    service = PublicMapService(db_session)
+    response = await service.get_participants(stage.id, limit=10, offset=0)
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.freshness_status == "no_data"
+    assert item.position is None
