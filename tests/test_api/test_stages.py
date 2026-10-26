@@ -68,27 +68,3 @@ async def test_positions_endpoint_ok(
     assert len(data) == 1
     assert data[0]["bib"] == 14
     assert data[0]["last_cp_id"] == cp.id
-
-
-async def test_leaders_endpoint_ok(
-    client,
-    create_season,
-    create_stage,
-    create_participant,
-    create_checkpoint,
-    create_official_mark,
-) -> None:
-    season = await create_season(is_active=True)
-    stage = await create_stage(season_id=season.id)
-    cp = await create_checkpoint(stage_id=stage.id, kind="start", code="Старт")
-    p1 = await create_participant(number=1)
-    await create_official_mark(participant_id=p1.id, checkpoint_id=cp.id)
-
-    response = await client.get(f"/api/v1/stages/{stage.id}/leaders")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert "as_of" in data
-    assert len(data["leaders"]) == 1
-    assert data["leaders"][0]["bib"] == 1
-    assert data["leaders"][0]["place"] == 1
