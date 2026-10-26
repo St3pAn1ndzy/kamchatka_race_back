@@ -34,3 +34,14 @@ class DeviceRepository(BaseRepository[Device]):
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_sos_device_mapping(self, participant_ids: list[int]) -> dict[int, int]:
+        """Возвращает маппинг participant_id -> device_id для тех, у кого активен SOS."""
+        if not participant_ids:
+            return {}
+        stmt = select(Device.participant_id, Device.id).where(
+            Device.sos_active.is_(True),
+            Device.participant_id.in_(participant_ids),
+        )
+        result = await self.session.execute(stmt)
+        return {row.participant_id: row.id for row in result.all()}
