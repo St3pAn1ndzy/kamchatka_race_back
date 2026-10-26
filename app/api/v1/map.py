@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from app.api.deps import SessionDep
-from app.schemas.map import MapCheckpointsResponse, MapParticipantsResponse, MapTrackResponse
+from app.schemas.map import MapParticipantsResponse, MapTrackResponse
+from app.services.public_directory import PublicDirectoryService
 from app.services.public_map import PublicMapService
 
 router = APIRouter(prefix="/map", tags=["map"])
@@ -19,14 +20,28 @@ StageId = Annotated[int, Query(gt=0, le=MAX_ID)]
 @router.get(
     "/participants",
     response_model=MapParticipantsResponse,
-    responses={404: {"description": "Этап не найден"}},
+    responses={404: {"description": "Активный сезон или этап не найден"}},
 )
 async def map_participants(
     session: SessionDep,
-    stage_id: StageId,
+    stage_id: Annotated[int | None, Query(gt=0, le=MAX_ID)] = None,
     limit: Annotated[int, Query(ge=1, le=1000)] = 500,
     offset: Annotated[int, Query(ge=0, le=MAX_OFFSET)] = 0,
 ) -> MapParticipantsResponse:
+    """Участники на карте.
+
+    Если stage_id не передан — используется активный этап сезона.
+    """
+    if stage_id is None:
+        directory = PublicDirectoryService(session)
+        active = await directory.get_active_stage()
+        if active is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                "Активный этап не найден",
+            )
+        stage_id = active.id
+
     return await PublicMapService(session).get_participants(stage_id, limit=limit, offset=offset)
 
 
@@ -43,12 +58,3 @@ async def map_entry_track(
     offset: Annotated[int, Query(ge=0, le=MAX_OFFSET)] = 0,
 ) -> MapTrackResponse:
     return await PublicMapService(session).get_track(stage_id, entry_id, limit=limit, offset=offset)
-
-
-@router.get(
-    "/checkpoints",
-    response_model=MapCheckpointsResponse,
-    responses={404: {"description": "Этап не найден"}},
-)
-async def map_checkpoints(session: SessionDep, stage_id: StageId) -> MapCheckpointsResponse:
-    return await PublicMapService(session).get_checkpoints(stage_id)
