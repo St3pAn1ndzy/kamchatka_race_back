@@ -68,3 +68,24 @@ async def test_http_rejects_invalid_result_parameters(path):
     assert response.status_code == 422
     service.get_stage_protocol.assert_not_awaited()
     service.get_leaderboard.assert_not_awaited()
+
+
+async def test_stage_protocol_404_for_unknown_stage(client) -> None:
+    """404 только если этапа нет в БД."""
+    response = await client.get("/api/v1/results/stage/99999")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+async def test_stage_protocol_draft_returns_200(client, create_season, create_stage) -> None:
+    """DRAFT-этап → 200 с publication=draft и пустыми rows."""
+    season = await create_season(is_active=True)
+    stage = await create_stage(season_id=season.id)
+
+    response = await client.get(f"/api/v1/results/stage/{stage.id}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["publication"] == "draft"
+    assert data["rows"] == []
+    assert data["stage_id"] == stage.id
