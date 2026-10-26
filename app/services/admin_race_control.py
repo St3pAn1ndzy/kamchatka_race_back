@@ -12,6 +12,7 @@ from app.db.models.participant import Participant
 from app.db.models.stage import Stage
 from app.db.models.track_point import TrackPoint
 from app.enums import ParticipantStatus, StageStatus
+from app.repositories import DeviceRepository
 from app.services.tracking_freshness import get_freshness_status
 
 
@@ -28,6 +29,8 @@ class RaceControlRow:
     progress_percent: float
     status_color: str  # success | warning | danger
     freshness_status: str
+    sos_active: bool = False
+    sos_device_id: int | None = None
 
 
 @dataclass
@@ -41,6 +44,7 @@ class AdminRaceControlService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.settings = get_settings()
+        self.device_repo = DeviceRepository(session)
 
     async def get_race_states(self) -> list[RaceControlState]:
         """Возвращает состояние гонки для ВСЕХ активных этапов."""
@@ -69,6 +73,10 @@ class AdminRaceControlService:
             ]
 
         participant_ids = [p.id for p in participants]
+
+        # ═══ Получаем маппинг participant_id -> device_id для SOS ═══
+        sos_device_map = await self.device_repo.get_sos_device_mapping(participant_ids)
+
         states = []
 
         # 3. Проходимся по каждому активному этапу
@@ -146,6 +154,8 @@ class AdminRaceControlService:
                         progress_percent=progress,
                         status_color=color,
                         freshness_status=freshness,
+                        sos_active=p.id in sos_device_map,
+                        sos_device_id=sos_device_map.get(p.id),
                     )
                 )
 
