@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
 from app.api.v1.map import router
-from app.db.models.checkpoint import Checkpoint
 from app.db.models.discipline import Discipline
 from app.db.models.participant import Participant
 from app.db.models.stage import Stage
