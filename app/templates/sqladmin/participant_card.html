@@ -1,66 +1,123 @@
 {% extends "sqladmin/layout.html" %}
+
 {% block content %}
-<div class="card">
-  <div class="card-header d-flex align-items-center justify-content-between">
-    <h3 class="card-title"><i class="fa-solid fa-people-group me-2 text-primary"></i>Участники</h3>
-    <input type="text" class="form-control form-control-sm w-auto" id="participantSearch" placeholder="Поиск по имени или номеру…">
-  </div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover table-sm" id="participantTable">
-        <thead><tr><th>№</th><th>Фото</th><th>Имя</th><th>Регион</th><th>Дисциплина</th><th>Статус</th><th>Болельщиков</th><th></th></tr></thead>
-        <tbody>
-          {% for p in participants %}
-          <tr class="participant-row" data-id="{{ p.id }}" data-name="{{ p.name }}" data-number="{{ p.number }}">
-            <td class="fw-bold">{{ p.number }}</td>
-            <td>
-              {% if p.photo_url %}
-              <img src="{{ p.photo_url }}" alt="" class="rounded" style="width:32px;height:32px;object-fit:cover;">
-              {% else %}
-              <span class="avatar avatar-sm bg-secondary text-white">{{ p.number }}</span>
-              {% endif %}
-            </td>
-            <td>{{ p.name }}</td>
-            <td class="text-muted">{{ p.region or '—' }}</td>
-            <td><span class="badge bg-info">{{ p.discipline_name or '—' }}</span></td>
-            <td>{% if p.status == 'active' %}<span class="badge bg-success">активен</span>
-                {% elif p.status == 'finished' %}<span class="badge bg-warning">финиш</span>
-                {% else %}<span class="badge bg-secondary">{{ p.status }}</span>{% endif %}</td>
-            <td><span class="badge bg-pink">{{ p.fans_count }}</span></td>
-            <td><button class="btn btn-sm btn-outline-primary view-participant" data-id="{{ p.id }}">Карточка</button></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+<div class="card shadow-sm border-0">
+  <div class="card-header bg-transparent border-bottom-0 pt-3 pb-2 d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <h3 class="card-title fs-2 mb-0">
+      <i class="fa-solid fa-people-group me-2 text-primary"></i>Участники
+    </h3>
+    <div class="input-icon" style="width: 300px;">
+      <span class="input-icon-addon"><i class="fa-solid fa-magnifying-glass"></i></span>
+      <input type="text" class="form-control form-control-sm" id="participantSearch" placeholder="Поиск по имени или номеру…">
     </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-vcenter table-hover card-table" id="participantTable">
+      <thead>
+        <tr class="text-secondary text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+          <th class="w-1">№</th>
+          <th class="w-1">Фото</th>
+          <th>Имя</th>
+          <th>Регион</th>
+          <th>Дисциплина</th>
+          <th>Статус</th>
+          <th>Болельщиков</th>
+          <th class="w-1"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in participants %}
+        <tr class="participant-row" data-id="{{ p.id }}" data-name="{{ p.name | lower }}" data-number="{{ p.number }}">
+          <td class="fw-bold font-monospace text-muted">{{ p.number }}</td>
+          <td>
+            {% if p.photo_url %}
+            <span class="avatar avatar-sm" style="background-image: url('{{ p.photo_url }}')"></span>
+            {% else %}
+            <span class="avatar avatar-sm bg-secondary-lt text-secondary fw-bold">{{ p.number }}</span>
+            {% endif %}
+          </td>
+          <td class="fw-bold text-body">{{ p.name }}</td>
+          <td class="text-secondary small">{{ p.region or '—' }}</td>
+          <td><span class="badge bg-blue-lt text-blue">{{ p.discipline_name or '—' }}</span></td>
+          <td>
+            {% if p.status == 'active' %}<span class="badge bg-success-lt text-success">Активен</span>
+            {% elif p.status == 'finished' %}<span class="badge bg-warning-lt text-warning">Финиш</span>
+            {% elif p.status == 'registered' %}<span class="badge bg-secondary-lt text-secondary">Заявлен</span>
+            {% else %}<span class="badge bg-secondary-lt text-secondary">{{ p.status }}</span>{% endif %}
+          </td>
+          <td><span class="badge bg-pink text-white">{{ p.fans_count }}</span></td>
+          <td class="text-center">
+            <button class="btn btn-sm btn-ghost-secondary btn-icon view-participant" data-id="{{ p.id }}" title="Открыть карточку">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-secondary py-5">
+            <div class="empty-state">
+              <div class="empty-icon"><i class="fa-solid fa-people-group"></i></div>
+              <div class="empty-title">Нет участников</div>
+              <div class="empty-text">Добавьте участников в разделе «Управление».</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 
-{# ─── Модалка карточки участника ─── #}
+<!-- ═══ МОДАЛЬНОЕ ОКНО ═══ -->
 <div class="modal fade" id="participantModal" tabindex="-1">
-  <div class="modal-dialog modal-lg"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title" id="modalName"></h5>
-      <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body">
-      <div class="row g-3">
-        <div class="col-md-4 text-center">
-          <img id="modalPhoto" src="" alt="" class="img-fluid rounded mb-2" style="max-height:200px;">
-        </div>
-        <div class="col-md-8">
-          <table class="table table-sm">
-            <tr><th>Номер</th><td id="modalNumber"></td></tr>
-            <tr><th>Регион</th><td id="modalRegion"></td></tr>
-            <tr><th>Дисциплина</th><td id="modalDiscipline"></td></tr>
-            <tr><th>Собак</th><td id="modalDogs"></td></tr>
-            <tr><th>Статус</th><td id="modalStatus"></td></tr>
-            <tr><th>Болельщиков</th><td id="modalFans"></td></tr>
-            <tr><th>Трекер</th><td id="modalDevice"></td></tr>
-          </table>
-          <p id="modalBio" class="text-muted small"></p>
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header border-bottom-0 pb-0">
+        <h5 class="modal-title fs-3 fw-bold" id="modalName">Имя участника</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-4">
+          <div class="col-md-4 text-center">
+            <img id="modalPhoto" src="" alt="" class="img-fluid rounded-circle mb-3 shadow-sm" style="width: 150px; height: 150px; object-fit: cover;">
+            <div><span class="badge bg-primary-lt text-primary fs-5" id="modalNumber">№0</span></div>
+          </div>
+          <div class="col-md-8">
+            <h4 class="mb-3 text-secondary text-uppercase small fw-bold">Информация</h4>
+            <div class="row g-2 mb-3">
+              <div class="col-sm-6">
+                <div class="text-secondary small">Регион</div>
+                <div class="fw-bold" id="modalRegion">—</div>
+              </div>
+              <div class="col-sm-6">
+                <div class="text-secondary small">Дисциплина</div>
+                <div class="fw-bold" id="modalDiscipline">—</div>
+              </div>
+              <div class="col-sm-6">
+                <div class="text-secondary small">Собак в упряжке</div>
+                <div class="fw-bold" id="modalDogs">—</div>
+              </div>
+              <div class="col-sm-6">
+                <div class="text-secondary small">Статус</div>
+                <div class="fw-bold" id="modalStatus">—</div>
+              </div>
+              <div class="col-sm-6">
+                <div class="text-secondary small">Болельщиков</div>
+                <div class="fw-bold" id="modalFans">—</div>
+              </div>
+              <div class="col-sm-6">
+                <div class="text-secondary small">Трекер</div>
+                <div class="fw-bold" id="modalDevice">—</div>
+              </div>
+            </div>
+            <h4 class="mb-2 text-secondary text-uppercase small fw-bold">Биография</h4>
+            <p id="modalBio" class="text-body" style="line-height: 1.6;">—</p>
+          </div>
         </div>
       </div>
     </div>
-  </div></div>
+  </div>
 </div>
 {% endblock %}
 
@@ -68,36 +125,122 @@
 {{ super() }}
 <script>
 (function(){
-  // Поиск
-  document.getElementById('participantSearch').addEventListener('input', function(){
-    var q = this.value.toLowerCase();
-    document.querySelectorAll('.participant-row').forEach(function(r){
-      var name = (r.dataset.name || '').toLowerCase();
-      var num = (r.dataset.number || '').toLowerCase();
-      r.style.display = (name.includes(q) || num.includes(q)) ? '' : 'none';
+  // ═══ 1. Поиск ═══
+  var searchInput = document.getElementById('participantSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', function(){
+      var q = this.value.toLowerCase().trim();
+      document.querySelectorAll('.participant-row').forEach(function(r){
+        var name = r.dataset.name || '';
+        var num = r.dataset.number || '';
+        r.style.display = (name.includes(q) || num.includes(q)) ? '' : 'none';
+      });
     });
+  }
+
+  // ═══ 2. Открытие модалки (без Bootstrap) ═══
+  window.openParticipantModal = function(modalId) {
+    var modal = document.getElementById(modalId);
+    if (!modal) { console.error('Модалка не найдена:', modalId); return; }
+
+    modal.style.display = 'block';
+    modal.removeAttribute('aria-hidden');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('role', 'dialog');
+
+    setTimeout(function(){ modal.classList.add('show'); }, 10);
+
+    var backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop fade';
+    backdrop.id = 'activeModalBackdrop';
+    document.body.appendChild(backdrop);
+    setTimeout(function(){ backdrop.classList.add('show'); }, 10);
+
+    document.body.classList.add('modal-open');
+    document.body.style.overflow = 'hidden';
+  };
+
+  // ═══ 3. Закрытие модалки ═══
+  function closeModal() {
+    var modal = document.querySelector('.modal.show');
+    var backdrop = document.getElementById('activeModalBackdrop');
+    if (modal) {
+      modal.classList.remove('show');
+    }
+    if (backdrop) {
+      backdrop.classList.remove('show');
+    }
+    setTimeout(function(){
+      if (modal) {
+        modal.style.display = 'none';
+        modal.removeAttribute('aria-modal');
+      }
+      if (backdrop) backdrop.remove();
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+    }, 150);
+  }
+
+  // Закрытие по крестику и по клику на backdrop
+  document.addEventListener('click', function(e){
+    if (e.target.closest('[data-bs-dismiss="modal"]')) {
+      e.preventDefault();
+      closeModal();
+      return;
+    }
+    if (e.target.id === 'activeModalBackdrop') {
+      closeModal();
+    }
   });
 
-  // Модалка
+  // Закрытие по Esc
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && document.querySelector('.modal.show')) {
+      closeModal();
+    }
+  });
+
+  // ═══ 4. Клик по "Открыть карточку" ═══
   document.querySelectorAll('.view-participant').forEach(function(btn){
     btn.addEventListener('click', function(){
       var id = this.dataset.id;
+
       fetch('/admin-panel/api/participant-card/' + id)
-        .then(function(r){ return r.json(); })
+        .then(function(r){
+          if (!r.ok) throw new Error('Ошибка сервера: ' + r.status);
+          return r.json();
+        })
         .then(function(p){
-          document.getElementById('modalName').textContent = p.name;
-          document.getElementById('modalNumber').textContent = p.number;
+          if (p.error) { alert('Участник не найден'); return; }
+
+          document.getElementById('modalName').textContent = p.name || 'Без имени';
+          document.getElementById('modalNumber').textContent = '№' + (p.number || '—');
           document.getElementById('modalRegion').textContent = p.region || '—';
           document.getElementById('modalDiscipline').textContent = p.discipline_name || '—';
           document.getElementById('modalDogs').textContent = p.dogs_count || '—';
-          document.getElementById('modalStatus').textContent = p.status;
-          document.getElementById('modalFans').textContent = p.fans_count;
-          document.getElementById('modalDevice').textContent = p.device_status || 'нет трекера';
-          document.getElementById('modalBio').textContent = p.bio || '';
+
+          var statusText = p.status;
+          if (p.status === 'active') statusText = 'Активен';
+          if (p.status === 'finished') statusText = 'Финишировал';
+          if (p.status === 'registered') statusText = 'Заявлен';
+          document.getElementById('modalStatus').textContent = statusText || '—';
+
+          document.getElementById('modalFans').textContent = p.fans_count || 0;
+          document.getElementById('modalDevice').textContent = p.device_status || 'Нет трекера';
+          document.getElementById('modalBio').textContent = p.bio || 'Биография не заполнена.';
+
           var img = document.getElementById('modalPhoto');
-          img.src = p.photo_url || '/static/placeholder.png';
-          var modal = new bootstrap.Modal(document.getElementById('participantModal'));
-          modal.show();
+          if (p.photo_url) {
+            img.src = p.photo_url;
+          } else {
+            img.src = 'data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22150%22%20height%3D%22150%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20150%20150%22%3E%3Crect%20width%3D%22150%22%20height%3D%22150%22%20fill%3D%22%23eee%22%3E%3C%2Frect%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20alignment-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%20fill%3D%22%23999%22%3E%3F%3C%2Ftext%3E%3C%2Fsvg%3E';
+          }
+
+          openParticipantModal('participantModal');
+        })
+        .catch(function(err) {
+          console.error('Ошибка загрузки карточки:', err);
+          alert('Не удалось загрузить данные участника. Проверьте консоль (F12).');
         });
     });
   });
