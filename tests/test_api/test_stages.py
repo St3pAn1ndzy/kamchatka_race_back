@@ -31,9 +31,13 @@ async def test_checkpoints_endpoint_ok(
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data["items"]) == 1
-    # Проверяем, что фронт получил "type" (не "kind")
-    assert data["items"][0]["type"] == "start"
+
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["type"] == "start"  # ← алиас kind → type
+    assert data[0]["code"] == "Старт"
+    assert "km" in data[0]  # ← алиас km_from_race_start → km
+    assert "elevation" in data[0]  # ← алиас altitude → elevation
 
 
 async def test_positions_endpoint_ok(

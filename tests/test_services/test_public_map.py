@@ -184,8 +184,8 @@ async def test_only_public_checkpoints_are_serialized() -> None:
 
     response = await service.get_checkpoints(2)
 
-    assert len(response.items) == 1
-    assert response.items[0].code == "CP-1"
+    assert len(response) == 1
+    assert response[0].code == "CP-1"
     service.checkpoints.list_public_for_stage.assert_awaited_once_with(2)
 
 
@@ -240,23 +240,23 @@ async def test_get_route_geojson_ok(
     service = PublicMapService(db_session)
     result = await service.get_stage_route_geojson(stage.id)
 
-    assert result["type"] == "LineString"
-    assert len(result["coordinates"]) == 3
-    # В GeoJSON СНАЧАЛА lon, ПОТОМ lat
-    assert result["coordinates"][0] == [160.1, 55.1]
-    assert result["coordinates"][2] == [160.3, 55.3]
+    assert result.type == "LineString"
+    assert len(result.coordinates) == 3
+    assert result.coordinates[0] == [160.1, 55.1]
+    assert result.coordinates[2] == [160.3, 55.3]
 
 
-async def test_get_route_geojson_empty(db_session, create_season, create_stage) -> None:
-    """Пустой маршрут → пустой LineString (не 500)."""
+async def test_get_route_geojson_empty_returns_none(
+    db_session, create_season, create_stage
+) -> None:
+    """Пустой маршрут → сервис возвращает None (не кидает HTTPException)."""
     season = await create_season(is_active=True)
     stage = await create_stage(season_id=season.id)
 
     service = PublicMapService(db_session)
     result = await service.get_stage_route_geojson(stage.id)
 
-    assert result["type"] == "LineString"
-    assert result["coordinates"] == []
+    assert result is None
 
 
 async def test_get_route_geojson_stage_not_found(db_session) -> None:
@@ -281,9 +281,8 @@ async def test_get_checkpoints_ok(
     service = PublicMapService(db_session)
     result = await service.get_checkpoints(stage.id)
 
-    assert len(result.items) == 2
-    # Проверяем, что алиасы сработали
-    first = result.items[0]
+    assert len(result) == 2
+    first = result[0]
     assert first.type == "start"  # alias для kind
     assert first.km is not None  # alias для km_from_race_start
 
@@ -328,9 +327,9 @@ async def test_get_positions_returns_latest_point(
     result = await service.get_positions(stage.id)
 
     assert len(result) == 1
-    assert result[0]["bib"] == 14
-    assert result[0]["lat"] == 55.5  # последняя
-    assert result[0]["last_cp_id"] == cp.id
+    assert result[0].bib == 14
+    assert result[0].lat == 55.5
+    assert result[0].last_cp_id == cp.id
 
 
 async def test_get_positions_since_filter(
@@ -386,11 +385,11 @@ async def test_get_leaders_sorted_by_cp_progress(
     service = PublicMapService(db_session)
     result = await service.get_leaders(stage.id)
 
-    assert len(result["leaders"]) == 2
-    assert result["leaders"][0]["bib"] == 1  # p1 первый
-    assert result["leaders"][0]["place"] == 1
-    assert result["leaders"][1]["bib"] == 2
-    assert result["leaders"][1]["place"] == 2
+    assert len(result.leaders) == 2
+    assert result.leaders[0].bib == 1
+    assert result.leaders[0].place == 1
+    assert result.leaders[1].bib == 2
+    assert result.leaders[1].place == 2
 
 
 async def test_get_leaders_excludes_cancelled(
@@ -413,7 +412,7 @@ async def test_get_leaders_excludes_cancelled(
     result = await service.get_leaders(stage.id)
 
     # Отмененная отметка не учитывается → участник не в рейтинге
-    assert result["leaders"] == []
+    assert result.leaders == []
 
 
 async def test_get_leaders_filter_by_discipline(
@@ -440,8 +439,8 @@ async def test_get_leaders_filter_by_discipline(
     service = PublicMapService(db_session)
     result = await service.get_leaders(stage.id, discipline="long")
 
-    assert len(result["leaders"]) == 1
-    assert result["leaders"][0]["bib"] == 1  # только длинная дистанция
+    assert len(result.leaders) == 1
+    assert result.leaders[0].bib == 1
 
 
 async def test_get_leaders_as_of_filters_marks(
@@ -465,4 +464,4 @@ async def test_get_leaders_as_of_filters_marks(
     service = PublicMapService(db_session)
     # as_of = 1 час назад → отметки нет
     result = await service.get_leaders(stage.id, as_of=now - timedelta(hours=1))
-    assert result["leaders"] == []
+    assert result.leaders == []
