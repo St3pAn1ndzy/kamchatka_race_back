@@ -19,6 +19,7 @@ from app.api.v1 import (
     results,
     schedule,
     stages,
+    viewer_locations,
 )
 
 api_router = APIRouter(prefix="/api/v1", tags=["v1"])
@@ -33,3 +34,4 @@ api_router.include_router(map.router)
 api_router.include_router(notifications.router)
 api_router.include_router(directory.router)
 api_router.include_router(stages.router)
+api_router.include_router(viewer_locations.router)

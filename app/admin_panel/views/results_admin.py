@@ -9,7 +9,7 @@ from app.services.admin_results import AdminResultsService
 
 
 class ResultsAdminView(BaseView):
-    name = "Результаты"
+    name = "Протоколы этапов"
     icon = "fa-solid fa-medal"
 
     @expose("/results", methods=["GET"])

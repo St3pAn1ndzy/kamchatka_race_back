@@ -231,6 +231,10 @@ class NewsPostAdmin(BaseAdminView, model=NewsPost):
 
         return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
 
+    async def after_model_change(self, data, model, is_created, request):
+        """Сбросить кэш новостей после изменения через форму."""
+        await cache.invalidate_pattern("public:news:*")
+
 
 class ScheduleEventAdmin(BaseAdminView, model=ScheduleEvent):
     name = "Событие программы"
@@ -320,3 +324,9 @@ class ViewerLocationAdmin(BaseAdminView, model=ViewerLocation):
             ],
         },
     }
+
+    async def after_model_change(self, data, model, is_created, request):
+        """Сбросить кэш публичного списка локаций после изменения."""
+        from app.services.cache import cache
+
+        await cache.invalidate_pattern("public:viewer-locations:*")
