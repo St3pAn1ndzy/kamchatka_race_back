@@ -65,14 +65,32 @@ def _service() -> tuple[ResultService, MagicMock]:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("stage", [None, _stage(publication=PublicationStatus.DRAFT)])
-async def test_stage_protocol_hides_missing_and_draft_stages(stage: Stage | None) -> None:
+async def test_stage_protocol_returns_none_for_missing_stage() -> None:
+    """Несуществующий этап → None (роутер отдаст 404)."""
     service, session = _service()
-    session.get.return_value = stage
+    session.get.return_value = None
 
     assert await service.get_stage_protocol(1) is None
 
     session.get.assert_awaited_once_with(Stage, 1)
+    service.mark_repo.get_for_stage.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_stage_protocol_returns_empty_protocol_for_draft_stage() -> None:
+    """DRAFT-этап → протокол с publication=draft и пустыми rows (не None)."""
+    service, session = _service()
+    session.get.return_value = _stage(publication=PublicationStatus.DRAFT)
+
+    protocol = await service.get_stage_protocol(1)
+
+    assert protocol is not None
+    assert protocol.stage_id == 1
+    assert protocol.publication == PublicationStatus.DRAFT
+    assert protocol.rows == []
+
+    session.get.assert_awaited_once_with(Stage, 1)
+    # Для DRAFT выходим до запроса отметок
     service.mark_repo.get_for_stage.assert_not_awaited()
 
 
