@@ -1,5 +1,7 @@
 """Публичный сервис справочников гонки."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -28,10 +30,12 @@ class PublicDirectoryService:
         self,
         *,
         season_id: int | None = None,
-    ) -> list[DisciplinePublicResponse]:
+    ) -> list[DisciplinePublicResponse] | None:
         """Активные дисциплины. По умолчанию — активного сезона.
 
-        Результат кэшируется на 1 час для активного сезона (season_id=None).
+        Возвращает None, если season_id не передан и активного сезона нет.
+        Возвращает [] если сезон есть, но в нём нет активных дисциплин.
+        Результат кэшируется на 1 час для активного сезона.
         """
         use_cache = season_id is None
 
@@ -43,7 +47,7 @@ class PublicDirectoryService:
         if season_id is None:
             season = await self.get_active_season()
             if season is None:
-                return []
+                return None
             season_id = season.id
 
         disciplines = await self.disciplines.list_ordered(
@@ -66,9 +70,11 @@ class PublicDirectoryService:
         self,
         *,
         season_id: int | None = None,
-    ) -> list[StagePublicResponse]:
+    ) -> list[StagePublicResponse] | None:
         """Этапы сезона, отсортированы по order_index. По умолчанию — активного сезона.
 
+        Возвращает None, если season_id не передан и активного сезона нет.
+        Возвращает [] если сезон есть, но в нём нет этапов.
         Результат кэшируется на 1 час для активного сезона.
         """
         use_cache = season_id is None
@@ -81,7 +87,7 @@ class PublicDirectoryService:
         if season_id is None:
             season = await self.get_active_season()
             if season is None:
-                return []
+                return None
             season_id = season.id
 
         stages = await self.stages.list_ordered(season_id=season_id)
@@ -96,3 +102,24 @@ class PublicDirectoryService:
             )
 
         return result
+
+    async def get_active_stage(self) -> StagePublicResponse | None:
+        """Текущий активный этап сезона.
+
+        Приоритет:
+        1. Этап со status=ACTIVE в активном сезоне.
+        2. Иначе — этап, в чей интервал [start_time, finish_time] попадает `now`.
+        3. Если ничего не нашли — None (роутер отдаст 404).
+        """
+        season = await self.get_active_season()
+        if season is None:
+            return None
+
+        stage = await self.stages.get_active_for_season(season.id)
+        if stage is None:
+            stage = await self.stages.get_current_by_time(season.id, datetime.now(tz=UTC))
+
+        if stage is None:
+            return None
+
+        return StagePublicResponse.model_validate(stage)
