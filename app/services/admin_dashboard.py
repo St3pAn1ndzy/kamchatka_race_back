@@ -11,15 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
-from app.db.models import TrackPoint
 from app.db.models.audit_log import AuditLog
 from app.db.models.device import Device
 from app.db.models.official_mark import OfficialMark
 from app.db.models.participant import Participant
-from app.db.models.race_status import RaceStatus
 from app.db.models.season import Season
 from app.db.models.stage import Stage
 from app.enums import ParticipantStatus, PublicationStatus, RaceState, StageStatus
+from app.repositories import DeviceRepository, RaceStatusRepository, StageRepository
+from app.repositories.checkpoint import CheckpointRepository
+from app.repositories.stage_route_point import StageRoutePointRepository
 from app.services.cache import cache
 
 
@@ -108,6 +109,11 @@ class AdminDashboardService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.settings = get_settings()
+        self.stage_repo = StageRepository(session)
+        self.route_repo = StageRoutePointRepository(session)
+        self.checkpoint_repo = CheckpointRepository(session)
+        self.race_status_repo = RaceStatusRepository(session)
+        self.device_repo = DeviceRepository(session)
 
     async def get_stats(self) -> DashboardStats:
         """Снимок метрик для дашборда. Кэшируется на 30 секунд."""
@@ -171,58 +177,22 @@ class AdminDashboardService:
         return stats
 
     async def get_sos_devices(self) -> list[SosDevice]:
-        """Активные SOS-сигналы.
-
-        Позиция берётся из последней подтверждённой точки трека.
-        Если трек пуст — координаты None.
-        """
-        # Подзапрос: последний track_point для каждого device.
-        latest_point_sq = select(
-            TrackPoint.device_id,
-            TrackPoint.lat,
-            TrackPoint.lon,
-            func.row_number()
-            .over(
-                partition_by=TrackPoint.device_id,
-                order_by=TrackPoint.recorded_at.desc(),
-            )
-            .label("rn"),
-        ).subquery()
-
-        stmt = (
-            select(
-                Device,
-                Participant,
-                Stage,
-                latest_point_sq.c.lat,
-                latest_point_sq.c.lon,
-            )
-            .outerjoin(Participant, Device.participant_id == Participant.id)
-            .outerjoin(Stage, Device.stage_id == Stage.id)
-            .outerjoin(
-                latest_point_sq,
-                (latest_point_sq.c.device_id == Device.id) & (latest_point_sq.c.rn == 1),
-            )
-            .where(Device.sos_active.is_(True))
-            .order_by(Device.last_message_at.desc().nullslast())
-        )
-
-        rows = (await self.session.execute(stmt)).all()
-
+        """Активные SOS-сигналы."""
+        positions = await self.device_repo.list_active_with_positions(only_sos=True)
         return [
             SosDevice(
-                device_id=device.id,
-                iridium_number=device.iridium_number,
-                device_name=device.name,
-                participant_id=participant.id if participant else None,
-                participant_number=participant.number if participant else None,
-                participant_name=participant.name if participant else None,
-                stage_number=stage.number if stage else None,
-                last_message_at=device.last_message_at,
-                lat=lat,
-                lon=lon,
+                device_id=pos.device_id,
+                iridium_number=pos.iridium_number,
+                device_name=pos.device_name,
+                participant_id=pos.participant_id,
+                participant_number=pos.participant_number,
+                participant_name=pos.participant_name,
+                stage_number=pos.stage_number,
+                last_message_at=pos.last_message_at,
+                lat=pos.lat,
+                lon=pos.lon,
             )
-            for device, participant, stage, lat, lon in rows
+            for pos in positions
         ]
 
     async def get_stages_timeline(self) -> list[StageTimelineItem]:
@@ -247,14 +217,7 @@ class AdminDashboardService:
         ]
 
     async def get_race_mode(self) -> RaceModeInfo:
-        """Текущий режим гонки из RaceStatus."""
-        stmt = (
-            select(RaceStatus)
-            .options(selectinload(RaceStatus.current_stage))
-            .order_by(RaceStatus.updated_at.desc())
-            .limit(1)
-        )
-        race_status = (await self.session.execute(stmt)).scalar_one_or_none()
+        race_status = await self.race_status_repo.get_current()
 
         if race_status is None:
             return RaceModeInfo(
@@ -348,72 +311,63 @@ class AdminDashboardService:
     # --- Внутренние хелперы -------------------------------------------------
 
     async def get_map_data(self) -> dict:
-        """Данные для мини-карты: участники, маршрут, КП."""
-        from app.db.models.checkpoint import Checkpoint
-        from app.db.models.stage_route_point import StageRoutePoint
-        from app.db.models.track_point import TrackPoint
+        """Данные для мини-карты: маршрут активного этапа, КП, позиции участников."""
+        active_stage = await self._resolve_active_stage()
 
-        race = await self.get_race_mode()
-        active_stage_id = None
-        if race.current_stage_number:
-            stmt = select(Stage).where(Stage.number == race.current_stage_number)
-            stage = (await self.session.execute(stmt)).scalar_one_or_none()
-            if stage:
-                active_stage_id = stage.id
+        route: list[dict] = []
+        checkpoints: list[dict] = []
 
-        # Участники с последней точкой
-        subq = select(
-            TrackPoint.device_id,
-            TrackPoint.lat,
-            TrackPoint.lon,
-            func.row_number()
-            .over(partition_by=TrackPoint.device_id, order_by=TrackPoint.recorded_at.desc())
-            .label("rn"),
-        ).subquery()
-        stmt = (
-            select(Device, Participant, subq.c.lat, subq.c.lon)
-            .join(Participant, Device.participant_id == Participant.id, isouter=True)
-            .outerjoin(subq, (subq.c.device_id == Device.id) & (subq.c.rn == 1))
-            .where(Device.is_active.is_(True))
-        )
-        rows = (await self.session.execute(stmt)).all()
-        participants = [
-            {
-                "number": p.number if p else None,
-                "name": p.name if p else None,
-                "lat": lat,
-                "lon": lon,
-                "sos": d.sos_active,
-            }
-            for d, p, lat, lon in rows
-        ]
+        if active_stage is not None:
+            route_points = await self.route_repo.list_for_stage(active_stage.id)
+            route = [{"lat": p.lat, "lon": p.lon} for p in route_points]
 
-        # Маршрут активного этапа
-        route = []
-        if active_stage_id:
-            rp_stmt = (
-                select(StageRoutePoint)
-                .where(StageRoutePoint.stage_id == active_stage_id)
-                .order_by(StageRoutePoint.position)
-            )
-            points = (await self.session.execute(rp_stmt)).scalars().all()
-            route = [{"lat": p.lat, "lon": p.lon} for p in points]
-
-        # КП активного этапа
-        checkpoints = []
-        if active_stage_id:
-            cp_stmt = (
-                select(Checkpoint)
-                .where(Checkpoint.stage_id == active_stage_id)
-                .order_by(Checkpoint.order_index)
-            )
-            cps = (await self.session.execute(cp_stmt)).scalars().all()
+            cps = await self.checkpoint_repo.list_public_for_stage(active_stage.id)
             checkpoints = [
-                {"code": cp.code, "name": cp.name, "lat": cp.lat, "lon": cp.lon, "kind": cp.kind}
+                {
+                    "code": cp.code,
+                    "name": cp.name,
+                    "lat": cp.lat,
+                    "lon": cp.lon,
+                    "kind": cp.kind,
+                }
                 for cp in cps
             ]
 
-        return {"participants": participants, "route": route, "checkpoints": checkpoints}
+        positions = await self.device_repo.list_active_with_positions()
+        participants = [
+            {
+                "number": pos.participant_number,
+                "name": pos.participant_name,
+                "lat": pos.lat,
+                "lon": pos.lon,
+                "sos": pos.sos_active,
+            }
+            for pos in positions
+            if pos.lat is not None and pos.lon is not None
+        ]
+
+        return {
+            "participants": participants,
+            "route": route,
+            "checkpoints": checkpoints,
+        }
+
+    async def _resolve_active_stage(self) -> Stage | None:
+        """Активный этап: RaceStatus → ACTIVE в сезоне → первый по порядку."""
+        race_status = await self.race_status_repo.get_current()
+        if race_status is not None and race_status.current_stage is not None:
+            return race_status.current_stage
+
+        season = await self._get_active_season()
+        if season is None:
+            return None
+
+        stage = await self.stage_repo.get_active_for_season(season.id)
+        if stage is not None:
+            return stage
+
+        stages = await self.stage_repo.list_ordered(season_id=season.id)
+        return stages[0] if stages else None
 
     async def _get_active_season(self) -> Season | None:
         stmt = (
