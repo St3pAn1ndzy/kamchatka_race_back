@@ -1,6 +1,9 @@
+"""Статичные страницы (О гонке, Контакты, Безопасность и т.д.)."""
+
 from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -16,6 +19,10 @@ class StaticPage(Base):
     content: Mapped[str] = mapped_column(Text)
     # Обложка (баннер сверху)
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Универсальный JSONB для структурированных блоков:
+    # контакты, меню, аккордеоны, карточки и т.д.
+    # Пустой список, если страница только текстовая.
+    blocks: Mapped[list[dict]] = mapped_column(JSONB, default=list, server_default="[]")
     is_published: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(tz=UTC)
