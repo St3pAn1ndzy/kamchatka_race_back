@@ -9,6 +9,7 @@
 import argparse
 import asyncio
 import hashlib
+import json
 import logging
 import random
 import shutil
@@ -32,6 +33,7 @@ from app.db.models import (
     OfficialMark,
     Participant,
     PushSubscription,
+    RaceStatus,
     SavedItem,
     ScheduleEvent,
     Season,
@@ -52,12 +54,14 @@ from app.enums import (
     NotificationStatus,
     ParticipantStatus,
     PublicationStatus,
+    RaceState,
     ScheduleKind,
     StageStatus,
     ViewerLocationKind,
 )
 from app.security.passwords import hash_password
 from app.security.tokens import create_user_token
+from app.services.cache import cache
 
 logger = logging.getLogger("avacha.seed")
 settings = get_settings()
@@ -66,14 +70,11 @@ settings = get_settings()
 
 SEED_MEDIA_DIR = Path("seed_media")
 MEDIA_DIR = Path("media")
+ROUTE_JSON_PATH = Path("data/route-kamchatka.json")
 
 
 def _copy_seed_media(folder: str, filename: str, target_folder: str) -> str | None:
-    """Копирует файл из seed_media/{folder}/ в media/{target_folder}/.
-
-    Возвращает публичный URL /media/{target_folder}/{filename} или None,
-    если исходного файла нет (тогда поле останется пустым).
-    """
+    """Копирует файл из seed_media/{folder}/ в media/{target_folder}/."""
     src = SEED_MEDIA_DIR / folder / filename
     if not src.exists():
         logger.warning(f"Нет файла seed_media/{folder}/{filename} — пропускаю")
@@ -114,28 +115,56 @@ MUSHERS = [
     ("Николай Семёнов", "Камчатский край"),
 ]
 
-STAGES = [
-    (
-        1,
-        100.0,
-        "Этап 1. Петропавловск-Камчатский — Налычево",
-        datetime(2027, 3, 1, 2, 0, tzinfo=UTC),
-    ),
-    (2, 120.0, "Этап 2. Налычево — перевал Двойной", datetime(2027, 3, 2, 2, 0, tzinfo=UTC)),
-    (3, 80.0, "Этап 3. Перевал Двойной — финиш", datetime(2027, 3, 3, 2, 0, tzinfo=UTC)),
+# Обновленные данные под 6 этапов Камчатки
+STAGES_DATA = [
+    {
+        "number": 1,
+        "name": "б/к им. Фатьянова — Пиначево",
+        "distance": 34,
+        "start_utc": "2027-02-07T02:00:00Z",
+        "duration": 3,
+    },
+    {
+        "number": 2,
+        "name": "Пиначево — Налычево",
+        "distance": 56,
+        "start_utc": "2027-02-07T22:00:00Z",
+        "duration": 8,
+    },
+    {
+        "number": 3,
+        "name": "Налычево — кольцевой",
+        "distance": 71,
+        "start_utc": "2027-02-08T22:00:00Z",
+        "duration": 8,
+    },
+    {
+        "number": 4,
+        "name": "Налычево — ночной",
+        "distance": 38,
+        "start_utc": "2027-02-10T11:00:00Z",
+        "duration": 6,
+    },
+    {
+        "number": 5,
+        "name": "Налычево — Пиначево",
+        "distance": 56,
+        "start_utc": "2027-02-11T22:00:00Z",
+        "duration": 8,
+    },
+    {
+        "number": 6,
+        "name": "Пиначево — б/к им. Фатьянова",
+        "distance": 34,
+        "start_utc": "2027-02-13T00:00:00Z",
+        "duration": 5,
+    },
 ]
 
-CHECKPOINTS = [
-    ("Старт", "Старт этапа", CheckpointKind.START, 20, 0),
-    ("КП-1", "Контрольный пункт у ручья", CheckpointKind.CHECKPOINT, 350, 30),
-    ("КП-2", "Контрольный пункт на перевале", CheckpointKind.CHECKPOINT, 700, 70),
-    ("Финиш", "Финиш этапа", CheckpointKind.FINISH, 300, 100),
-]
-
-BASE_LAT = 62.0
-BASE_LON = 129.0
-LAT_SPREAD = 1.5
-LON_SPREAD = 1.5
+BASE_LAT = 53.30
+BASE_LON = 158.50
+LAT_SPREAD = 0.25
+LON_SPREAD = 0.25
 
 NEWS_TITLES = [
     "Старт «Авачи 2027» — всё готово к началу гонки",
@@ -145,18 +174,15 @@ NEWS_TITLES = [
     "Финиш гонки позади: итоги «Авачи 2027»",
 ]
 
-# Обычный FAQ (без getting_here)
 FAQ_ITEMS = [
     (
         "Как добраться до места старта гонки?",
-        "До старта в Петропавловске-Камчатском ходят городские автобусы и такси. "
-        "Для зрителей на финише этапа организуют трансфер от гостиниц — расписание публикуется в программе.",
+        "До старта в Петропавловске-Камчатском ходят городские автобусы и такси. Для зрителей на финише этапа организуют трансфер от гостиниц — расписание публикуется в программе.",
         "Транспорт",
     ),
     (
         "Есть ли парковка у места старта?",
-        "Да, рядом со стартовой площадкой оборудована бесплатная парковка на 150 мест. "
-        "В дни этапов парковка открывается с 07:00.",
+        "Да, рядом со стартовой площадкой оборудована бесплатная парковка на 150 мест. В дни этапов парковка открывается с 07:00.",
         "Транспорт",
     ),
     (
@@ -166,24 +192,20 @@ FAQ_ITEMS = [
     ),
     (
         "Что делать при экстренной ситуации на трассе?",
-        "На каждом контрольном пункте дежурит судья и медицинский работник. "
-        "Зрителям нельзя выходить на трассу во время прохождения упряжек.",
+        "На каждом контрольном пункте дежурит судья и медицинский работник. Зрителям нельзя выходить на трассу во время прохождения упряжек.",
         "Безопасность",
     ),
     (
         "Где остановиться в Петропавловске-Камчатском?",
-        "В городе работают гостиницы разного уровня, а также хостелы и гостевые дома. "
-        "Рекомендуем бронировать заранее — в дни фестиваля спрос высокий.",
+        "В городе работают гостиницы разного уровня, а также хостелы и гостевые дома. Рекомендуем бронировать заранее — в дни фестиваля спрос высокий.",
         "Проживание",
     ),
 ]
 
-# FAQ для страницы «Как добраться» (category="getting_here")
 GETTING_HERE_FAQ = [
     (
         "Где находится Камчатка",
-        "Камчатка — полуостров на северо-востоке России. Омывается Тихим океаном, "
-        "Охотским и Беринговым морями.",
+        "Камчатка — полуостров на северо-востоке России. Омывается Тихим океаном, Охотским и Беринговым морями.",
     ),
     (
         "Как добраться до полуострова",
@@ -206,28 +228,23 @@ GETTING_HERE_FAQ = [
 SAFETY_FAQ = [
     (
         "Погода и метели",
-        "Камчатская погода крайне переменчива. Метели и сильный ветер могут начаться внезапно. "
-        "Обязательно следите за прогнозом и не выходите на маршруты в плохую видимость.",
+        "Камчатская погода крайне переменчива. Метели и сильный ветер могут начаться внезапно. Обязательно следите за прогнозом и не выходите на маршруты в плохую видимость.",
     ),
     (
         "Лавины",
-        "В горной местности всегда есть риск схода лавин. Не выходите за пределы оборудованных трасс "
-        "и слушайте рекомендации спасателей.",
+        "В горной местности всегда есть риск схода лавин. Не выходите за пределы оборудованных трасс и слушайте рекомендации спасателей.",
     ),
     (
         "Сейсмичность",
-        "Камчатка — сейсмоактивный регион. При землетрясении не паникуйте, не пользуйтесь лифтами "
-        "и держитесь подальше от окон и тяжелых предметов.",
+        "Камчатка — сейсмоактивный регион. При землетрясении не паникуйте, не пользуйтесь лифтами и держитесь подальше от окон и тяжелых предметов.",
     ),
     (
         "Изоляция и рельеф",
-        "Многие локации находятся вдали от цивилизации, сотовая связь может отсутствовать. "
-        "Всегда сообщайте о своих планах и имейте при себе запас еды и воды.",
+        "Многие локации находятся вдали от цивилизации, сотовая связь может отсутствовать. Всегда сообщайте о своих планах и имейте при себе запас еды и воды.",
     ),
     (
         "Риски вне зависимости от сезона",
-        "Дикая природа требует уважения. Не приближайтесь к диким животным, не оставляйте мусор "
-        "и строго соблюдайте правила безопасности на вулканах.",
+        "Дикая природа требует уважения. Не приближайтесь к диким животным, не оставляйте мусор и строго соблюдайте правила безопасности на вулканах.",
     ),
 ]
 
@@ -317,7 +334,6 @@ ABOUT_PAGE_CONTENT = """\
 Участие в гонке «Авача» — это возможность испытать себя в суровых условиях, проверить себя и своих собак, преодолевая длинную дистанцию около 300 км по заснеженным вершинам парков вулканов, познакомиться с дикой природой Камчатки и единомышленниками из разных уголков страны.
 """
 
-
 # --- Утилиты ---------------------------------------------------------------
 
 
@@ -325,24 +341,6 @@ def _random_position(rng: random.Random) -> tuple[float, float]:
     lat = round(BASE_LAT + rng.uniform(-LAT_SPREAD, LAT_SPREAD), 6)
     lon = round(BASE_LON + rng.uniform(-LON_SPREAD, LON_SPREAD), 6)
     return lat, lon
-
-
-def _interp_with_offset(
-    start_lat: float,
-    start_lon: float,
-    finish_lat: float,
-    finish_lon: float,
-    ratio: float,
-    offset: float,
-) -> tuple[float, float]:
-    base_lat = start_lat + (finish_lat - start_lat) * ratio
-    base_lon = start_lon + (finish_lon - start_lon) * ratio
-    d_lat = finish_lat - start_lat
-    d_lon = finish_lon - start_lon
-    norm = (d_lat**2 + d_lon**2) ** 0.5 or 1.0
-    perp_lat = -d_lon / norm
-    perp_lon = d_lat / norm
-    return round(base_lat + perp_lat * offset, 6), round(base_lon + perp_lon * offset, 6)
 
 
 def _dedup_key(imei: str, recorded_at: datetime) -> str:
@@ -360,11 +358,6 @@ async def _exists_by_slug(session, model, slug: str) -> bool:
     return result.scalar_one_or_none() is not None
 
 
-async def _count(session, model) -> int:
-    result = await session.execute(select(model.id))
-    return len(result.all())
-
-
 def _note_created(created: dict[str, int], key: str, amount: int) -> None:
     created[key] = created.get(key, 0) + amount
 
@@ -375,8 +368,7 @@ def _note_created(created: dict[str, int], key: str, amount: int) -> None:
 async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) -> None:
     if settings.ENV != "dev" and not force:
         raise RuntimeError(
-            f"Seed разрешён только в ENV=dev, сейчас ENV={settings.ENV!r}. "
-            "Для прод-окружения используйте --force."
+            f"Seed разрешён только в ENV=dev, сейчас ENV={settings.ENV!r}. Для прод-окружения используйте --force."
         )
 
     if no_track:
@@ -458,20 +450,19 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
 
         # --- User ---
         if not await _exists(session, User):
-            users = []
-            for i in range(1, users_count + 1):
-                users.append(
-                    User(
-                        vk_user_id=100000 + i,
-                        first_name=f"Болельщик {i}",
-                        last_name="",
-                        platform="vk",
-                        notifications_allowed=(i % 2 == 0),
-                        consent_version="1.0",
-                        consent_accepted_at=now - timedelta(days=30),
-                        onboarding_passed_at=now - timedelta(days=20),
-                    )
+            users = [
+                User(
+                    vk_user_id=100000 + i,
+                    first_name=f"Болельщик {i}",
+                    last_name="",
+                    platform="vk",
+                    notifications_allowed=(i % 2 == 0),
+                    consent_version="1.0",
+                    consent_accepted_at=now - timedelta(days=30),
+                    onboarding_passed_at=now - timedelta(days=20),
                 )
+                for i in range(1, users_count + 1)
+            ]
             session.add_all(users)
             await session.flush()
             _note_created(created, "User", len(users))
@@ -498,9 +489,8 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             ).scalar_one_or_none()
             logger.info("AdminAccount уже есть — пропускаю")
 
-        # --- Participant (с фото и разнообразием статусов) ---
+        # --- Participant ---
         if not await _exists(session, Participant):
-            # 10 активных, 3 финишировали, 1 сошёл, 1 заявлен
             statuses = (
                 [ParticipantStatus.ACTIVE.value] * 10
                 + [ParticipantStatus.FINISHED.value] * 3
@@ -533,27 +523,34 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             )
             logger.info("Participant уже есть — пропускаю")
 
-        # --- Stage (первый — ACTIVE) ---
+        # --- Stage ---
         if not await _exists(session, Stage):
-            stages = [
-                Stage(
-                    name=name,
-                    distance_km=distance,
-                    start_time=starts_at,
-                    finish_time=starts_at + timedelta(hours=6),
-                    order_index=number - 1,
-                    tracker_interval_seconds=1200,
-                    status=(StageStatus.ACTIVE.value if number == 1 else StageStatus.PLANNED.value),
-                    results_publication=(
-                        PublicationStatus.PROVISIONAL.value
-                        if number == 1
-                        else PublicationStatus.DRAFT.value
-                    ),
-                    season_id=season.id,
-                    number=number,
+            stages = []
+            for s_data in STAGES_DATA:
+                start_dt = datetime.fromisoformat(s_data["start_utc"].replace("Z", "+00:00"))
+                finish_dt = start_dt + timedelta(hours=s_data["duration"])
+                stages.append(
+                    Stage(
+                        name=f"Этап {s_data['number']}. {s_data['name']}",
+                        distance_km=float(s_data["distance"]),
+                        start_time=start_dt,
+                        finish_time=finish_dt,
+                        order_index=s_data["number"] - 1,
+                        tracker_interval_seconds=1200,
+                        status=(
+                            StageStatus.ACTIVE.value
+                            if s_data["number"] == 1
+                            else StageStatus.PLANNED.value
+                        ),
+                        results_publication=(
+                            PublicationStatus.PROVISIONAL.value
+                            if s_data["number"] == 1
+                            else PublicationStatus.DRAFT.value
+                        ),
+                        season_id=season.id,
+                        number=s_data["number"],
+                    )
                 )
-                for number, distance, name, starts_at in STAGES
-            ]
             session.add_all(stages)
             await session.flush()
             _note_created(created, "Stage", len(stages))
@@ -566,36 +563,88 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         first_stage = stages[0]
         first_admin = admin
 
-        # --- Checkpoint ---
-        checkpoints: list[Checkpoint] = []
+        # --- Загрузка реального маршрута из JSON ---
+        route_json = {}
+        if ROUTE_JSON_PATH.exists():
+            with open(ROUTE_JSON_PATH, encoding="utf-8") as f:
+                route_json = json.load(f)
+        else:
+            logger.warning(
+                "Файл data/route-kamchatka.json не найден! Будут сгенерированы прямые линии."
+            )
+
+        # --- Checkpoint & StageRoutePoint ---
+        checkpoints = []
         if not await _exists(session, Checkpoint):
-            cumulative_start = 0
             for stage in stages:
-                start_lat, start_lon = _random_position(rng)
-                finish_lat, finish_lon = _random_position(rng)
-                total_km = stage.distance_km
-                stage_km_marks = [0, int(total_km * 0.3), int(total_km * 0.7), int(total_km)]
-                for order, (code, name, kind, altitude, _) in enumerate(CHECKPOINTS):
-                    ratio = order / (len(CHECKPOINTS) - 1)
-                    lat = round(start_lat + (finish_lat - start_lat) * ratio, 6)
-                    lon = round(start_lon + (finish_lon - start_lon) * ratio, 6)
-                    checkpoints.append(
-                        Checkpoint(
-                            stage_id=stage.id,
-                            code=code,
-                            name=name,
-                            kind=kind.value,
-                            description=f"{name} — контроль времени на этапе {stage.number}.",
-                            lat=lat,
-                            lon=lon,
-                            altitude=altitude,
-                            km_from_race_start=cumulative_start + stage_km_marks[order],
-                            order_index=order,
-                            has_judge=True,
-                            is_public=True,
-                        )
+                json_stage = next(
+                    (js for js in route_json.get("stages", []) if js["number"] == stage.number),
+                    None,
+                )
+
+                if json_stage and json_stage.get("coordinates"):
+                    coords = json_stage["coordinates"]
+                else:
+                    # Фоллбэк: прямая линия
+                    start_lat, start_lon = _random_position(rng)
+                    finish_lat, finish_lon = _random_position(rng)
+                    coords = []
+                    for i in range(20):
+                        ratio = i / 19
+                        lat = start_lat + (finish_lat - start_lat) * ratio
+                        lon = start_lon + (finish_lon - start_lon) * ratio
+                        coords.append([lon, lat])
+
+                # 1. Route Points
+                if not no_track:
+                    route_points = [
+                        StageRoutePoint(stage_id=stage.id, position=i, lat=lat, lon=lon)
+                        for i, (lon, lat) in enumerate(coords)
+                    ]
+                    session.add_all(route_points)
+                    _note_created(created, "StageRoutePoint", len(route_points))
+
+                # 2. Checkpoints
+                def make_cp(stage_obj, code, name, kind, coord, order_idx):
+                    return Checkpoint(
+                        stage_id=stage_obj.id,
+                        code=code,
+                        name=name,
+                        kind=kind,
+                        description=f"{name} (этап {stage_obj.number})",
+                        lat=coord[1],
+                        lon=coord[0],
+                        altitude=100,
+                        km_from_race_start=0,
+                        order_index=order_idx,
+                        has_judge=True,
+                        is_public=True,
                     )
-                cumulative_start += int(total_km)
+
+                cp_start = make_cp(
+                    stage, "Старт", "Старт этапа", CheckpointKind.START.value, coords[0], 0
+                )
+                cp_1 = make_cp(
+                    stage,
+                    "КП-1",
+                    "Контрольный пункт 1",
+                    CheckpointKind.CHECKPOINT.value,
+                    coords[int(len(coords) * 0.3)],
+                    1,
+                )
+                cp_2 = make_cp(
+                    stage,
+                    "КП-2",
+                    "Контрольный пункт 2",
+                    CheckpointKind.CHECKPOINT.value,
+                    coords[int(len(coords) * 0.7)],
+                    2,
+                )
+                cp_finish = make_cp(
+                    stage, "Финиш", "Финиш этапа", CheckpointKind.FINISH.value, coords[-1], 3
+                )
+                checkpoints.extend([cp_start, cp_1, cp_2, cp_finish])
+
             session.add_all(checkpoints)
             await session.flush()
             _note_created(created, "Checkpoint", len(checkpoints))
@@ -606,30 +655,33 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             logger.info("Checkpoint уже есть — пропускаю")
 
         first_stage_cps = sorted(
-            (cp for cp in checkpoints if cp.stage_id == first_stage.id),
-            key=lambda c: c.order_index,
+            [cp for cp in checkpoints if cp.stage_id == first_stage.id], key=lambda c: c.order_index
         )
         path_start = next(cp for cp in first_stage_cps if cp.kind == CheckpointKind.START.value)
         path_finish = next(cp for cp in first_stage_cps if cp.kind == CheckpointKind.FINISH.value)
 
-        # --- Device (с разнообразием батареи и SOS) ---
+        # --- RaceStatus (текущий режим гонки) ---
+        if not await _exists(session, RaceStatus):
+            session.add(RaceStatus(status=RaceState.LIVE.value, current_stage_id=first_stage.id))
+            await session.flush()
+            _note_created(created, "RaceStatus", 1)
+
+        # --- Device ---
         if not await _exists(session, Device):
-            devices = []
-            for i in range(1, len(participants) + 1):
-                sos = i in (3, 8)  # два трекера в SOS для демо
-                devices.append(
-                    Device(
-                        iridium_number=f"{i:03d}",
-                        imei=f"30023456{i:07d}",
-                        name=f"Трекер №{i:03d}",
-                        participant_id=participants[i - 1].id,
-                        stage_id=first_stage.id,
-                        is_active=True,
-                        battery_percent=rng.randint(10, 100),
-                        sos_active=sos,
-                        last_message_at=now - timedelta(hours=2),
-                    )
+            devices = [
+                Device(
+                    iridium_number=f"{i:03d}",
+                    imei=f"30023456{i:07d}",
+                    name=f"Трекер №{i:03d}",
+                    participant_id=participants[i - 1].id,
+                    stage_id=first_stage.id,
+                    is_active=True,
+                    battery_percent=rng.randint(10, 100),
+                    sos_active=(i in (3, 8)),
+                    last_message_at=now - timedelta(hours=2),
                 )
+                for i in range(1, len(participants) + 1)
+            ]
             session.add_all(devices)
             await session.flush()
             _note_created(created, "Device", len(devices))
@@ -637,61 +689,43 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             devices = (await session.execute(select(Device).order_by(Device.id))).scalars().all()
             logger.info("Device уже есть — пропускаю")
 
-        # --- StageRoutePoint ---
-        if not no_track and not await _exists(session, StageRoutePoint):
-            route_points: list[StageRoutePoint] = []
-            for stage in stages:
-                stage_cps = sorted(
-                    (cp for cp in checkpoints if cp.stage_id == stage.id),
-                    key=lambda c: c.order_index,
-                )
-                stage_start = next(cp for cp in stage_cps if cp.kind == CheckpointKind.START.value)
-                stage_finish = next(
-                    cp for cp in stage_cps if cp.kind == CheckpointKind.FINISH.value
-                )
-                for i in range(20):
-                    lat, lon = _interp_with_offset(
-                        stage_start.lat,
-                        stage_start.lon,
-                        stage_finish.lat,
-                        stage_finish.lon,
-                        i / 19,
-                        0.0,
-                    )
-                    route_points.append(
-                        StageRoutePoint(stage_id=stage.id, position=i, lat=lat, lon=lon)
-                    )
-            session.add_all(route_points)
-            await session.flush()
-            _note_created(created, "StageRoutePoint", len(route_points))
-        elif not no_track:
-            logger.info("StageRoutePoint уже есть — пропускаю")
-
-        # --- TrackPoint ---
+        # --- TrackPoint (на основе реального маршрута) ---
         track_points: list[TrackPoint] = []
         if not no_track and not await _exists(session, TrackPoint):
             points_count = 20
             track_total_km = first_stage.distance_km
             FRESHNESS_AGE_MINUTES = [5, 25, 120, 8, 30, 180, 3, 22, 60]
 
+            # Достаем реальные точки маршрута
+            route_pts = (
+                (
+                    await session.execute(
+                        select(StageRoutePoint)
+                        .where(StageRoutePoint.stage_id == first_stage.id)
+                        .order_by(StageRoutePoint.position)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
             for pi, participant in enumerate(participants):
                 if pi >= len(devices):
                     break
                 device = devices[pi]
                 max_ratio = ((pi + 1) / (len(participants) + 1)) * 0.9
-                track_offset = rng.uniform(-0.01, 0.01)
                 last_age_min = FRESHNESS_AGE_MINUTES[pi % len(FRESHNESS_AGE_MINUTES)]
 
                 for j in range(points_count):
                     ratio = (j / (points_count - 1)) * max_ratio
-                    lat, lon = _interp_with_offset(
-                        path_start.lat,
-                        path_start.lon,
-                        path_finish.lat,
-                        path_finish.lon,
-                        ratio,
-                        track_offset,
-                    )
+
+                    if route_pts:
+                        route_idx = int(ratio * (len(route_pts) - 1))
+                        pt = route_pts[route_idx]
+                        lat, lon = pt.lat, pt.lon
+                    else:
+                        lat, lon = _random_position(rng)
+
                     minutes_ago = last_age_min + 20 * (points_count - 1 - j)
                     recorded_at = now - timedelta(minutes=minutes_ago)
                     avg_speed = None
@@ -723,7 +757,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             await session.flush()
             _note_created(created, "TrackPoint", len(track_points))
 
-            last_by_device: dict[int, datetime] = {}
+            last_by_device = {}
             for tp in track_points:
                 if (
                     tp.device_id not in last_by_device
@@ -735,19 +769,10 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                     device.last_message_at = last_by_device[device.id]
         elif not no_track:
             logger.info("TrackPoint уже есть — пропускаю")
-            track_points = (
-                (
-                    await session.execute(
-                        select(TrackPoint).where(TrackPoint.stage_id == first_stage.id)
-                    )
-                )
-                .scalars()
-                .all()
-            )
 
         # --- OfficialMark ---
         if not no_track and not await _exists(session, OfficialMark):
-            official_marks: list[OfficialMark] = []
+            official_marks = []
             for participant in participants:
                 participant_points = [
                     tp for tp in track_points if tp.participant_id == participant.id
@@ -755,13 +780,11 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                 if not participant_points:
                     continue
                 participant_points.sort(key=lambda tp: tp.recorded_at)
-                start_mark = participant_points[0]
-                finish_mark = participant_points[-1]
                 official_marks.append(
                     OfficialMark(
                         participant_id=participant.id,
                         checkpoint_id=path_start.id,
-                        mark_time=start_mark.recorded_at,
+                        mark_time=participant_points[0].recorded_at,
                         penalty_minutes=0,
                         mandatory_stop_minutes=0,
                         comment="Отметка старта (сид).",
@@ -773,7 +796,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                     OfficialMark(
                         participant_id=participant.id,
                         checkpoint_id=path_finish.id,
-                        mark_time=finish_mark.recorded_at,
+                        mark_time=participant_points[-1].recorded_at,
                         penalty_minutes=0,
                         mandatory_stop_minutes=0,
                         comment="Отметка финиша этапа (сид).",
@@ -784,24 +807,19 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             session.add_all(official_marks)
             await session.flush()
             _note_created(created, "OfficialMark", len(official_marks))
-        elif not no_track:
-            logger.info("OfficialMark уже есть — пропускаю")
 
         # --- FanSubscription ---
         if not await _exists(session, FanSubscription):
-            fan_subscriptions: list[FanSubscription] = []
+            fan_subscriptions = []
             user_ids = [u.id for u in users]
             for participant in participants:
-                count = rng.randint(5, 10)
-                for user_id in rng.sample(user_ids, min(count, len(user_ids))):
+                for user_id in rng.sample(user_ids, min(rng.randint(5, 10), len(user_ids))):
                     fan_subscriptions.append(
                         FanSubscription(user_id=user_id, participant_id=participant.id)
                     )
             session.add_all(fan_subscriptions)
             await session.flush()
             _note_created(created, "FanSubscription", len(fan_subscriptions))
-        else:
-            logger.info("FanSubscription уже есть — пропускаю")
 
         # --- PushSubscription ---
         if not await _exists(session, PushSubscription):
@@ -817,12 +835,10 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             session.add_all(push_subscriptions)
             await session.flush()
             _note_created(created, "PushSubscription", len(push_subscriptions))
-        else:
-            logger.info("PushSubscription уже есть — пропускаю")
 
         # --- NotificationQueue ---
         if not await _exists(session, NotificationQueue):
-            notifications: list[NotificationQueue] = []
+            notifications = []
             event_types = list(NotificationEventType)
             for user in users:
                 if not user.notifications_allowed:
@@ -860,10 +876,8 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             session.add_all(notifications)
             await session.flush()
             _note_created(created, "NotificationQueue", len(notifications))
-        else:
-            logger.info("NotificationQueue уже есть — пропускаю")
 
-        # --- NewsPost (с обложками, черновиками и закреплённой) ---
+        # --- NewsPost ---
         if not await _exists(session, NewsPost):
             news_posts = []
             for i, title in enumerate(NEWS_TITLES):
@@ -872,16 +886,13 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                     NewsPost(
                         title=title,
                         lead=f"Кратко о событиях дня: {title.lower().rstrip('.')}.",
-                        body=(
-                            f"Подробный репортаж. {title}. "
-                            "Следите за обновлениями в официальном сообществе ВКонтакте."
-                        ),
+                        body=f"Подробный репортаж. {title}. Следите за обновлениями в официальном сообществе ВКонтакте.",
                         cover_url=cover_url,
                         source=NewsSource.MANUAL.value,
                         vk_url=None,
                         stage_id=first_stage.id if i < 2 else None,
                         published_at=now - timedelta(days=max(0, 2 - i // 2)),
-                        is_published=(i % 3 != 0),  # 1 из 3 — черновик
+                        is_published=(i % 3 != 0),
                         is_important=(i == 1),
                         is_pinned=(i == 0),
                     )
@@ -889,8 +900,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             session.add_all(news_posts)
             await session.flush()
             _note_created(created, "NewsPost", len(news_posts))
-        else:
-            logger.info("NewsPost уже есть — пропускаю")
 
         # --- ScheduleEvent ---
         if not await _exists(session, ScheduleEvent):
@@ -959,48 +968,30 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             session.add_all(schedule_events)
             await session.flush()
             _note_created(created, "ScheduleEvent", len(schedule_events))
-        else:
-            logger.info("ScheduleEvent уже есть — пропускаю")
 
-        # --- FAQItem (обычный + getting_here + safety) ---
+        # --- FAQItem ---
         if not await _exists(session, FAQItem):
             faq_items = [
-                FAQItem(
-                    question=question,
-                    answer=answer,
-                    category=category,
-                    order_index=i,
-                    is_public=True,
-                )
-                for i, (question, answer, category) in enumerate(FAQ_ITEMS)
+                FAQItem(question=q, answer=a, category=c, order_index=i, is_public=True)
+                for i, (q, a, c) in enumerate(FAQ_ITEMS)
             ]
-            # + getting_here
-            for i, (question, answer) in enumerate(GETTING_HERE_FAQ):
-                faq_items.append(
+            faq_items.extend(
+                [
                     FAQItem(
-                        question=question,
-                        answer=answer,
-                        category="getting_here",
-                        order_index=i,
-                        is_public=True,
+                        question=q, answer=a, category="getting_here", order_index=i, is_public=True
                     )
-                )
-            # + safety
-            for i, (question, answer) in enumerate(SAFETY_FAQ):
-                faq_items.append(
-                    FAQItem(
-                        question=question,
-                        answer=answer,
-                        category="safety",
-                        order_index=i,
-                        is_public=True,
-                    )
-                )
+                    for i, (q, a) in enumerate(GETTING_HERE_FAQ)
+                ]
+            )
+            faq_items.extend(
+                [
+                    FAQItem(question=q, answer=a, category="safety", order_index=i, is_public=True)
+                    for i, (q, a) in enumerate(SAFETY_FAQ)
+                ]
+            )
             session.add_all(faq_items)
             await session.flush()
             _note_created(created, "FAQItem", len(faq_items))
-        else:
-            logger.info("FAQItem уже есть — пропускаю")
 
         # --- ViewerLocation ---
         if not await _exists(session, ViewerLocation):
@@ -1029,31 +1020,16 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             session.add_all(viewer_locations)
             await session.flush()
             _note_created(created, "ViewerLocation", len(viewer_locations))
-        else:
-            logger.info("ViewerLocation уже есть — пропускаю")
 
-        # --- StaticPage: «О гонке» + страницы раздела «Гостям» ---
+        # --- StaticPage ---
         pages_to_create = [
-            # (slug, title, cover_file, content, blocks)
-            (
-                "about",
-                "О гонке «Авача 2027»",
-                "about_cover.jpg",
-                ABOUT_PAGE_CONTENT.strip(),
-                [],
-            ),
+            ("about", "О гонке «Авача 2027»", "about_cover.jpg", ABOUT_PAGE_CONTENT.strip(), []),
             ("guests", "Гостям", "guests_cover.jpg", "Добро пожаловать на Камчатку!", []),
             ("guests-getting-here", "Как добраться", "getting_here_cover.jpg", "", []),
             ("guests-what-to-bring", "Что взять с собой", "what_to_bring_cover.jpg", "", []),
             ("guests-safety", "Безопасность зимой", "safety_cover.jpg", "", []),
             ("faq", "Ответы на частые вопросы", "faq_cover.jpg", "", []),
-            (
-                "contacts",
-                "Контакты",
-                "contacts_cover.jpg",
-                "",
-                CONTACT_BLOCKS,
-            ),
+            ("contacts", "Контакты", "contacts_cover.jpg", "", CONTACT_BLOCKS),
         ]
         for slug, title, cover_file, content, blocks in pages_to_create:
             if await _exists_by_slug(session, StaticPage, slug):
@@ -1072,10 +1048,9 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             _note_created(created, "StaticPage", 1)
         await session.flush()
 
-        # --- GuestItem: Что взять с собой ---
+        # --- GuestItem ---
         if not await _exists(session, GuestItem):
             guest_items = [
-                # Одежда
                 GuestItem(
                     section="clothing",
                     title="Первый слой",
@@ -1107,7 +1082,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                     text="Купальник и лёгкие тапочки — зимой на Камчатке популярны купания в термальных источниках.",
                     order_index=5,
                 ),
-                # Обувь
                 GuestItem(
                     section="shoes",
                     title="Для города и полноценных прогулок",
@@ -1127,7 +1101,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                     text="Легкие кроссовки или ботинки для помещений / отеля. Сланцы / шлепанцы — пригодятся, если вы собираетесь в термальные источники.",
                     order_index=3,
                 ),
-                # Снаряжение
                 GuestItem(
                     section="equipment",
                     title="Мощный Powerbank",
@@ -1163,11 +1136,13 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             session.add_all(guest_items)
             await session.flush()
             _note_created(created, "GuestItem", len(guest_items))
-        else:
-            logger.info("GuestItem уже есть — пропускаю")
 
         # --- Один commit в конце ---
         await session.commit()
+
+        # ═══ СБРОС КЭША ═══
+        await cache.invalidate_pattern("public:*")
+        logger.info("Кэш public:* сброшен")
 
         # --- Сводка ---
         print("\nСоздано:")
@@ -1215,10 +1190,5 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
     asyncio.run(
-        main(
-            reset=args.reset,
-            users_count=args.users,
-            no_track=args.no_track,
-            force=args.force,
-        )
+        main(reset=args.reset, users_count=args.users, no_track=args.no_track, force=args.force)
     )
