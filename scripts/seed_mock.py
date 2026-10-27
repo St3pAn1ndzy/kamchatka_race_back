@@ -181,7 +181,7 @@ VIEWER_LOCATIONS = [
         "Край обрыва не огорожен — не подходите близко к кромке.",
     ),
     (
-        "Фестивальная площадка «Берингия»",
+        "Фестивальная площадка «Авача»",
         ViewerLocationKind.FESTIVAL,
         "Площадка у центрального стадиона, пешком 5 минут от остановки «Стадион».",
         20,
@@ -806,7 +806,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                     is_public=True,
                 ),
                 ScheduleEvent(
-                    title="Открытие фестиваля «Берингия»",
+                    title="Открытие фестиваля «Авача»",
                     description="Церемония открытия зимнего фестиваля, выступление творческих коллективов.",
                     kind=ScheduleKind.CULTURAL.value,
                     stage_id=None,
@@ -832,7 +832,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                     stage_id=None,
                     starts_at=datetime(2027, 3, 2, 9, 0, tzinfo=UTC),
                     ends_at=datetime(2027, 3, 2, 11, 0, tzinfo=UTC),
-                    location="ДК «Берингия»",
+                    location="ДК «Авача»",
                     is_public=True,
                 ),
                 ScheduleEvent(
