@@ -1,6 +1,6 @@
 """Схемы раздела «Гостям»."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class GuestItemResponse(BaseModel):
