@@ -1,17 +1,27 @@
+from markupsafe import Markup
 from sqladmin import action
+from sqlalchemy import select
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
-from wtforms import SelectField
+from wtforms import FileField, SelectField
 from wtforms.validators import NumberRange
 
 from app.admin_panel.base import BaseAdminView
 from app.admin_panel.categories import CategoryAdminEnum
 from app.admin_panel.formatters import fmt_bool, fmt_datetime, fmt_participant_status
+from app.admin_panel.utils import get_int_param
 from app.db.base import async_session_factory
 from app.db.models import AuditLog, Device, Participant
 from app.enums import ParticipantStatus
 from app.security.admin_sessions import get_active_admin_for_session
 from app.services.cache import cache
+from app.services.media_storage import media_storage
+
+
+class UploadImageField(FileField):
+    def populate_obj(self, obj, name):
+        pass
+
 
 _LABELS = {
     ParticipantStatus.REGISTERED: "Заявлен",
@@ -51,17 +61,89 @@ class DeviceAdmin(BaseAdminView, model=Device):
     }
     column_formatters = {
         Device.participant: lambda m, a: (
-            f"№{m.participant.number} {m.participant.name}" if m.participant else "—"
+            Markup(
+                f'<a href="/admin-panel/participant/details/{m.participant.id}" class="text-primary text-decoration-none fw-bold">'
+                f"№{m.participant.number} {m.participant.name}</a>"
+            )
+            if m.participant
+            else "—"
         ),
-        Device.stage: lambda m, a: f"Этап {m.stage.number}" if m.stage else "—",
+        Device.stage: lambda m, a: (
+            Markup(
+                f'<a href="/admin-panel/stage/details/{m.stage.id}" class="text-primary text-decoration-none">'
+                f"Этап {m.stage.number}</a>"
+            )
+            if m.stage
+            else "—"
+        ),
         Device.is_active: lambda m, a: fmt_bool(m.is_active),
         Device.sos_active: lambda m, a: fmt_bool(m.sos_active),
         Device.last_message_at: lambda m, a: fmt_datetime(m.last_message_at),
     }
+
+    column_formatters_detail = {
+        Device.participant: lambda m, a: (
+            Markup(
+                f'<a href="/admin-panel/participant/details/{m.participant.id}" class="text-primary text-decoration-none fw-bold">'
+                f"№{m.participant.number} {m.participant.name}</a>"
+            )
+            if m.participant
+            else "—"
+        ),
+        Device.stage: lambda m, a: (
+            Markup(
+                f'<a href="/admin-panel/stage/details/{m.stage.id}" class="text-primary text-decoration-none">'
+                f"Этап {m.stage.number} — {m.stage.name}</a>"
+            )
+            if m.stage
+            else "—"
+        ),
+        Device.is_active: lambda m, a: fmt_bool(m.is_active),
+        Device.sos_active: lambda m, a: fmt_bool(m.sos_active),
+        Device.last_message_at: lambda m, a: fmt_datetime(m.last_message_at),
+        Device.track_points: lambda m, a: [
+            Markup(
+                f'<a href="/admin-panel/track-point/list?device_id={m.id}" class="text-primary text-decoration-none">'
+                f"Точек трека: {len(m.track_points)}</a>"
+            )
+        ],
+    }
+    column_details_list = [
+        Device.iridium_number,
+        Device.imei,
+        Device.name,
+        Device.participant,
+        Device.stage,
+        Device.is_active,
+        Device.battery_percent,
+        Device.sos_active,
+        Device.last_message_at,
+        Device.track_points,
+        Device.created_at,
+        Device.updated_at,
+    ]
+
     column_default_sort = (Device.iridium_number, False)
     column_searchable_list = [Device.iridium_number, Device.imei]
-
     column_selectinload = [Device.participant, Device.stage]
+
+    # ═══ РУЧНАЯ ФИЛЬТРАЦИЯ ЧЕРЕЗ list_query ═══
+    def list_query(self, request: Request):
+        stmt = select(self.model)
+
+        if pid := get_int_param(request, "participant_id"):
+            stmt = stmt.where(Device.participant_id == pid)
+
+        if sid := get_int_param(request, "stage_id"):
+            stmt = stmt.where(Device.stage_id == sid)
+
+        if q := request.query_params.get("is_active"):
+            stmt = stmt.where(Device.is_active.is_(q == "true"))
+
+        if q := request.query_params.get("sos_active"):
+            stmt = stmt.where(Device.sos_active.is_(q == "true"))
+
+        return stmt
 
     form_columns = [
         Device.iridium_number,
@@ -77,35 +159,24 @@ class DeviceAdmin(BaseAdminView, model=Device):
         Device.name: {"placeholder": "Трекер №001"},
     }
 
-    async def after_model_change(
-        self, data: dict, model: Device, is_created: bool, request: Request
-    ) -> None:
-        """Инвалидация кэша карты после изменения трекера."""
+    async def after_model_change(self, data, model, is_created, request) -> None:
         await cache.invalidate_pattern("public:map:*")
         return await super().after_model_change(data, model, is_created, request)
 
-    # --- BULK ACTIONS ---
-
-    async def _set_active(
-        self, request: Request, active: bool, action_code: str
-    ) -> RedirectResponse:
+    async def _set_active(self, request, active, action_code):
         pks = await self._parse_pks(request)
         if not pks:
             return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
-
         session_id = request.session.get("admin_session_id")
         async with async_session_factory() as session:
             admin = await get_active_admin_for_session(session, str(session_id or ""))
             admin_id = admin.id if admin else None
-
             for pk in pks:
                 device = await session.get(Device, pk)
                 if device is None:
                     continue
-
                 old_status = device.is_active
                 device.is_active = active
-
                 session.add(
                     AuditLog(
                         admin_id=admin_id,
@@ -116,10 +187,7 @@ class DeviceAdmin(BaseAdminView, model=Device):
                     )
                 )
             await session.commit()
-
-        # Инвалидация кэша карты — изменилось состояние трекеров
         await cache.invalidate_pattern("public:map:*")
-
         return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
 
     @action(
@@ -135,7 +203,7 @@ class DeviceAdmin(BaseAdminView, model=Device):
     @action(
         name="deactivate",
         label="Деактивировать",
-        confirmation_message="Деактивировать выбранные трекеры? (Данные с них перестанут учитываться)",
+        confirmation_message="Деактивировать выбранные трекеры?",
         add_in_list=True,
         add_in_detail=True,
     )
@@ -145,7 +213,7 @@ class DeviceAdmin(BaseAdminView, model=Device):
     @action(
         name="reset-sos",
         label="Сбросить SOS",
-        confirmation_message="Сбросить сигнал SOS на выбранных трекерах? Убедитесь, что ситуация действительно решена!",
+        confirmation_message="Сбросить сигнал SOS на выбранных трекерах?",
         add_in_list=True,
         add_in_detail=True,
     )
@@ -153,17 +221,14 @@ class DeviceAdmin(BaseAdminView, model=Device):
         pks = await self._parse_pks(request)
         if not pks:
             return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
-
         session_id = request.session.get("admin_session_id")
         async with async_session_factory() as session:
             admin = await get_active_admin_for_session(session, str(session_id or ""))
             admin_id = admin.id if admin else None
-
             for pk in pks:
                 device = await session.get(Device, pk)
                 if device is None:
                     continue
-
                 device.sos_active = False
                 session.add(
                     AuditLog(
@@ -175,7 +240,6 @@ class DeviceAdmin(BaseAdminView, model=Device):
                     )
                 )
             await session.commit()
-
         return RedirectResponse(request.url_for("admin:list", identity=self.identity), 302)
 
 
@@ -205,13 +269,99 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
         Participant.photo_url: "Фото (URL)",
     }
     column_formatters = {
-        Participant.discipline_ref: lambda m, a: m.discipline_ref.name if m.discipline_ref else "—",
+        Participant.number: lambda m, a: Markup(
+            f'<a href="/admin-panel/participant/details/{m.id}" class="text-primary fw-bold text-decoration-none">№{m.number}</a>'
+        ),
+        Participant.discipline_ref: lambda m, a: (
+            Markup(
+                f'<a href="/admin-panel/discipline/details/{m.discipline_ref.id}" class="text-primary text-decoration-none">'
+                f"{m.discipline_ref.name}</a>"
+            )
+            if m.discipline_ref
+            else "—"
+        ),
         Participant.status: lambda m, a: fmt_participant_status(m.status),
     }
+
+    column_formatters_detail = {
+        Participant.number: lambda m, a: f"№{m.number}",
+        Participant.discipline_ref: lambda m, a: (
+            Markup(
+                f'<a href="/admin-panel/discipline/details/{m.discipline_ref.id}" class="text-primary text-decoration-none">'
+                f"{m.discipline_ref.name}</a>"
+            )
+            if m.discipline_ref
+            else "—"
+        ),
+        Participant.status: lambda m, a: fmt_participant_status(m.status),
+        Participant.photo_url: lambda m, a: Markup(
+            (
+                f'<div class="d-flex align-items-center gap-3">'
+                f'<img src="{m.photo_url}" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid var(--tblr-border-color);">'
+                f'<a href="/admin-panel/participants-card?open={m.id}" target="_blank" class="btn btn-sm btn-primary">'
+                f'<i class="fa-regular fa-eye me-1"></i>Открыть в приложении</a>'
+                f"</div>"
+            )
+            if m.photo_url
+            else Markup('<span class="text-muted">— фото не загружено</span>')
+        ),
+        Participant.devices: lambda m, a: [
+            Markup(
+                f'<a href="/admin-panel/device/list?participant_id={m.id}" class="text-primary text-decoration-none">'
+                f"Трекеров: {len(m.devices)}</a>"
+            )
+        ],
+        Participant.official_marks: lambda m, a: [
+            Markup(
+                f'<a href="/admin-panel/official-mark/list?participant_id={m.id}" class="text-primary text-decoration-none">'
+                f"Отметок: {len(m.official_marks)}</a>"
+            )
+        ],
+        Participant.track_points: lambda m, a: [
+            Markup(
+                f'<a href="/admin-panel/track-point/list?participant_id={m.id}" class="text-primary text-decoration-none">'
+                f"Точек трека: {len(m.track_points)}</a>"
+            )
+        ],
+        Participant.fans: lambda m, a: [
+            Markup(
+                f'<a href="/admin-panel/fan-subscription/list?participant_id={m.id}" class="text-primary text-decoration-none">'
+                f"Болельщиков: {len(m.fans)}</a>"
+            )
+        ],
+    }
+
+    column_details_list = [
+        Participant.number,
+        Participant.name,
+        Participant.region,
+        Participant.discipline_ref,
+        Participant.status,
+        Participant.dogs_count,
+        Participant.bio,
+        Participant.photo_url,
+        Participant.devices,
+        Participant.official_marks,
+        Participant.track_points,
+        Participant.fans,
+    ]
+
     column_searchable_list = [Participant.name, Participant.number]
     column_sortable_list = [Participant.number, Participant.name]
-
     column_selectinload = [Participant.discipline_ref]
+
+    # ═══ РУЧНАЯ ФИЛЬТРАЦИЯ ═══
+    def list_query(self, request: Request):
+        stmt = select(self.model)
+        q = request.query_params
+
+        if status := q.get("status"):
+            stmt = stmt.where(Participant.status == status)
+
+        if did := get_int_param(request, "discipline_id"):
+            stmt = stmt.where(Participant.discipline_id == did)
+
+        return stmt
 
     form_columns = [
         Participant.number,
@@ -227,21 +377,18 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
         Participant.name: {"placeholder": "Иванов Иван"},
         Participant.region: {"placeholder": "Камчатский край"},
         Participant.bio: {"placeholder": "Краткая биография каюра (до 1000 символов)"},
-        Participant.photo_url: {"placeholder": "https://..."},
     }
     form_overrides = {
         "status": SelectField,
+        "photo_url": UploadImageField,
     }
     form_args = {
         "dogs_count": {"validators": [NumberRange(min=1, max=20)]},
         "number": {"validators": [NumberRange(min=1)]},
-        "status": {
-            "choices": [(s.value, _LABELS[s]) for s in ParticipantStatus],
-        },
+        "status": {"choices": [(s.value, _LABELS[s]) for s in ParticipantStatus]},
     }
 
     can_export = True
-
     column_export_list = [
         Participant.number,
         Participant.name,
@@ -250,35 +397,64 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
         Participant.dogs_count,
     ]
 
-    # --- BULK ACTIONS ---
+    async def update_model(self, request, pk, data):
+        pk_int = int(pk)
+        photo = data.get("photo_url")
+        if photo is not None and hasattr(photo, "filename"):
+            async with async_session_factory() as session:
+                p = await session.get(Participant, pk_int)
+                data["photo_url"] = p.photo_url if p is not None else None
+        return await super().update_model(request, pk_int, data)
 
-    async def _set_status(
-        self, request: Request, new_status: str, action_code: str
-    ) -> RedirectResponse:
+    async def create_model(self, request, data):
+        photo = data.get("photo_url")
+        if photo is not None and hasattr(photo, "filename"):
+            data["photo_url"] = None
+        return await super().create_model(request, data)
 
+    async def after_model_change(self, data, model, is_created, request) -> None:
+        form = await request.form()
+        upload = form.get("photo_url")
+        if not upload or not hasattr(upload, "filename") or not upload.filename:
+            return
+        old_url = None
+        async with async_session_factory() as session:
+            p = await session.get(Participant, model.id)
+            if p is not None:
+                old_url = p.photo_url
+        try:
+            new_url = await media_storage.save_image(
+                upload, folder="participants", prefix=str(model.number or model.id)
+            )
+        except ValueError as e:
+            print(f"[media] Ошибка загрузки фото участника {model.id}: {e}")
+            return
+        async with async_session_factory() as session:
+            p = await session.get(Participant, model.id)
+            if p is None:
+                return
+            p.photo_url = new_url
+            await session.commit()
+        if old_url and old_url != new_url and old_url.startswith("/media/"):
+            media_storage.delete(old_url)
+
+    async def _set_status(self, request, new_status, action_code):
         raw_pks = request.query_params.getlist("pks")
         pks = [pk.strip() for raw in raw_pks for pk in raw.split(",") if pk.strip()]
-
         if not pks:
             return RedirectResponse(
-                request.url_for("admin:list", identity=self.identity),
-                status_code=302,
+                request.url_for("admin:list", identity=self.identity), status_code=302
             )
-
         session_id = request.session.get("admin_session_id")
-
         async with async_session_factory() as session:
             admin = await get_active_admin_for_session(session, str(session_id or ""))
             admin_id = admin.id if admin else None
-
             for pk in pks:
                 participant = await session.get(Participant, int(pk))
                 if participant is None:
                     continue
-
                 old_status = participant.status
                 participant.status = new_status
-
                 session.add(
                     AuditLog(
                         admin_id=admin_id,
@@ -289,10 +465,8 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
                     )
                 )
             await session.commit()
-
         return RedirectResponse(
-            request.url_for("admin:list", identity=self.identity),
-            status_code=302,
+            request.url_for("admin:list", identity=self.identity), status_code=302
         )
 
     @action(
@@ -322,7 +496,7 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
     @action(
         name="disqualify",
         label="Дисквалифицировать",
-        confirmation_message="Дисквалифицировать выбранных участников? Это действие нельзя отменить одной кнопкой.",
+        confirmation_message="Дисквалифицировать выбранных участников?",
         add_in_list=True,
         add_in_detail=True,
     )
