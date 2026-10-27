@@ -56,7 +56,7 @@
         {% endif %}
       </div>
 
-            <div class="topbar-actions" style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+      <div class="topbar-actions" style="margin-left:auto;display:flex;align-items:center;gap:12px;">
 
         {# ═══ SOS-ПЛАШКА (скрыта по умолчанию) ═══ #}
         <a href="/admin-panel/race-control" id="sosAlertBadge" class="d-none text-decoration-none" title="Перейти в Оперативный штаб">
@@ -131,6 +131,7 @@
 <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
 <script>
 (function(){
+  // ═══ ТЕМА ═══
   var r = document.documentElement;
   var icon = document.getElementById('themeIcon');
   var saved = localStorage.getItem('avacha_theme');
@@ -149,17 +150,13 @@
     if(icon) icon.className = next === 'dark' ? 'fa-regular fa-sun' : 'fa-regular fa-moon';
   };
 
-  // ─── Статус Iridium в шапке ───
+  // ═══ СТАТУС IRIDIUM ═══
   function refreshIridiumStatus(){
-    fetch('/admin-panel/api/dashboard-stats', {
-      headers: { 'Accept': 'application/json' }
-    })
+    fetch('/admin-panel/api/dashboard-stats', { headers: { 'Accept': 'application/json' } })
     .then(function(res){ return res.ok ? res.json() : null; })
     .then(function(data){
       if (!data || !data.stats) return;
       var s = data.stats;
-
-      // Статус Iridium
       var online = document.getElementById('iridiumStats');
       var dot = document.getElementById('iridiumDot');
       if (online) online.textContent = s.devices_online + ' / ' + s.devices_total;
@@ -168,22 +165,8 @@
         if (s.devices_sos > 0 || s.devices_stale > 0) dot.classList.add('is-danger');
         else if (s.devices_online < s.devices_total) dot.classList.add('is-warning');
       }
-
-      // ═══ НОВОЕ: SOS-плашка в шапке ═══
-      var sosBadge = document.getElementById('sosAlertBadge');
-      var sosCount = document.getElementById('sosAlertCount');
-      if (sosBadge && sosCount) {
-        if (data.sos && data.sos.length > 0) {
-          sosCount.textContent = data.sos.length;
-          sosBadge.classList.remove('d-none');
-        } else {
-          sosBadge.classList.add('d-none');
-        }
-      }
-    })
-    .catch(function(){});
+    }).catch(function(){});
   }
-
   refreshIridiumStatus();
   setInterval(refreshIridiumStatus, 60000);
 })();

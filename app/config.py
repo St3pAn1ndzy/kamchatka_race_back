@@ -96,6 +96,7 @@ class Settings(BaseSettings):
     CACHE_TTL_RESULTS: int = 300  # 5 мин — протоколы, standings
     CACHE_TTL_MAP: int = 15  # 15 сек — данные карты
     CACHE_TTL_STATS: int = 30  # 30 сек — статистика
+    CACHE_TTL_PAGES: int = 3600
 
     # --- 152-ФЗ ---
     PRIVACY_POLICY_VERSION: str = "1.0"

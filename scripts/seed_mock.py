@@ -11,7 +11,9 @@ import asyncio
 import hashlib
 import logging
 import random
+import shutil
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from sqlalchemy import select, text
 
@@ -41,6 +43,7 @@ from app.db.models import (
     UserFeedback,
     ViewerLocation,
 )
+from app.db.models.static_page import StaticPage
 from app.enums import (
     CheckpointKind,
     NewsSource,
@@ -58,19 +61,40 @@ from app.security.tokens import create_user_token
 logger = logging.getLogger("avacha.seed")
 settings = get_settings()
 
+# --- Пути для медиа -------------------------------------------------------
+
+SEED_MEDIA_DIR = Path("seed_media")
+MEDIA_DIR = Path("media")
+
+
+def _copy_seed_media(folder: str, filename: str, target_folder: str) -> str | None:
+    """Копирует файл из seed_media/{folder}/ в media/{target_folder}/.
+
+    Возвращает публичный URL /media/{target_folder}/{filename} или None,
+    если исходного файла нет (тогда поле останется пустым).
+    """
+    src = SEED_MEDIA_DIR / folder / filename
+    if not src.exists():
+        logger.warning(f"Нет файла seed_media/{folder}/{filename} — пропускаю")
+        return None
+    dst_dir = MEDIA_DIR / target_folder
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / filename
+    shutil.copy2(src, dst)
+    return f"/media/{target_folder}/{filename}"
+
+
 # --- Константы seed-данных -------------------------------------------------
 
 SEASON_YEAR = 2027
 SEASON_TITLE = "Авача 2027"
 
-# Дисциплины: (code, название)
 DISCIPLINES = [
     ("long", "Длинная"),
     ("middle", "Средняя"),
     ("sprint", "Спринт"),
 ]
 
-# Каюры: (имя, регион)
 MUSHERS = [
     ("Алексей Плотников", "Камчатский край"),
     ("Мария Кравцова", "Камчатский край"),
@@ -89,7 +113,6 @@ MUSHERS = [
     ("Николай Семёнов", "Камчатский край"),
 ]
 
-# Этапы: (номер, дистанция, название, дата старта)
 STAGES = [
     (
         1,
@@ -101,7 +124,6 @@ STAGES = [
     (3, 80.0, "Этап 3. Перевал Двойной — финиш", datetime(2027, 3, 3, 2, 0, tzinfo=UTC)),
 ]
 
-# КП на каждом этапе: (code, name, kind, altitude, km от старта гонки)
 CHECKPOINTS = [
     ("Старт", "Старт этапа", CheckpointKind.START, 20, 0),
     ("КП-1", "Контрольный пункт у ручья", CheckpointKind.CHECKPOINT, 350, 30),
@@ -109,13 +131,11 @@ CHECKPOINTS = [
     ("Финиш", "Финиш этапа", CheckpointKind.FINISH, 300, 100),
 ]
 
-# Координаты Камчатки для генерации маршрутов
 BASE_LAT = 62.0
 BASE_LON = 129.0
 LAT_SPREAD = 1.5
 LON_SPREAD = 1.5
 
-# Новости
 NEWS_TITLES = [
     "Старт «Авачи 2027» — всё готово к началу гонки",
     "Первый этап завершён: результаты и время лидеров",
@@ -124,7 +144,6 @@ NEWS_TITLES = [
     "Финиш гонки позади: итоги «Авачи 2027»",
 ]
 
-# FAQ: (question, answer, category)
 FAQ_ITEMS = [
     (
         "Как добраться до места старта гонки?",
@@ -157,7 +176,6 @@ FAQ_ITEMS = [
     ),
 ]
 
-# Зрительские локации: (name, kind, directions, travel_time, safety)
 VIEWER_LOCATIONS = [
     (
         "Старт гонки, Петропавловск-Камчатский",
@@ -189,12 +207,33 @@ VIEWER_LOCATIONS = [
     ),
 ]
 
+ABOUT_PAGE_CONTENT = """\
+«Авача»
+
+Физкультурно-туристическое мероприятие по ездовому спорту «Авача» — всероссийская гонка, проходящая на Камчатке в рамках зимнего фестиваля при поддержке Правительства Камчатского края и Федерации развития ездового спорта, объединяющая спорт, туризм, культуру и традиции региона.
+
+Гонка «Авача» является самой сложной гонкой в России и одной из самых сложных в мире. Единственная горная гонка, маршрут которой проходит по подножиям действующих вулканов. Участие принимают только опытные сильнейшие спортсмены страны по ездовому спорту, выступающие в дисциплине на длинные дистанции.
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0;">
+  <img src="/media/pages/about1.jpg" style="width: 100%; border-radius: 8px; object-fit: cover; aspect-ratio: 4/3;">
+  <img src="/media/pages/about2.jpg" style="width: 100%; border-radius: 8px; object-fit: cover; aspect-ratio: 4/3;">
+</div>
+
+Маршрут пролегает через живописные горные перевалы и территорию природного парка «Налычево», приобщая к гонкам выносливости и грамотной тактики. Гонка длится 6 дней, включая ночной этап. Общая протяженность примерно 300 км, суммарный набор высоты — более 4000 метров. Трасса включает в себя: заснеженные перевалы и спуски и снегопады в ночное время, что предъявляет повышенные требования к снаряжению и подготовке собак. Ежегодно интерес к гонке растет как каюров Камчатского края, так и каюров из других субъектов Российской Федерации. Кроме того, желание участвовать изъявили представители иностранных государств — это Эстония, Чехия, Италия, Финляндия и Германия.
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px 0;">
+  <img src="/media/pages/about3.jpg" style="width: 100%; border-radius: 8px; object-fit: cover; aspect-ratio: 4/3;">
+  <img src="/media/pages/about4.jpg" style="width: 100%; border-radius: 8px; object-fit: cover; aspect-ratio: 4/3;">
+</div>
+
+Участие в гонке «Авача» — это возможность испытать себя в суровых условиях, проверить себя и своих собак, преодолевая длинную дистанцию около 300 км по заснеженным вершинам парков вулканов, познакомиться с дикой природой Камчатки и единомышленниками из разных уголков страны.
+"""
+
 
 # --- Утилиты ---------------------------------------------------------------
 
 
 def _random_position(rng: random.Random) -> tuple[float, float]:
-    """Случайная точка в районе Камчатки."""
     lat = round(BASE_LAT + rng.uniform(-LAT_SPREAD, LAT_SPREAD), 6)
     lon = round(BASE_LON + rng.uniform(-LON_SPREAD, LON_SPREAD), 6)
     return lat, lon
@@ -208,7 +247,6 @@ def _interp_with_offset(
     ratio: float,
     offset: float,
 ) -> tuple[float, float]:
-    """Точка на отрезке start→finish с перпендикулярным сдвигом offset (в градусах)."""
     base_lat = start_lat + (finish_lat - start_lat) * ratio
     base_lon = start_lon + (finish_lon - start_lon) * ratio
     d_lat = finish_lat - start_lat
@@ -220,19 +258,16 @@ def _interp_with_offset(
 
 
 def _dedup_key(imei: str, recorded_at: datetime) -> str:
-    """Уникальный ключ для TrackPoint: sha256(imei:recorded_at)."""
     raw = f"{imei}:{recorded_at.isoformat()}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
 async def _exists(session, model) -> bool:
-    """Есть ли хоть одна запись в таблице (для идемпотентности)."""
     result = await session.execute(select(model.id).limit(1))
     return result.scalar_one_or_none() is not None
 
 
 async def _count(session, model) -> int:
-    """Количество записей в таблице (для сводки)."""
     result = await session.execute(select(model.id))
     return len(result.all())
 
@@ -245,8 +280,6 @@ def _note_created(created: dict[str, int], key: str, amount: int) -> None:
 
 
 async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) -> None:
-    """Заполняет dev-БД тестовыми данными. Один commit в конце."""
-    # 1. Проверка окружения: сидим только в ENV=dev.
     if settings.ENV != "dev" and not force:
         raise RuntimeError(
             f"Seed разрешён только в ENV=dev, сейчас ENV={settings.ENV!r}. "
@@ -256,17 +289,13 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
     if no_track:
         logger.info("--no-track: треки, маршрут и судейские отметки будут пропущены")
 
-    # Воспроизводимый генератор случайных чисел.
     rng = random.Random(2027)
-
     created: dict[str, int] = {}
 
     async with async_session_factory() as session:
-        # 2. Сброс: TRUNCATE всех таблиц с CASCADE и сбросом последовательностей
         if reset:
             logger.info("Сброс: очищаю таблицы")
             reset_order = [
-                # Зависимые от участников/КП/админов
                 AuditLog,
                 OfficialMark,
                 TrackPoint,
@@ -276,26 +305,24 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                 Stage,
                 Discipline,
                 Season,
-                # Подписки и активность пользователей
                 FanSubscription,
                 SavedItem,
                 ShareEvent,
                 NotificationQueue,
                 PushSubscription,
                 UserFeedback,
-                # Основные справочники
                 Participant,
                 NewsPost,
                 ScheduleEvent,
                 FAQItem,
                 ViewerLocation,
+                StaticPage,
                 AdminAccount,
                 User,
             ]
             tables = ", ".join(m.__tablename__ for m in reset_order)
             await session.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
 
-        # 3. Seed по порядку FK.
         now = datetime.now(tz=UTC)
 
         # --- Season ---
@@ -318,11 +345,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         if not await _exists(session, Discipline):
             disciplines = [
                 Discipline(
-                    season_id=season.id,
-                    code=code,
-                    name=name,
-                    sort_order=order,
-                    is_active=True,
+                    season_id=season.id, code=code, name=name, sort_order=order, is_active=True
                 )
                 for order, (code, name) in enumerate(DISCIPLINES)
             ]
@@ -349,7 +372,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                         first_name=f"Болельщик {i}",
                         last_name="",
                         platform="vk",
-                        # У половины пользователей разрешены push-уведомления.
                         notifications_allowed=(i % 2 == 0),
                         consent_version="1.0",
                         consent_accepted_at=now - timedelta(days=30),
@@ -382,20 +404,28 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             ).scalar_one_or_none()
             logger.info("AdminAccount уже есть — пропускаю")
 
-        # --- Participant ---
+        # --- Participant (с фото и разнообразием статусов) ---
         if not await _exists(session, Participant):
+            # 10 активных, 3 финишировали, 1 сошёл, 1 заявлен
+            statuses = (
+                [ParticipantStatus.ACTIVE.value] * 10
+                + [ParticipantStatus.FINISHED.value] * 3
+                + [ParticipantStatus.WITHDRAWN.value] * 1
+                + [ParticipantStatus.REGISTERED.value] * 1
+            )
             participants = []
             for index, (name, region) in enumerate(MUSHERS):
+                photo_url = _copy_seed_media("participants", f"{index + 1}.jpg", "participants")
                 participants.append(
                     Participant(
                         name=name,
                         number=index + 1,
                         region=region,
                         discipline_id=discipline_ids[index % len(discipline_ids)],
-                        photo_url=None,
+                        photo_url=photo_url,
                         bio=f"Опытный каюр из региона {region}. Участник гонки «{SEASON_TITLE}».",
                         dogs_count=rng.randint(4, 12),
-                        status=ParticipantStatus.REGISTERED.value,
+                        status=statuses[index],
                     )
                 )
             session.add_all(participants)
@@ -409,7 +439,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             )
             logger.info("Participant уже есть — пропускаю")
 
-        # --- Stage ---
+        # --- Stage (первый — ACTIVE) ---
         if not await _exists(session, Stage):
             stages = [
                 Stage(
@@ -419,7 +449,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                     finish_time=starts_at + timedelta(hours=6),
                     order_index=number - 1,
                     tracker_interval_seconds=1200,
-                    status=StageStatus.PLANNED.value,
+                    status=(StageStatus.ACTIVE.value if number == 1 else StageStatus.PLANNED.value),
                     results_publication=(
                         PublicationStatus.PROVISIONAL.value
                         if number == 1
@@ -445,7 +475,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         # --- Checkpoint ---
         checkpoints: list[Checkpoint] = []
         if not await _exists(session, Checkpoint):
-            # Профиль километража: дистанции этапов накапливаются.
             cumulative_start = 0
             for stage in stages:
                 start_lat, start_lon = _random_position(rng)
@@ -482,8 +511,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             )
             logger.info("Checkpoint уже есть — пропускаю")
 
-        # Старт и финиш первого этапа — ориентиры для треков.
-        # Выбираем по kind, чтобы не зависеть от порядка записей в БД.
         first_stage_cps = sorted(
             (cp for cp in checkpoints if cp.stage_id == first_stage.id),
             key=lambda c: c.order_index,
@@ -491,22 +518,24 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         path_start = next(cp for cp in first_stage_cps if cp.kind == CheckpointKind.START.value)
         path_finish = next(cp for cp in first_stage_cps if cp.kind == CheckpointKind.FINISH.value)
 
-        # --- Device ---
+        # --- Device (с разнообразием батареи и SOS) ---
         if not await _exists(session, Device):
-            devices = [
-                Device(
-                    iridium_number=f"{i:03d}",
-                    imei=f"30023456{i:07d}",  # 8 + 7 = 15 цифр
-                    name=f"Трекер №{i:03d}",
-                    participant_id=participants[i - 1].id,
-                    stage_id=first_stage.id,
-                    is_active=True,
-                    battery_percent=80,
-                    sos_active=False,
-                    last_message_at=now - timedelta(hours=2),
+            devices = []
+            for i in range(1, len(participants) + 1):
+                sos = i in (3, 8)  # два трекера в SOS для демо
+                devices.append(
+                    Device(
+                        iridium_number=f"{i:03d}",
+                        imei=f"30023456{i:07d}",
+                        name=f"Трекер №{i:03d}",
+                        participant_id=participants[i - 1].id,
+                        stage_id=first_stage.id,
+                        is_active=True,
+                        battery_percent=rng.randint(10, 100),
+                        sos_active=sos,
+                        last_message_at=now - timedelta(hours=2),
+                    )
                 )
-                for i in range(1, len(participants) + 1)
-            ]
             session.add_all(devices)
             await session.flush()
             _note_created(created, "Device", len(devices))
@@ -516,7 +545,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
 
         # --- StageRoutePoint ---
         if not no_track and not await _exists(session, StageRoutePoint):
-            # Маршруты всех этапов для карты: по 20 точек на этап.
             route_points: list[StageRoutePoint] = []
             for stage in stages:
                 stage_cps = sorted(
@@ -550,24 +578,13 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         if not no_track and not await _exists(session, TrackPoint):
             points_count = 20
             track_total_km = first_stage.distance_km
-
-            # Паттерн «возраста» последней точки (в минутах) — чтобы на карте
-            # были все три статуса freshness:
-            #   ≤20 мин  → fresh
-            #   ≤40 мин  → delayed
-            #   >40 мин  → stale
-            # Период 9 = 3 fresh + 3 delayed + 3 stale на 15 участников.
             FRESHNESS_AGE_MINUTES = [5, 25, 120, 8, 30, 180, 3, 22, 60]
 
             for pi, participant in enumerate(participants):
                 if pi >= len(devices):
                     break
                 device = devices[pi]
-
-                # Разные участники прошли разную долю трассы.
-                # pi=0 → ~6%, pi=14 → ~84%. Никто не на финише, никто на старте.
                 max_ratio = ((pi + 1) / (len(participants) + 1)) * 0.9
-
                 track_offset = rng.uniform(-0.01, 0.01)
                 last_age_min = FRESHNESS_AGE_MINUTES[pi % len(FRESHNESS_AGE_MINUTES)]
 
@@ -581,19 +598,12 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                         ratio,
                         track_offset,
                     )
-
-                    # Все точки — «до» последней. Последняя отстаёт от now
-                    # на last_age_min, предыдущие — на +20 мин каждая.
                     minutes_ago = last_age_min + 20 * (points_count - 1 - j)
                     recorded_at = now - timedelta(minutes=minutes_ago)
-
-                    # Средняя скорость на отрезке от предыдущей точки.
-                    # Считаем только для j > 0, первая точка — без скорости.
                     avg_speed = None
                     if j > 0:
                         prev_ratio = ((j - 1) / (points_count - 1)) * max_ratio
                         km_delta = (ratio - prev_ratio) * track_total_km
-                        # 20 минут = 1/3 часа → speed = km * 3
                         avg_speed = round(km_delta / (20 / 60), 1)
 
                     track_points.append(
@@ -619,8 +629,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             await session.flush()
             _note_created(created, "TrackPoint", len(track_points))
 
-            # Обновляем device.last_message_at по последней точке каждого
-            # устройства — для консистентности с экраном «Мониторинг трекеров».
             last_by_device: dict[int, datetime] = {}
             for tp in track_points:
                 if (
@@ -644,7 +652,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             )
 
         # --- OfficialMark ---
-        # Судейские отметки: старт и финиш первого этапа для каждого участника.
         if not no_track and not await _exists(session, OfficialMark):
             official_marks: list[OfficialMark] = []
             for participant in participants:
@@ -723,7 +730,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         if not await _exists(session, NotificationQueue):
             notifications: list[NotificationQueue] = []
             event_types = list(NotificationEventType)
-            # По 5 уведомлений: 3 старых SENT + 2 свежих PENDING.
             for user in users:
                 if not user.notifications_allowed:
                     continue
@@ -763,10 +769,11 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         else:
             logger.info("NotificationQueue уже есть — пропускаю")
 
-        # --- NewsPost ---
+        # --- NewsPost (с обложками, черновиками и закреплённой) ---
         if not await _exists(session, NewsPost):
             news_posts = []
             for i, title in enumerate(NEWS_TITLES):
+                cover_url = _copy_seed_media("news", f"news{i + 1}.jpg", "news")
                 news_posts.append(
                     NewsPost(
                         title=title,
@@ -775,15 +782,14 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                             f"Подробный репортаж. {title}. "
                             "Следите за обновлениями в официальном сообществе ВКонтакте."
                         ),
-                        cover_url=None,
+                        cover_url=cover_url,
                         source=NewsSource.MANUAL.value,
                         vk_url=None,
                         stage_id=first_stage.id if i < 2 else None,
                         published_at=now - timedelta(days=max(0, 2 - i // 2)),
-                        is_published=True,
-                        # Одна важная новость — уходит в push-уведомление.
+                        is_published=(i % 3 != 0),  # 1 из 3 — черновик
                         is_important=(i == 1),
-                        is_pinned=False,
+                        is_pinned=(i == 0),
                     )
                 )
             session.add_all(news_posts)
@@ -910,10 +916,30 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         else:
             logger.info("ViewerLocation уже есть — пропускаю")
 
-        # 4. Единственный commit в конце операции.
+        # --- StaticPage: «О гонке» ---
+        if not await _exists(session, StaticPage):
+            cover = _copy_seed_media("pages", "about_cover.jpg", "pages")
+            # Копируем фото для галереи (они используются в Markdown-тексте)
+            for n in range(1, 5):
+                _copy_seed_media("pages", f"about{n}.jpg", "pages")
+
+            about_page = StaticPage(
+                slug="about",
+                title="О гонке «Авача 2027»",
+                content=ABOUT_PAGE_CONTENT.strip(),
+                cover_url=cover,
+                is_published=True,
+            )
+            session.add(about_page)
+            await session.flush()
+            _note_created(created, "StaticPage", 1)
+        else:
+            logger.info("StaticPage уже есть — пропускаю")
+
+        # --- Один commit в конце ---
         await session.commit()
 
-        # 5. Вывод сводки.
+        # --- Сводка ---
         print("\nСоздано:")
         for key in [
             "Season",
@@ -933,6 +959,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             "ScheduleEvent",
             "FAQItem",
             "ViewerLocation",
+            "StaticPage",
         ]:
             print(f"  {key}: {created.get(key, 0)}")
 

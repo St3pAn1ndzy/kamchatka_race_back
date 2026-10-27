@@ -11,6 +11,7 @@ from app.repositories.race_status import RaceStatusRepository
 from app.repositories.schedule_event import ScheduleEventRepository
 from app.repositories.season import SeasonRepository
 from app.repositories.stage import StageRepository
+from app.repositories.static_page import StaticPageRepository
 from app.repositories.user import UserRepository
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "ScheduleEventRepository",
     "StageRepository",
     "UserRepository",
+    "StaticPageRepository",
 ]

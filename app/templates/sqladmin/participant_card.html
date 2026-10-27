@@ -125,6 +125,16 @@
 {{ super() }}
 <script>
 (function(){
+    // ═══ Автооткрытие карточки по ?open=ID ═══
+  var urlParams = new URLSearchParams(window.location.search);
+  var openId = urlParams.get('open');
+  if (openId) {
+    setTimeout(function() {
+      var btn = document.querySelector('.view-participant[data-id="' + openId + '"]');
+      if (btn) btn.click();
+    }, 100);
+  }
+
   // ═══ 1. Поиск ═══
   var searchInput = document.getElementById('participantSearch');
   if (searchInput) {
