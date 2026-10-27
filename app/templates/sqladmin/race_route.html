@@ -1,5 +1,6 @@
 {% extends "sqladmin/layout.html" %}
 {% block content %}
+<div id="stageRoutePage" class="col-12 d-block">
 <section class="mb-3" aria-labelledby="importTitle">
   <h3 id="importTitle">Импорт маршрута</h3>
   <form id="routeImport" data-csrf="{{ route_import_csrf }}" class="row g-2 align-items-end">
@@ -95,6 +96,7 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}
 
