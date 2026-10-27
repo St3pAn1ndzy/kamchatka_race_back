@@ -6,6 +6,7 @@ from app.db.models.device import Device
 from app.db.models.discipline import Discipline
 from app.db.models.faq_item import FAQItem
 from app.db.models.fun_subscription import FanSubscription
+from app.db.models.guest_item import GuestItem
 from app.db.models.news_post import NewsPost
 from app.db.models.notification import NotificationQueue
 from app.db.models.official_mark import OfficialMark
@@ -50,4 +51,5 @@ __all__ = [
     "UserFeedback",
     "StageRoutePoint",
     "StaticPage",
+    "GuestItem",
 ]
