@@ -2,6 +2,7 @@
 
 import re
 from contextlib import asynccontextmanager
+from html.parser import HTMLParser
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -14,6 +15,58 @@ from sqladmin.authentication import AuthenticationBackend
 from app.admin_panel.views.race_route import RaceRouteView
 
 GPX = b'<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><rte><rtept lat="53" lon="158"/><rtept lat="54" lon="159"/></rte></gpx>'
+
+
+async def test_import_and_map_share_full_width_column(route_client):
+    """Общая сетка админки получает одну колонку с формой и картой, а не вложенную строку"""
+
+    class LayoutParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.parents = []
+            self.found = {}
+
+        def handle_starttag(self, tag, attrs):
+            attributes = dict(attrs)
+            if attributes.get("id") in {"stageRoutePage", "routeImport", "routeMap"}:
+                self.found[attributes["id"]] = list(self.parents)
+            if tag not in {
+                "area",
+                "base",
+                "br",
+                "col",
+                "embed",
+                "hr",
+                "img",
+                "input",
+                "link",
+                "meta",
+                "param",
+                "source",
+                "track",
+                "wbr",
+            }:
+                self.parents.append((tag, attributes))
+
+        def handle_endtag(self, tag):
+            for i in range(len(self.parents) - 1, -1, -1):
+                if self.parents[i][0] == tag:
+                    del self.parents[i:]
+                    break
+
+    client, _ = route_client
+    response = await client.get("/admin/race-route", headers={"X-Test-Admin": "yes"})
+    assert response.status_code == 200
+    parser = LayoutParser()
+    parser.feed(response.text)
+    assert "stageRoutePage" in parser.found
+    assert "row-deck" in parser.found["stageRoutePage"][-1][1].get("class", "").split()
+    for target in ("routeImport", "routeMap"):
+        assert any(attrs.get("id") == "stageRoutePage" for _, attrs in parser.found[target])
+        column = next(
+            attrs for _, attrs in parser.found[target] if attrs.get("id") == "stageRoutePage"
+        )
+        assert "d-block" in column.get("class", "").split()
 
 
 @pytest.fixture
