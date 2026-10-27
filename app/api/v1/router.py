@@ -12,6 +12,7 @@ from app.api.v1 import (
     auth,
     content,
     directory,
+    guests,
     map,
     news,
     notifications,
@@ -37,3 +38,4 @@ api_router.include_router(directory.router)
 api_router.include_router(stages.router)
 api_router.include_router(viewer_locations.router)
 api_router.include_router(pages.router)
+api_router.include_router(guests.router)
