@@ -29,6 +29,7 @@ from app.db.base import async_engine
 from app.logging_setup import setup_logging
 from app.security.login_rate_limit import AdminLoginRateLimiter, LoginRateLimitMiddleware
 from app.services.cache import cache
+from app.services.media_storage import media_storage
 
 logger = logging.getLogger("avacha")
 
@@ -124,6 +125,11 @@ def create_app() -> FastAPI:
     replace_default_validation_error_schema(app)
 
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
+    app.mount(
+        "/media",
+        StaticFiles(directory=str(media_storage.root)),
+        name="media",
+    )
 
     Instrumentator(
         should_group_status_codes=True,
