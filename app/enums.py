@@ -105,3 +105,9 @@ class PublicationStatus(StrEnum):
     DRAFT = "draft"
     PROVISIONAL = "provisional"
     OFFICIAL = "official"
+
+
+class GuestItemSection(StrEnum):
+    CLOTHING = "clothing"
+    SHOES = "shoes"
+    EQUIPMENT = "equipment"
