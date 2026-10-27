@@ -18,6 +18,7 @@ from app.services.cache import cache
 class OfficialMarkAdmin(BaseAdminView, model=OfficialMark):
     name = "Отметка"
     name_plural = "Отметки"
+    identity = "official-mark"
     icon = "fa-solid fa-stopwatch"
     category = CategoryAdminEnum.CATEGORY_RESULTS
     category_icon = "fa-solid fa-trophy"
@@ -223,6 +224,7 @@ class OfficialMarkAdmin(BaseAdminView, model=OfficialMark):
 class TrackPointAdmin(BaseAdminView, model=TrackPoint):
     name = "Точка трека"
     name_plural = "Точки трека"
+    identity = "track-point"
     icon = "fa-solid fa-location-dot"
     category = CategoryAdminEnum.CATEGORY_RESULTS
     category_icon = "fa-solid fa-trophy"

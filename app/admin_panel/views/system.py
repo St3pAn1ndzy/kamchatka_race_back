@@ -14,6 +14,7 @@ from app.db.models.audit_log import AuditLog
 class AdminAccountAdmin(BaseAdminView, model=AdminAccount):
     name = "Администратор"
     name_plural = "Администраторы"
+    identity = "admin-account"
     icon = "fa-solid fa-user-shield"
     category = CategoryAdminEnum.CATEGORY_SYSTEM
     category_icon = "fa-solid fa-gear"

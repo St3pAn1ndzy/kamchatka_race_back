@@ -16,7 +16,7 @@ from app.admin_panel.formatters import (
     fmt_stage_status,
 )
 from app.admin_panel.utils import get_int_param
-from app.db.models import Checkpoint, Discipline, Season, Stage
+from app.db.models import Checkpoint, Discipline, Season, Stage, StageRoutePoint
 from app.enums import PublicationStatus, StageStatus
 from app.services.cache import cache
 
@@ -326,7 +326,11 @@ class StageAdmin(BaseAdminView, model=Stage):
             )
         ],
         Stage.route_points: lambda m, a: [
-            Markup(f'<span class="text-muted">Точек маршрута: {len(m.route_points)}</span>')
+            Markup(
+                f'<a href="/admin-panel/stage-route-point/list?stage_id={m.id}" '
+                f'class="text-primary text-decoration-none">'
+                f"Точек маршрута: {len(m.route_points)}</a>"
+            )
         ],
     }
     column_details_list = [
@@ -344,7 +348,7 @@ class StageAdmin(BaseAdminView, model=Stage):
     ]
     column_searchable_list = [Stage.name]
     column_sortable_list = [Stage.order_index, Stage.number, Stage.start_time]
-    column_selectinload = [Stage.season]
+    column_selectinload = [Stage.season, Stage.checkpoints, Stage.route_points]
 
     form_columns = [
         Stage.season,
@@ -405,3 +409,53 @@ class StageAdmin(BaseAdminView, model=Stage):
         await cache.delete("public:results:standings")
         await cache.invalidate_pattern("public:results:leaderboard:*")
         return await super().after_model_change(data, model, is_created, request)
+
+
+class StageRoutePointAdmin(BaseAdminView, model=StageRoutePoint):
+    name = "Точка маршрута"
+    name_plural = "Точки маршрута"
+    identity = "stage-route-point"
+    icon = "fa-solid fa-route"
+    category = CategoryAdminEnum.CATEGORY_EVENT
+    category_icon = "fa-solid fa-calendar-days"
+
+    can_create = False
+    can_edit = False
+    can_delete = False
+
+    column_list = [
+        StageRoutePoint.stage,
+        StageRoutePoint.position,
+        StageRoutePoint.lat,
+        StageRoutePoint.lon,
+    ]
+    column_labels = {
+        StageRoutePoint.stage: "Этап",
+        StageRoutePoint.position: "Позиция",
+        StageRoutePoint.lat: "Широта",
+        StageRoutePoint.lon: "Долгота",
+    }
+    column_formatters = {
+        StageRoutePoint.stage: lambda m, a: (
+            Markup(
+                f'<a href="/admin-panel/stage/details/{m.stage.id}" class="text-primary text-decoration-none">'
+                f"Этап {m.stage.number}</a>"
+            )
+            if m.stage
+            else "—"
+        ),
+    }
+    column_details_list = [
+        StageRoutePoint.stage,
+        StageRoutePoint.position,
+        StageRoutePoint.lat,
+        StageRoutePoint.lon,
+    ]
+    column_default_sort = (StageRoutePoint.stage_id, False)
+    column_selectinload = [StageRoutePoint.stage]
+
+    def list_query(self, request: Request):
+        stmt = select(self.model)
+        if sid := get_int_param(request, "stage_id"):
+            stmt = stmt.where(StageRoutePoint.stage_id == sid)
+        return stmt

@@ -43,6 +43,7 @@ from app.db.models import (
     UserFeedback,
     ViewerLocation,
 )
+from app.db.models.guest_item import GuestItem
 from app.db.models.static_page import StaticPage
 from app.enums import (
     CheckpointKind,
@@ -144,6 +145,7 @@ NEWS_TITLES = [
     "Финиш гонки позади: итоги «Авачи 2027»",
 ]
 
+# Обычный FAQ (без getting_here)
 FAQ_ITEMS = [
     (
         "Как добраться до места старта гонки?",
@@ -174,6 +176,92 @@ FAQ_ITEMS = [
         "Рекомендуем бронировать заранее — в дни фестиваля спрос высокий.",
         "Проживание",
     ),
+]
+
+# FAQ для страницы «Как добраться» (category="getting_here")
+GETTING_HERE_FAQ = [
+    (
+        "Где находится Камчатка",
+        "Камчатка — полуостров на северо-востоке России. Омывается Тихим океаном, "
+        "Охотским и Беринговым морями.",
+    ),
+    (
+        "Как добраться до полуострова",
+        "Самолёт — самый быстрый способ. Прямые рейсы из Москвы (~9 часов) и из Владивостока.",
+    ),
+    (
+        "Как купить самые дешёвые билеты",
+        "Билеты дешевле при покупке за 2-3 месяца. Следите за акциями авиакомпаний.",
+    ),
+    (
+        "Каким транспортом можно воспользоваться",
+        "Внутри региона — автобусы, такси, аренда авто. До некоторых локаций — только вертолёт.",
+    ),
+    (
+        "Где можно остановиться",
+        "Гостиницы, хостелы, гостевые дома. Бронируйте заранее — в дни фестиваля спрос высокий.",
+    ),
+]
+
+SAFETY_FAQ = [
+    (
+        "Погода и метели",
+        "Камчатская погода крайне переменчива. Метели и сильный ветер могут начаться внезапно. "
+        "Обязательно следите за прогнозом и не выходите на маршруты в плохую видимость.",
+    ),
+    (
+        "Лавины",
+        "В горной местности всегда есть риск схода лавин. Не выходите за пределы оборудованных трасс "
+        "и слушайте рекомендации спасателей.",
+    ),
+    (
+        "Сейсмичность",
+        "Камчатка — сейсмоактивный регион. При землетрясении не паникуйте, не пользуйтесь лифтами "
+        "и держитесь подальше от окон и тяжелых предметов.",
+    ),
+    (
+        "Изоляция и рельеф",
+        "Многие локации находятся вдали от цивилизации, сотовая связь может отсутствовать. "
+        "Всегда сообщайте о своих планах и имейте при себе запас еды и воды.",
+    ),
+    (
+        "Риски вне зависимости от сезона",
+        "Дикая природа требует уважения. Не приближайтесь к диким животным, не оставляйте мусор "
+        "и строго соблюдайте правила безопасности на вулканах.",
+    ),
+]
+
+CONTACT_BLOCKS = [
+    {
+        "icon": "email",
+        "title": "Написать на почту",
+        "subtitle": "info@sleddog-russia.ru",
+        "url": "mailto:info@sleddog-russia.ru",
+    },
+    {
+        "icon": "vk",
+        "title": "Сообщения сообщества",
+        "subtitle": "Ответим во ВКонтакте",
+        "url": "https://vk.me/avacha.race",
+    },
+    {
+        "icon": "site",
+        "title": "sleddog-russia.ru",
+        "subtitle": "Официальный сайт",
+        "url": "https://sleddog-russia.ru/",
+    },
+    {
+        "icon": "vk",
+        "title": "vk.ru/avacha.race",
+        "subtitle": "Сообщество",
+        "url": "https://vk.com/avacha.race",
+    },
+    {
+        "icon": "telegram",
+        "title": "@avacha.race",
+        "subtitle": "Telegram",
+        "url": "https://t.me/avacha_race",
+    },
 ]
 
 VIEWER_LOCATIONS = [
@@ -267,6 +355,11 @@ async def _exists(session, model) -> bool:
     return result.scalar_one_or_none() is not None
 
 
+async def _exists_by_slug(session, model, slug: str) -> bool:
+    result = await session.execute(select(model.id).where(model.slug == slug).limit(1))
+    return result.scalar_one_or_none() is not None
+
+
 async def _count(session, model) -> int:
     result = await session.execute(select(model.id))
     return len(result.all())
@@ -317,6 +410,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                 FAQItem,
                 ViewerLocation,
                 StaticPage,
+                GuestItem,
                 AdminAccount,
                 User,
             ]
@@ -868,7 +962,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         else:
             logger.info("ScheduleEvent уже есть — пропускаю")
 
-        # --- FAQItem ---
+        # --- FAQItem (обычный + getting_here + safety) ---
         if not await _exists(session, FAQItem):
             faq_items = [
                 FAQItem(
@@ -880,6 +974,28 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                 )
                 for i, (question, answer, category) in enumerate(FAQ_ITEMS)
             ]
+            # + getting_here
+            for i, (question, answer) in enumerate(GETTING_HERE_FAQ):
+                faq_items.append(
+                    FAQItem(
+                        question=question,
+                        answer=answer,
+                        category="getting_here",
+                        order_index=i,
+                        is_public=True,
+                    )
+                )
+            # + safety
+            for i, (question, answer) in enumerate(SAFETY_FAQ):
+                faq_items.append(
+                    FAQItem(
+                        question=question,
+                        answer=answer,
+                        category="safety",
+                        order_index=i,
+                        is_public=True,
+                    )
+                )
             session.add_all(faq_items)
             await session.flush()
             _note_created(created, "FAQItem", len(faq_items))
@@ -916,25 +1032,139 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         else:
             logger.info("ViewerLocation уже есть — пропускаю")
 
-        # --- StaticPage: «О гонке» ---
-        if not await _exists(session, StaticPage):
-            cover = _copy_seed_media("pages", "about_cover.jpg", "pages")
-            # Копируем фото для галереи (они используются в Markdown-тексте)
-            for n in range(1, 5):
-                _copy_seed_media("pages", f"about{n}.jpg", "pages")
-
-            about_page = StaticPage(
-                slug="about",
-                title="О гонке «Авача 2027»",
-                content=ABOUT_PAGE_CONTENT.strip(),
-                cover_url=cover,
-                is_published=True,
+        # --- StaticPage: «О гонке» + страницы раздела «Гостям» ---
+        pages_to_create = [
+            # (slug, title, cover_file, content, blocks)
+            (
+                "about",
+                "О гонке «Авача 2027»",
+                "about_cover.jpg",
+                ABOUT_PAGE_CONTENT.strip(),
+                [],
+            ),
+            ("guests", "Гостям", "guests_cover.jpg", "Добро пожаловать на Камчатку!", []),
+            ("guests-getting-here", "Как добраться", "getting_here_cover.jpg", "", []),
+            ("guests-what-to-bring", "Что взять с собой", "what_to_bring_cover.jpg", "", []),
+            ("guests-safety", "Безопасность зимой", "safety_cover.jpg", "", []),
+            ("faq", "Ответы на частые вопросы", "faq_cover.jpg", "", []),
+            (
+                "contacts",
+                "Контакты",
+                "contacts_cover.jpg",
+                "",
+                CONTACT_BLOCKS,
+            ),
+        ]
+        for slug, title, cover_file, content, blocks in pages_to_create:
+            if await _exists_by_slug(session, StaticPage, slug):
+                continue
+            cover_url = _copy_seed_media("pages", cover_file, "pages") if cover_file else None
+            session.add(
+                StaticPage(
+                    slug=slug,
+                    title=title,
+                    content=content,
+                    cover_url=cover_url,
+                    blocks=blocks,
+                    is_published=True,
+                )
             )
-            session.add(about_page)
-            await session.flush()
             _note_created(created, "StaticPage", 1)
+        await session.flush()
+
+        # --- GuestItem: Что взять с собой ---
+        if not await _exists(session, GuestItem):
+            guest_items = [
+                # Одежда
+                GuestItem(
+                    section="clothing",
+                    title="Первый слой",
+                    text="Качественное термобелье (синтетика или шерсть мериноса), которое отводит влагу.",
+                    order_index=1,
+                    image_url=_copy_seed_media("guests", "clothing1.jpg", "guests"),
+                ),
+                GuestItem(
+                    section="clothing",
+                    title="Второй слой",
+                    text="Плотная флисовая кофта или свитер из шерсти.",
+                    order_index=2,
+                ),
+                GuestItem(
+                    section="clothing",
+                    title="Верхний слой",
+                    text="Тёплая пуховая куртка (пух-перо) с глубоким капюшоном и непродуваемые утеплённые штаны.",
+                    order_index=3,
+                ),
+                GuestItem(
+                    section="clothing",
+                    title="Головной убор и аксессуары",
+                    text="Тёплая шапка, закрывающая уши, флисовый шарф и тёплые варежки.",
+                    order_index=4,
+                ),
+                GuestItem(
+                    section="clothing",
+                    title="Для отдыха",
+                    text="Купальник и лёгкие тапочки — зимой на Камчатке популярны купания в термальных источниках.",
+                    order_index=5,
+                ),
+                # Обувь
+                GuestItem(
+                    section="shoes",
+                    title="Для города и полноценных прогулок",
+                    text="Кожаные утеплённые ботинки или высокие сапоги с толстой нескользящей подошвой (из термопластичной резины или с глубоким протектором). Утеплитель: натуральный мех или плотная шерсть. Обувь должна быть высокой — выше щиколотки.",
+                    order_index=1,
+                    image_url=_copy_seed_media("guests", "shoes1.jpg", "guests"),
+                ),
+                GuestItem(
+                    section="shoes",
+                    title="Для активного отдыха, экскурсий",
+                    text="Специальные зимние / экспедиционные ботинки с хорошим температурным запасом. Сапоги из ЭВА с тёплым многослойным вкладышем — незаменимы в сильный мороз, когда вы долго стоите на улице, или при поездках на снегоходах. Высокие треккинговые ботинки с мембраной (Gore-Tex) и качественным утеплителем (на тинсулейте), если планируются активные прогулки по утоптанному снегу.",
+                    order_index=2,
+                ),
+                GuestItem(
+                    section="shoes",
+                    title="Дополнительная обувь",
+                    text="Легкие кроссовки или ботинки для помещений / отеля. Сланцы / шлепанцы — пригодятся, если вы собираетесь в термальные источники.",
+                    order_index=3,
+                ),
+                # Снаряжение
+                GuestItem(
+                    section="equipment",
+                    title="Мощный Powerbank",
+                    text="На холоде аккумуляторы разряжаются очень быстро. Держите пауэрбанк во внутреннем кармане ближе к телу.",
+                    order_index=1,
+                    image_url=_copy_seed_media("guests", "equipment1.jpg", "guests"),
+                ),
+                GuestItem(
+                    section="equipment",
+                    title="Термос",
+                    text="Горячий чай или морс на маршруте, во время катания на снегоходах или поездки к вулканам.",
+                    order_index=2,
+                ),
+                GuestItem(
+                    section="equipment",
+                    title="Солнцезащитные очки",
+                    text="Зимой солнце от снега светит очень ярко, ультрафиолет сильный.",
+                    order_index=3,
+                ),
+                GuestItem(
+                    section="equipment",
+                    title="Гигиеническая помада и жирный защитный крем",
+                    text="От мороза и ветра губы и лицо обветриваются мгновенно.",
+                    order_index=4,
+                ),
+                GuestItem(
+                    section="equipment",
+                    title="Аптечка",
+                    text="Базовый набор лекарств + таблетки от укачивания.",
+                    order_index=5,
+                ),
+            ]
+            session.add_all(guest_items)
+            await session.flush()
+            _note_created(created, "GuestItem", len(guest_items))
         else:
-            logger.info("StaticPage уже есть — пропускаю")
+            logger.info("GuestItem уже есть — пропускаю")
 
         # --- Один commit в конце ---
         await session.commit()
@@ -960,6 +1190,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             "FAQItem",
             "ViewerLocation",
             "StaticPage",
+            "GuestItem",
         ]:
             print(f"  {key}: {created.get(key, 0)}")
 
