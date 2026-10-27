@@ -15,12 +15,12 @@ from app.api.v1 import (
     map,
     news,
     notifications,
+    pages,
     participants,
     results,
     schedule,
     stages,
     viewer_locations,
-    pages,
 )
 
 api_router = APIRouter(prefix="/api/v1", tags=["v1"])
