@@ -35,6 +35,7 @@ class CheckpointKind(StrEnum):
     START = "start"
     FINISH = "finish"
     CHECKPOINT = "checkpoint"
+    CAMP = "camp"
 
 
 class NotificationStatus(StrEnum):
