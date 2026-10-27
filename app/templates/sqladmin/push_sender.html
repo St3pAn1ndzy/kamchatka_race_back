@@ -1,100 +1,103 @@
 {% extends "sqladmin/layout.html" %}
 
 {% block content %}
+<div class="w-100">
 
-{% if success_count is not none %}
-<div class="alert alert-success d-flex align-items-center gap-3 border-success-subtle mb-4 shadow-sm" role="alert">
-  <i class="fa-regular fa-circle-check fs-3 text-success"></i>
-  <div>
-    <strong class="fs-4">Успешно отправлено!</strong><br>
-    Уведомления поставлены в очередь для <strong>{{ success_count }}</strong> пользователей.
-  </div>
-</div>
-{% endif %}
-
-{% if request.query_params.get('error') == 'empty' %}
-<div class="alert alert-danger d-flex align-items-center gap-3 border-danger-subtle mb-4 shadow-sm" role="alert">
-  <i class="fa-solid fa-triangle-exclamation fs-3 text-danger"></i>
-  <div><strong>Ошибка:</strong> Заголовок и текст не могут быть пустыми!</div>
-</div>
-{% endif %}
-
-<div class="row row-cards justify-content-center">
-
-  <!-- ЛЕВАЯ КОЛОНКА: ФОРМА (Занимает больше места) -->
-  <div class="col-lg-7 col-xl-6">
-    <div class="card shadow-sm border-0">
-      <div class="card-header border-bottom-0 pb-0 pt-3">
-        <h3 class="card-title fs-2">
-          <i class="fa-solid fa-bullhorn me-2 text-primary"></i>Новое Push-уведомление
-        </h3>
-      </div>
-      <div class="card-body">
-        <form action="/admin-panel/push-sender" method="POST">
-
-          <div class="mb-4">
-            <label class="form-label required fw-bold">Аудитория</label>
-            <select name="target" class="form-select form-select-lg">
-              <option value="all">Все подписчики (у кого включен Push)</option>
-              {% for p in participants %}
-              <option value="{{ p.id }}">Только болельщики: №{{ p.number }} {{ p.name }}</option>
-              {% endfor %}
-            </select>
-            <div class="form-text text-muted">Выберите, кому доставить уведомление.</div>
-          </div>
-
-          <div class="mb-3">
-            <div class="d-flex justify-content-between">
-              <label class="form-label required fw-bold">Заголовок</label>
-              <span class="text-muted small" id="titleCount">0 / 100</span>
-            </div>
-            <input type="text" name="title" id="pushTitle" class="form-control form-control-lg"
-                   placeholder="Например: Старт этапа 2!" required maxlength="100">
-          </div>
-
-          <div class="mb-4">
-             <div class="d-flex justify-content-between">
-              <label class="form-label required fw-bold">Текст сообщения</label>
-              <span class="text-muted small" id="bodyCount">0 / 250</span>
-            </div>
-            <textarea name="body" id="pushBody" class="form-control form-control-lg" rows="5"
-                      placeholder="Например: Участник №2 Мария Кравцова вышла на старт. Следите за гонкой на карте!"
-                      required maxlength="250"></textarea>
-          </div>
-
-          <div class="form-footer">
-            <button type="submit" class="btn btn-primary btn-lg w-100 shadow-sm">
-              <i class="fa-solid fa-paper-plane me-2"></i> Отправить уведомление
-            </button>
-          </div>
-
-        </form>
-      </div>
+  {% if success_count is not none %}
+  <div class="alert alert-success d-flex align-items-center gap-3 border-success-subtle mb-3 shadow-sm" role="alert">
+    <i class="fa-regular fa-circle-check fs-3 text-success"></i>
+    <div>
+      <strong class="fs-4">Успешно отправлено!</strong><br>
+      Уведомления поставлены в очередь для <strong>{{ success_count }}</strong> пользователей.
     </div>
   </div>
+  {% endif %}
 
-  <!-- ПРАВАЯ КОЛОНКА: ПРЕВЬЮ (Sticky) -->
-  <div class="col-lg-5 col-xl-4">
-    <!-- sticky-top делает так, чтобы телефон всегда был на виду при скролле -->
-    <div class="card sticky-top shadow-sm border-0" style="top: 1rem;">
-      <div class="card-header border-bottom-0 pb-0">
-        <h3 class="card-title text-muted">Предпросмотр</h3>
+  {% if request.query_params.get('error') == 'empty' %}
+  <div class="alert alert-danger d-flex align-items-center gap-3 border-danger-subtle mb-3 shadow-sm" role="alert">
+    <i class="fa-solid fa-triangle-exclamation fs-3 text-danger"></i>
+    <div><strong>Ошибка:</strong> Заголовок и текст не могут быть пустыми!</div>
+  </div>
+  {% endif %}
+
+  <div class="row row-cards">
+
+    <!-- ЛЕВАЯ КОЛОНКА: ФОРМА (Занимает больше места) -->
+    <div class="col-lg-7 col-xl-6">
+      <div class="card shadow-sm border-0">
+        <div class="card-header border-bottom-0 pb-0 pt-3">
+          <h3 class="card-title fs-2">
+            <i class="fa-solid fa-bullhorn me-2 text-primary"></i>Новое Push-уведомление
+          </h3>
+        </div>
+        <div class="card-body">
+          <form action="/admin-panel/push-sender" method="POST">
+
+            <div class="mb-4">
+              <label class="form-label required fw-bold">Аудитория</label>
+              <select name="target" class="form-select form-select-lg">
+                <option value="all">Все подписчики (у кого включен Push)</option>
+                {% for p in participants %}
+                <option value="{{ p.id }}">Только болельщики: №{{ p.number }} {{ p.name }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text text-muted">Выберите, кому доставить уведомление.</div>
+            </div>
+
+            <div class="mb-3">
+              <div class="d-flex justify-content-between">
+                <label class="form-label required fw-bold">Заголовок</label>
+                <span class="text-muted small" id="titleCount">0 / 100</span>
+              </div>
+              <input type="text" name="title" id="pushTitle" class="form-control form-control-lg"
+                     placeholder="Например: Старт этапа 2!" required maxlength="100">
+            </div>
+
+            <div class="mb-4">
+               <div class="d-flex justify-content-between">
+                <label class="form-label required fw-bold">Текст сообщения</label>
+                <span class="text-muted small" id="bodyCount">0 / 250</span>
+              </div>
+              <textarea name="body" id="pushBody" class="form-control form-control-lg" rows="5"
+                        placeholder="Например: Участник №2 Мария Кравцова вышла на старт. Следите за гонкой на карте!"
+                        required maxlength="250"></textarea>
+            </div>
+
+            <div class="form-footer">
+              <button type="submit" class="btn btn-primary btn-lg w-100 shadow-sm">
+                <i class="fa-solid fa-paper-plane me-2"></i> Отправить уведомление
+              </button>
+            </div>
+
+          </form>
+        </div>
       </div>
-      <div class="card-body d-flex justify-content-center bg-light rounded-bottom">
-        <!-- Телефон -->
-        <div class="phone-preview shadow-lg" style="width: 280px;">
-          <div class="phone-preview-screen bg-white p-3" style="min-height: 300px;">
-             <div class="d-flex align-items-center gap-2 mb-3 border-bottom pb-2">
-               <div class="avatar avatar-xs bg-primary rounded"></div>
-               <div class="fw-bold small">Авача</div>
-               <div class="ms-auto text-muted small">сейчас</div>
-             </div>
-            <div class="preview-title fw-bold mb-1" id="previewTitle" style="font-size: 1rem; color: #000;">Заголовок</div>
-            <div class="preview-body text-muted" id="previewBody" style="font-size: 0.9rem;">Текст сообщения появится здесь после ввода.</div>
+    </div>
+
+    <!-- ПРАВАЯ КОЛОНКА: ПРЕВЬЮ (Sticky) -->
+    <div class="col-lg-5 col-xl-4">
+      <!-- sticky-top делает так, чтобы телефон всегда был на виду при скролле -->
+      <div class="card sticky-top shadow-sm border-0" style="top: 1rem;">
+        <div class="card-header border-bottom-0 pb-0">
+          <h3 class="card-title text-muted">Предпросмотр</h3>
+        </div>
+        <div class="card-body d-flex bg-light rounded-bottom">
+          <!-- Телефон -->
+          <div class="phone-preview shadow-lg" style="width: 280px;">
+            <div class="phone-preview-screen bg-white p-3" style="min-height: 300px;">
+               <div class="d-flex align-items-center gap-2 mb-3 border-bottom pb-2">
+                 <div class="avatar avatar-xs bg-primary rounded"></div>
+                 <div class="fw-bold small">Авача</div>
+                 <div class="ms-auto text-muted small">сейчас</div>
+               </div>
+              <div class="preview-title fw-bold mb-1" id="previewTitle" style="font-size: 1rem; color: #000;">Заголовок</div>
+              <div class="preview-body text-muted" id="previewBody" style="font-size: 0.9rem;">Текст сообщения появится здесь после ввода.</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
   </div>
 
 </div>
