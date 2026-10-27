@@ -451,12 +451,14 @@ body {
   text-align: center;
   position: relative;
 }
+
+/* Входящая линия (от предыдущего этапа к текущему) */
 .stage-timeline-item::before {
   content: '';
   position: absolute;
   top: 10px;
-  left: 0;
-  right: 0;
+  right: 50%; /* Идет от центра влево */
+  width: 100%;
   height: 2px;
   background: #e2e8f0;
   z-index: 0;
@@ -464,13 +466,49 @@ body {
 [data-bs-theme="dark"] .stage-timeline-item::before {
   background: #2d3345;
 }
-.stage-timeline-item:first-child::before { left: 50%; }
-.stage-timeline-item:last-child::before { right: 50%; }
-.stage-timeline-item.is-done::before { background: var(--brand-primary); }
-.stage-timeline-item.is-active::before { background: var(--brand-primary); }
+/* У первого этапа нет входящей линии */
+.stage-timeline-item:first-child::before {
+  display: none;
+}
+
+/* Исходящая линия (от текущего этапа к следующему) */
+.stage-timeline-item::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 50%; /* Идет от центра вправо */
+  width: 100%;
+  height: 2px;
+  background: #e2e8f0;
+  z-index: 0;
+}
+[data-bs-theme="dark"] .stage-timeline-item::after {
+  background: #2d3345;
+}
+/* У последнего этапа нет исходящей линии */
+.stage-timeline-item:last-child::after {
+  display: none;
+}
+
+/* ═══ ЛОГИКА ОКРАШИВАНИЯ ═══ */
+
+/* Если этап ПРОЙДЕН (is-done): и входящая, и исходящая линии синие */
+.stage-timeline-item.is-done::before,
+.stage-timeline-item.is-done::after {
+  background: var(--brand-primary) !important;
+  z-index: 1;
+}
+
+/* Если этап АКТИВЕН (is-active): входящая линия синяя, а исходящая остается серой */
+.stage-timeline-item.is-active::before {
+  background: var(--brand-primary) !important;
+  z-index: 1;
+}
+
+/* Точка этапа должна быть ПОВЕРХ всех линий */
 .stage-timeline-dot {
   position: relative;
-  z-index: 1;
+  z-index: 2 !important;
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -491,6 +529,8 @@ body {
   background: var(--brand-primary);
   box-shadow: 0 0 0 4px rgba(0,90,156,0.2);
 }
+
+/* Текстовые подписи (оставляем без изменений) */
 .stage-timeline-date {
   font-size: 0.72rem;
   color: #9ca5b5;
