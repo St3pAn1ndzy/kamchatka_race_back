@@ -51,6 +51,7 @@ class StaticPageAdmin(BaseAdminView, model=StaticPage):
         StaticPage.title,
         StaticPage.content,
         StaticPage.cover_url,
+        StaticPage.blocks,
         StaticPage.is_published,
         StaticPage.created_at,
         StaticPage.updated_at,
@@ -62,6 +63,7 @@ class StaticPageAdmin(BaseAdminView, model=StaticPage):
         StaticPage.title,
         StaticPage.content,
         StaticPage.cover_url,
+        StaticPage.blocks,
         StaticPage.is_published,
     ]
     form_overrides = {
@@ -73,6 +75,10 @@ class StaticPageAdmin(BaseAdminView, model=StaticPage):
         StaticPage.content: {
             "rows": 20,
             "placeholder": "Текст в Markdown. Картинки вставляются как ![alt](/media/pages/img.jpg)",
+        },
+        StaticPage.blocks: {
+            "rows": 15,
+            "placeholder": '[{"icon": "email", "title": "...", "url": "..."}]',
         },
     }
 
