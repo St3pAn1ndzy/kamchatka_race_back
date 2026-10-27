@@ -1,6 +1,7 @@
 """Репозиторий состояния гонки"""
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.db.models.race_status import RaceStatus
 from app.enums import RaceState
@@ -13,8 +14,13 @@ class RaceStatusRepository(BaseRepository[RaceStatus]):
     model = RaceStatus
 
     async def get_current(self) -> RaceStatus | None:
-        """Получить единственную запись с текущим статусом гонки"""
-        stmt = select(RaceStatus).order_by(RaceStatus.id.asc()).limit(1)
+        """Получить единственную запись с текущим статусом гонки."""
+        stmt = (
+            select(RaceStatus)
+            .options(selectinload(RaceStatus.current_stage))
+            .order_by(RaceStatus.id.asc())
+            .limit(1)
+        )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
     def create_current(
