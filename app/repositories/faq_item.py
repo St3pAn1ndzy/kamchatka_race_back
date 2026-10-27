@@ -56,3 +56,16 @@ class FAQItemRepository(BaseRepository[FAQItem]):
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def list_all_by_category(self, category: str) -> list[FAQItem]:
+        """Все опубликованные вопросы в категории (без пагинации).
+
+        Для страниц, где нужен полный список — «Как добраться», «FAQ».
+        """
+        stmt = (
+            select(FAQItem)
+            .where(*self._public_filters(category))
+            .order_by(FAQItem.order_index.asc(), FAQItem.id.asc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
