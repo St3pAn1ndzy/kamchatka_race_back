@@ -3,6 +3,7 @@ from app.repositories.device import DeviceRepository
 from app.repositories.discipline import DisciplineRepository
 from app.repositories.faq_item import FAQItemRepository
 from app.repositories.fun_subscription import FanSubscriptionRepository
+from app.repositories.guest import GuestItemRepository
 from app.repositories.news_post import NewsPostRepository
 from app.repositories.notification_queue import NotificationQueueRepository
 from app.repositories.official_mark import OfficialMarkRepository
@@ -30,4 +31,5 @@ __all__ = [
     "StageRepository",
     "UserRepository",
     "StaticPageRepository",
+    "GuestItemRepository",
 ]
