@@ -31,6 +31,7 @@ from app.admin_panel.views.results import (
     TrackPointAdmin,
 )
 from app.admin_panel.views.results_admin import ResultsAdminView
+from app.admin_panel.views.static_pages import StaticPageAdmin
 from app.admin_panel.views.statistics_view import StatisticsView
 from app.admin_panel.views.system import (
     AdminAccountAdmin,
@@ -76,4 +77,5 @@ VIEWS = [
     ResultsAdminView,
     ContentAdminView,
     StatisticsView,
+    StaticPageAdmin,
 ]
