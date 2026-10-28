@@ -25,6 +25,10 @@ StageId = Annotated[int, Query(gt=0, le=MAX_ID)]
 async def map_participants(
     session: SessionDep,
     stage_id: Annotated[int | None, Query(gt=0, le=MAX_ID)] = None,
+    discipline_ids: Annotated[
+        list[int] | None,
+        Query(description="Фильтр по дисциплинам"),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=1000)] = 500,
     offset: Annotated[int, Query(ge=0, le=MAX_OFFSET)] = 0,
 ) -> MapParticipantsResponse:
@@ -36,13 +40,15 @@ async def map_participants(
         directory = PublicDirectoryService(session)
         active = await directory.get_active_stage()
         if active is None:
-            raise HTTPException(
-                status.HTTP_404_NOT_FOUND,
-                "Активный этап не найден",
-            )
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Активный этап не найден")
         stage_id = active.id
 
-    return await PublicMapService(session).get_participants(stage_id, limit=limit, offset=offset)
+    return await PublicMapService(session).get_participants(
+        stage_id,
+        discipline_ids=discipline_ids,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(
