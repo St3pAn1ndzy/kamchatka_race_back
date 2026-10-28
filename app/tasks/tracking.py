@@ -69,6 +69,8 @@ async def _poll_iridium() -> dict:
             ingested = 0
             duplicated = 0
             metrics = TrackingMetricsService(session)
+            # Один порядок блокировок для всего пакета предотвращает взаимное ожидание этапов
+            await metrics.lock_stages([d.stage_id for d in devices if d.stage_id is not None])
 
             for pos in sorted(positions, key=lambda position: position.recorded_at):
                 device = devices_by_number.get(pos.iridium_number)

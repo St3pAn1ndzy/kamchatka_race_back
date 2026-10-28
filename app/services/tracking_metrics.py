@@ -1,8 +1,10 @@
 import math
 from collections.abc import Sequence
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.stage import Stage
 from app.db.models.stage_route_point import StageRoutePoint
 from app.db.models.track_point import TrackPoint
 from app.repositories.stage_route_point import StageRoutePointRepository
@@ -66,12 +68,28 @@ def route_progress_km(
 
 class TrackingMetricsService:
     def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self._locked_stages: set[int] = set()
         self.track_points = TrackPointRepository(session)
         self.routes = StageRoutePointRepository(session)
         self._last_points: dict[tuple[int, int | None, int | None], TrackPoint | None] = {}
         self._routes_by_stage: dict[int, list[StageRoutePoint]] = {}
 
+    async def lock_stages(self, stage_ids: list[int]) -> None:
+        """Блокирует этапы до чтения геометрии, чтобы импорт не обогнал расчёт GPS"""
+        pending = sorted(set(stage_ids) - self._locked_stages)
+        if pending:
+            await self.session.scalar(
+                select(Stage.id)
+                .where(Stage.id.in_(pending))
+                .order_by(Stage.id)
+                .with_for_update(read=True, key_share=True)
+            )
+            self._locked_stages.update(pending)
+
     async def fill_metrics(self, point: TrackPoint) -> None:
+        if point.stage_id is not None:
+            await self.lock_stages([point.stage_id])
         key = (point.device_id, point.stage_id, point.participant_id)
         if key not in self._last_points:
             self._last_points[key] = await self.track_points.latest_for_assignment(*key)
