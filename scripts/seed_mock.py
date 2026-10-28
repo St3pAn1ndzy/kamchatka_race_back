@@ -283,64 +283,49 @@ CONTACT_BLOCKS = [
 ]
 
 VIEWER_LOCATIONS = [
-    # Сцены
+    # ═══ Сцены (category=stages) ═══
     {
         "name": "Главная сцена",
         "kind": ViewerLocationKind.FESTIVAL,
         "category": ViewerLocationCategory.STAGES,
         "description": "Концерты и главные события фестиваля",
-        "lat": 53.000,
-        "lon": 158.000,
+        "lat": 53.0960,
+        "lon": 158.6370,
     },
-    {
-        "name": "Шатёр",
-        "kind": ViewerLocationKind.FESTIVAL,
-        "category": ViewerLocationCategory.STAGES,
-        "description": "Лекции и камерные выступления",
-        "lat": 53.001,
-        "lon": 158.001,
-    },
-    # Площадки
+    # ═══ Площадки (category=areas) ═══
     {
         "name": "Фотозона",
         "kind": ViewerLocationKind.FESTIVAL,
         "category": ViewerLocationCategory.AREAS,
         "description": "Оформленная площадка для фото",
-        "lat": 53.002,
-        "lon": 158.002,
+        "lat": 53.0954,
+        "lon": 158.6362,
     },
     {
         "name": "Этнозона",
         "kind": ViewerLocationKind.FESTIVAL,
         "category": ViewerLocationCategory.AREAS,
         "description": "Традиционные ремёсла и выставки",
-        "lat": 53.003,
-        "lon": 158.003,
+        "lat": 53.0959,
+        "lon": 158.6356,
     },
-    # Еда
+    # ═══ Еда (category=food) ═══
     {
         "name": "Фудкорт",
         "kind": ViewerLocationKind.FESTIVAL,
         "category": ViewerLocationCategory.FOOD,
         "description": "Горячее питание и напитки",
-        "lat": 53.004,
-        "lon": 158.004,
+        "lat": 53.0968,
+        "lon": 158.6364,
     },
-    # Детям
+    # ═══ Детям (category=kids) ═══
     {
         "name": "Детская зона",
         "kind": ViewerLocationKind.FESTIVAL,
         "category": ViewerLocationCategory.KIDS,
         "description": "Анимация и игры для детей",
-        "lat": 53.005,
-        "lon": 158.005,
-    },
-    {
-        "name": "Старт гонки",
-        "kind": ViewerLocationKind.START,
-        "category": ViewerLocationCategory.OTHER,
-        "lat": 53.096,
-        "lon": 158.637,
+        "lat": 53.0949,
+        "lon": 158.6378,
     },
 ]
 
@@ -597,12 +582,29 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
 
         # --- Загрузка реального маршрута из JSON ---
         route_json = {}
-        if ROUTE_JSON_PATH.exists():
-            with open(ROUTE_JSON_PATH, encoding="utf-8") as f:
-                route_json = json.load(f)
-        else:
-            logger.warning(
-                "Файл data/route-kamchatka.json не найден! Будут сгенерированы прямые линии."
+        if not ROUTE_JSON_PATH.exists():
+            raise RuntimeError(
+                f"Файл {ROUTE_JSON_PATH} не найден. "
+                f"Сид не может продолжить без реальной геометрии маршрута. "
+                f"Проверь, что в docker-compose.yaml у сервиса api смонтирован ./data:/app/data"
+            )
+
+        with open(ROUTE_JSON_PATH, encoding="utf-8") as f:
+            route_json = json.load(f)
+
+        # ═══ Валидация: все этапы должны иметь координаты ═══
+        missing_stages = [
+            s_data["number"]
+            for s_data in STAGES_DATA
+            if not any(
+                js["number"] == s_data["number"] and js.get("coordinates")
+                for js in route_json.get("stages", [])
+            )
+        ]
+        if missing_stages:
+            raise RuntimeError(
+                f"В {ROUTE_JSON_PATH} нет координат для этапов: {missing_stages}. "
+                f"Проверь файл — все 6 этапов должны иметь массив coordinates."
             )
 
         # --- Checkpoint & StageRoutePoint ---
