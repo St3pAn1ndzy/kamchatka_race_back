@@ -13,12 +13,14 @@ from app.api.deps import (
 from app.db.models.user import User
 from app.enums import ParticipantStatus
 from app.schemas.participants import (
+    FavoriteIdsResponse,
     FavoriteResponse,
     ParticipantDetail,
     ParticipantListItem,
     ParticipantSupporters,
     SupporterRatingEntry,
 )
+from app.services.cache import cache
 
 router = APIRouter(prefix="/participants", tags=["participants"])
 
@@ -165,6 +167,7 @@ async def favorite_add(
             detail="Participant not found",
         )
     created = await fans.add(user.id, participant_id)
+    await cache.delete(f"public:favorites:user:{user.id}")
     cnt = await fans.count_by_participant(participant_id)
     return FavoriteResponse(ok=True, created=created, supporters_count=cnt)
 
@@ -186,5 +189,30 @@ async def favorite_remove(
             detail="Participant not found",
         )
     await fans.remove(user.id, participant_id)
+    await cache.delete(f"public:favorites:user:{user.id}")
     cnt = await fans.count_by_participant(participant_id)
     return FavoriteResponse(ok=True, created=False, supporters_count=cnt)
+
+
+@router.get(
+    "/favorites/ids",
+    response_model=FavoriteIdsResponse,
+    responses={401: {"description": "Требуется авторизация"}},
+    summary="ID участников, на которых подписан текущий пользователь",
+)
+async def list_my_favorite_ids(
+    fans: FanSubscriptionRepoDep,
+    user: User = Depends(get_current_user),
+) -> FavoriteIdsResponse:
+    """Список ID для клиентской фильтрации «Мои» на карте.
+
+    Кэш 5 минут, инвалидируется в favorite_add/favorite_remove.
+    """
+    cache_key = f"public:favorites:user:{user.id}"
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return FavoriteIdsResponse(participant_ids=cached)
+
+    ids = await fans.list_participant_ids(user.id)
+    await cache.set(cache_key, ids, ttl=300)
+    return FavoriteIdsResponse(participant_ids=ids)
