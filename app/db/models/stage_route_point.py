@@ -26,6 +26,7 @@ class StageRoutePoint(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lon: Mapped[float] = mapped_column(Float, nullable=False)
+    elevation: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     stage: Mapped["Stage"] = relationship(back_populates="route_points")
 
