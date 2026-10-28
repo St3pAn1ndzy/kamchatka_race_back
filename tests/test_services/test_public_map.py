@@ -82,7 +82,7 @@ def test_participants_endpoint_is_public(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert response.status_code == 200
     assert response.json() == {"stage_id": 2, "items": [], "total": 0, "limit": 500, "offset": 0}
-    service.get_participants.assert_awaited_once_with(2, limit=500, offset=0)
+    service.get_participants.assert_awaited_once_with(2, discipline_ids=None, limit=500, offset=0)
 
 
 @pytest.mark.asyncio
@@ -115,6 +115,15 @@ async def test_participants_include_no_signal_and_only_public_fields(
     assert "device_id" not in response.model_dump_json()
     assert "sos_active" not in response.model_dump_json()
     service.track_points.latest_for_map.assert_awaited_once_with(2, [1, 2])
+
+    # Проверяем, что discipline_ids=None → сервис сам берёт все дисциплины сезона
+    service.disciplines.list_ordered.assert_awaited_once_with(season_id=1)
+    service.participants.list_for_map.assert_awaited_once_with(
+        discipline_ids=[3],  # все дисциплины сезона
+        participant_ids=None,
+        limit=500,
+        offset=0,
+    )
 
 
 @pytest.mark.asyncio
@@ -322,3 +331,83 @@ async def test_no_data_freshness_means_position_is_null(
     item = response.items[0]
     assert item.freshness_status == "no_data"
     assert item.position is None
+
+
+async def test_discipline_filter_is_not_overwritten(
+    db_session,
+    create_season,
+    create_discipline,
+    create_stage,
+    create_participant,
+) -> None:
+    """Переданный discipline_ids не должен перезаписываться всеми дисциплинами сезона.
+
+    Регресс-тест: если сервис игнорирует фильтр и берёт все дисциплины —
+    вернёт 2 участника вместо 1.
+    """
+    season = await create_season(is_active=True)
+    d_long = await create_discipline(season_id=season.id, code="long", name="Длинная")
+    d_sprint = await create_discipline(season_id=season.id, code="sprint", name="Спринт")
+    stage = await create_stage(season_id=season.id)
+    await create_participant(number=1, discipline_id=d_long.id)
+    await create_participant(number=2, discipline_id=d_sprint.id)
+
+    service = PublicMapService(db_session)
+    response = await service.get_participants(
+        stage.id, discipline_ids=[d_long.id], limit=10, offset=0
+    )
+
+    assert response.total == 1
+    assert response.items[0].discipline_id == d_long.id
+
+
+async def test_no_discipline_filter_returns_all_season_participants(
+    db_session,
+    create_season,
+    create_discipline,
+    create_stage,
+    create_participant,
+) -> None:
+    """Без discipline_ids сервис берёт всех участников сезона."""
+    season = await create_season(is_active=True)
+    d_long = await create_discipline(season_id=season.id, code="long")
+    d_sprint = await create_discipline(season_id=season.id, code="sprint")
+    stage = await create_stage(season_id=season.id)
+    await create_participant(number=1, discipline_id=d_long.id)
+    await create_participant(number=2, discipline_id=d_sprint.id)
+
+    service = PublicMapService(db_session)
+    response = await service.get_participants(stage.id, limit=10, offset=0)
+
+    assert response.total == 2
+
+
+async def test_map_cache_key_includes_discipline_ids(
+    db_session,
+    create_season,
+    create_discipline,
+    create_stage,
+    create_participant,
+) -> None:
+    """Разные discipline_ids — разные кэш-ключи, результаты не пересекаются.
+
+    Если кэш-ключ не учитывает фильтр, второй запрос вернёт данные первого.
+    """
+    season = await create_season(is_active=True)
+    d_long = await create_discipline(season_id=season.id, code="long")
+    d_sprint = await create_discipline(season_id=season.id, code="sprint")
+    stage = await create_stage(season_id=season.id)
+    await create_participant(number=1, discipline_id=d_long.id)
+    await create_participant(number=2, discipline_id=d_sprint.id)
+
+    service = PublicMapService(db_session)
+
+    # Первый запрос: только длинная
+    r1 = await service.get_participants(stage.id, discipline_ids=[d_long.id], limit=10, offset=0)
+    assert r1.total == 1
+    assert r1.items[0].discipline_id == d_long.id
+
+    # Второй запрос: только спринт — должен вернуть другого, не кэш первого
+    r2 = await service.get_participants(stage.id, discipline_ids=[d_sprint.id], limit=10, offset=0)
+    assert r2.total == 1
+    assert r2.items[0].discipline_id == d_sprint.id
