@@ -57,6 +57,7 @@ from app.enums import (
     RaceState,
     ScheduleKind,
     StageStatus,
+    ViewerLocationCategory,
     ViewerLocationKind,
 )
 from app.security.passwords import hash_password
@@ -282,34 +283,65 @@ CONTACT_BLOCKS = [
 ]
 
 VIEWER_LOCATIONS = [
-    (
-        "Старт гонки, Петропавловск-Камчатский",
-        ViewerLocationKind.START,
-        "От центра города 10 минут на такси или автобусе № 24 до ост. «Гонка».",
-        30,
-        "Держитесь за ограждения, собак на старте кормить запрещено.",
-    ),
-    (
-        "Финиш этапа 1, Налычево",
-        ViewerLocationKind.FINISH,
-        "Из города — экскурсионный автобус раз в час, в пути около 1,5 часов.",
-        90,
-        "Соблюдайте дистанцию до финишного створа, не выходите на лёд реки.",
-    ),
-    (
-        "Смотровая площадка «Перевал Двойной»",
-        ViewerLocationKind.VIEWPOINT,
-        "На перевал ведёт грунтовая дорога, доступна только на полноприводном автомобиле.",
-        45,
-        "Край обрыва не огорожен — не подходите близко к кромке.",
-    ),
-    (
-        "Фестивальная площадка «Авача»",
-        ViewerLocationKind.FESTIVAL,
-        "Площадка у центрального стадиона, пешком 5 минут от остановки «Стадион».",
-        20,
-        "Работают пункты обогрева и горячее питание.",
-    ),
+    # Сцены
+    {
+        "name": "Главная сцена",
+        "kind": ViewerLocationKind.FESTIVAL,
+        "category": ViewerLocationCategory.STAGES,
+        "description": "Концерты и главные события фестиваля",
+        "lat": 53.000,
+        "lon": 158.000,
+    },
+    {
+        "name": "Шатёр",
+        "kind": ViewerLocationKind.FESTIVAL,
+        "category": ViewerLocationCategory.STAGES,
+        "description": "Лекции и камерные выступления",
+        "lat": 53.001,
+        "lon": 158.001,
+    },
+    # Площадки
+    {
+        "name": "Фотозона",
+        "kind": ViewerLocationKind.FESTIVAL,
+        "category": ViewerLocationCategory.AREAS,
+        "description": "Оформленная площадка для фото",
+        "lat": 53.002,
+        "lon": 158.002,
+    },
+    {
+        "name": "Этнозона",
+        "kind": ViewerLocationKind.FESTIVAL,
+        "category": ViewerLocationCategory.AREAS,
+        "description": "Традиционные ремёсла и выставки",
+        "lat": 53.003,
+        "lon": 158.003,
+    },
+    # Еда
+    {
+        "name": "Фудкорт",
+        "kind": ViewerLocationKind.FESTIVAL,
+        "category": ViewerLocationCategory.FOOD,
+        "description": "Горячее питание и напитки",
+        "lat": 53.004,
+        "lon": 158.004,
+    },
+    # Детям
+    {
+        "name": "Детская зона",
+        "kind": ViewerLocationKind.FESTIVAL,
+        "category": ViewerLocationCategory.KIDS,
+        "description": "Анимация и игры для детей",
+        "lat": 53.005,
+        "lon": 158.005,
+    },
+    {
+        "name": "Старт гонки",
+        "kind": ViewerLocationKind.START,
+        "category": ViewerLocationCategory.OTHER,
+        "lat": 53.096,
+        "lon": 158.637,
+    },
 ]
 
 ABOUT_PAGE_CONTENT = """\
@@ -996,25 +1028,27 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         # --- ViewerLocation ---
         if not await _exists(session, ViewerLocation):
             viewer_locations = []
-            for i, (name, kind, directions, travel_time, safety) in enumerate(VIEWER_LOCATIONS):
-                lat, lon = _random_position(rng)
+            for i, loc in enumerate(VIEWER_LOCATIONS):
                 viewer_locations.append(
                     ViewerLocation(
-                        name=name,
-                        description=f"Зрительская площадка: {name.lower()}.",
-                        kind=kind.value,
-                        lat=lat,
-                        lon=lon,
-                        address="Камчатский край",
-                        directions=directions,
-                        travel_time_minutes=travel_time,
-                        parking_info="Бесплатная парковка у площадки.",
-                        facilities=["Парковка", "Пункт обогрева", "Кафе"],
-                        photo_url=None,
-                        first_arrival_planned_at=now + timedelta(days=1, hours=i),
-                        stage_id=first_stage.id if i < 2 else None,
-                        safety_notes=safety,
-                        is_public=True,
+                        name=loc["name"],
+                        description=loc.get("description")
+                        or f"Зрительская площадка: {loc['name'].lower()}.",
+                        kind=loc["kind"],
+                        category=loc["category"],
+                        lat=loc["lat"],
+                        lon=loc["lon"],
+                        address=loc.get("address", "Камчатский край"),
+                        directions=loc.get("directions"),
+                        travel_time_minutes=loc.get("travel_time_minutes"),
+                        parking_info=loc.get("parking_info", "Бесплатная парковка у площадки."),
+                        facilities=loc.get("facilities", ["Парковка", "Пункт обогрева", "Кафе"]),
+                        photo_url=loc.get("photo_url"),
+                        first_arrival_planned_at=loc.get("first_arrival_planned_at")
+                        or (now + timedelta(days=1, hours=i)),
+                        stage_id=loc.get("stage_id", first_stage.id if i < 2 else None),
+                        safety_notes=loc.get("safety_notes", ""),
+                        is_public=loc.get("is_public", True),
                     )
                 )
             session.add_all(viewer_locations)
@@ -1153,6 +1187,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             "Participant",
             "Stage",
             "Checkpoint",
+            "RaceStatus",
             "Device",
             "TrackPoint",
             "StageRoutePoint",
