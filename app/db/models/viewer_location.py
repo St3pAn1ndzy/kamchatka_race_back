@@ -17,7 +17,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.enums import ViewerLocationKind
+from app.enums import ViewerLocationCategory, ViewerLocationKind
 
 if TYPE_CHECKING:
     from app.db.models.stage import Stage
@@ -44,6 +44,14 @@ class ViewerLocation(Base):
 
     kind: Mapped[str] = mapped_column(
         String(32), default=ViewerLocationKind.VIEWPOINT.value, nullable=False, index=True
+    )
+
+    category: Mapped[str] = mapped_column(
+        String(32),
+        default=ViewerLocationCategory.OTHER.value,
+        nullable=False,
+        index=True,
+        server_default="other",
     )
 
     # Координаты площадки, если например она между к/п гонки, без адреса
