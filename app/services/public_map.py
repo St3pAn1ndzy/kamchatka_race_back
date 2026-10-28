@@ -50,29 +50,46 @@ class PublicMapService:
         return stage
 
     async def get_participants(
-        self, stage_id: int, *, limit: int, offset: int
+        self,
+        stage_id: int,
+        *,
+        limit: int,
+        offset: int,
+        discipline_ids: list[int] | None = None,
     ) -> MapParticipantsResponse:
-        # Попытка достать из кэша
-        cache_key = f"{_PREFIX_MODEL}{stage_id}:{limit}:{offset}"
+        # 1. Кэш-ключ учитывает фильтр по дисциплинам
+        disc_key = ",".join(map(str, sorted(discipline_ids or []))) or "all"
+        cache_key = f"{_PREFIX_MODEL}{stage_id}:{disc_key}:{limit}:{offset}"
+
         cached = await cache.get(cache_key)
         if cached is not None:
             return MapParticipantsResponse(**cached)
 
         stage = await self._stage(stage_id)
+
+        # 2. Определяем participant_ids для запроса
         if stage.season_id is not None:
-            disciplines = await self.disciplines.list_ordered(season_id=stage.season_id)
-            discipline_ids = [discipline.id for discipline in disciplines]
+            # Участники сезона — все активные, фильтр пойдёт по discipline_ids
             participant_ids = None
+
+            # Если discipline_ids не передан — берём все дисциплины сезона
+            if discipline_ids is None:
+                disciplines = await self.disciplines.list_ordered(season_id=stage.season_id)
+                discipline_ids = [d.id for d in disciplines]
+            # Если передан — используем как есть
         else:
+            # Фоллбэк: этап без сезона, берём по точкам трека
             discipline_ids = None
             participant_ids = await self.track_points.participant_ids_for_stage(stage_id)
 
+        # 3. Запрос участников с фильтрами
         participants, total = await self.participants.list_for_map(
             discipline_ids=discipline_ids,
             participant_ids=participant_ids,
             limit=limit,
             offset=offset,
         )
+
         points = await self.track_points.latest_for_map(
             stage_id, [participant.id for participant in participants]
         )
@@ -108,6 +125,7 @@ class PublicMapService:
                     position=MapPosition.model_validate(point) if point else None,
                 )
             )
+
         result = MapParticipantsResponse(
             stage_id=stage_id, items=items, total=total, limit=limit, offset=offset
         )
