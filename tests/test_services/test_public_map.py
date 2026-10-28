@@ -82,7 +82,7 @@ def test_participants_endpoint_is_public(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert response.status_code == 200
     assert response.json() == {"stage_id": 2, "items": [], "total": 0, "limit": 500, "offset": 0}
-    service.get_participants.assert_awaited_once_with(2, limit=500, offset=0)
+    service.get_participants.assert_awaited_once_with(2, discipline_ids=None, limit=500, offset=0)
 
 
 @pytest.mark.asyncio
