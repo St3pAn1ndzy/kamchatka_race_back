@@ -1,5 +1,7 @@
 """Экран маршрута этапа и подтверждаемый импорт KML/GPX"""
 
+import hashlib
+import math
 import secrets
 
 from fastapi import HTTPException
@@ -12,6 +14,10 @@ from app.db.base import async_session_factory
 from app.schemas.admin_stage_route import StageRouteReplaceRequest
 from app.services.admin_route import AdminRouteService
 from app.services.admin_stage_route import AdminStageRouteService
+from app.services.race_route_file import parse_race_route_file
+from app.services.race_route_import import RaceRouteImportService
+from app.services.race_route_upload import read_race_upload
+from app.services.route_file import RouteFileError
 from app.services.route_upload import read_route_request, read_route_upload
 
 
@@ -47,8 +53,49 @@ class RaceRouteView(BaseView):
         supplied = request.headers.get("X-Route-Import-Token", "")
         if not expected or not secrets.compare_digest(expected.encode(), supplied.encode()):
             raise HTTPException(403, "Обновите страницу перед импортом маршрута")
-        if not 1 <= request.path_params["stage_id"] <= 2147483647:
+        if not 1 <= request.path_params.get("stage_id", 1) <= 2147483647:
             raise HTTPException(422, "Некорректный ID этапа")
+
+    @expose("/api/race-route/import/preview", methods=["POST"])
+    async def preview_race(self, request: Request) -> JSONResponse:
+        """Разбирает все линии без записи, уменьшая только изображение предпросмотра"""
+        try:
+            self._check_import_token(request)
+            content, filename, _ = await read_race_upload(request)
+            lines = parse_race_route_file(content, filename)
+            for line in lines:
+                original = line["points"]
+                line["point_count"] = len(original)
+                step = max(1, math.ceil(len(original) / 800))
+                line["points"] = original[::step]
+                if line["points"][-1] != original[-1]:
+                    line["points"].append(original[-1])
+            return JSONResponse({"lines": lines})
+        except RouteFileError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+        except HTTPException as exc:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+    @expose("/api/race-route/import/confirm", methods=["POST"])
+    async def confirm_race(self, request: Request) -> JSONResponse:
+        """Повторно читает исходный файл и атомарно сохраняет выбранные этапы и КП"""
+        try:
+            self._check_import_token(request)
+            content, filename, mapping = await read_race_upload(request)
+            lines = parse_race_route_file(content, filename)
+            async with async_session_factory() as session:
+                ids = await RaceRouteImportService(session).save(
+                    lines,
+                    mapping,
+                    admin_id=request.state.admin_id,
+                    file_hash=hashlib.sha256(content).hexdigest(),
+                )
+            return JSONResponse({"stage_ids": ids})
+        except (ValidationError, RouteFileError) as exc:
+            detail = str(exc) if isinstance(exc, RouteFileError) else "Некорректное сопоставление"
+            return JSONResponse({"detail": detail}, status_code=422)
+        except HTTPException as exc:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
     @expose("/api/race-route/{stage_id:int}/import/preview", methods=["POST"])
     async def preview_import(self, request: Request) -> JSONResponse:
