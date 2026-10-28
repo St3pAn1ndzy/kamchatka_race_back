@@ -21,6 +21,7 @@ class RouteStageInfo:
     route_points_count: int
     checkpoints: list = field(default_factory=list)
     route_points: list = field(default_factory=list)
+    season_label: str = ""
 
 
 class AdminRouteService:
@@ -32,7 +33,11 @@ class AdminRouteService:
     async def get_stages(self) -> list[RouteStageInfo]:
         stmt = (
             select(Stage)
-            .options(selectinload(Stage.route_points), selectinload(Stage.checkpoints))
+            .options(
+                selectinload(Stage.route_points),
+                selectinload(Stage.checkpoints),
+                selectinload(Stage.season),
+            )
             .order_by(Stage.number)
         )
         rows = (await self.session.execute(stmt)).scalars().all()
@@ -53,6 +58,7 @@ class AdminRouteService:
                     route_points_count=len(s.route_points),
                     checkpoints=cps,
                     route_points=rps,
+                    season_label=s.season.title if s.season else "Без сезона",
                 )
             )
         return result
