@@ -1,6 +1,24 @@
 {% extends "sqladmin/layout.html" %}
 {% block content %}
 <div id="stageRoutePage" class="col-12 d-block">
+<section class="card mb-3" aria-labelledby="raceImportTitle">
+  <div class="card-body">
+    <h3 id="raceImportTitle">Импорт всей трассы с КП</h3>
+    <form id="raceImport" data-csrf="{{ route_import_csrf }}">
+      <label for="raceFile" class="form-label">Общий файл KML или GPX до 8 МиБ</label>
+      <input id="raceFile" type="file" accept=".kml,.gpx" class="form-control" required>
+      <button type="submit" class="btn btn-outline-primary mt-2">Разобрать всю трассу</button>
+      <p class="text-muted mt-2">Линии и КП будут заменены только после сопоставления этапам и подтверждения направления каждой линии</p>
+      <div id="raceMapping" class="row g-3"></div>
+      <button id="confirmRace" type="button" class="btn btn-primary mt-3" disabled>Подтвердить замену всех выбранных этапов и КП</button>
+      <div id="raceStatus" role="status" aria-live="polite" class="mt-2"></div>
+      <template id="raceStageOptions">
+        <option value="">Выберите этап вручную</option>
+        {% for s in stages %}<option value="{{ s.id }}">{{ s.season_label }} · ID {{ s.id }} · {{ s.number }} — {{ s.name }}</option>{% endfor %}
+      </template>
+    </form>
+  </div>
+</section>
 <section class="mb-3" aria-labelledby="importTitle">
   <h3 id="importTitle">Импорт маршрута</h3>
   <form id="routeImport" data-csrf="{{ route_import_csrf }}" class="row g-2 align-items-end">
@@ -71,7 +89,7 @@
             </span>
             <div class="flex-grow-1 text-start">
               <div class="fw-bold text-body">{{ s.name }}</div>
-              <div class="text-muted small">{{ s.distance_km }} км</div>
+              <div class="text-muted small">{{ '%.2f'|format(s.distance_km) }} км</div>
             </div>
           </button>
           {% endfor %}
@@ -102,6 +120,7 @@
 
 {% block tail %}
 {{ super() }}
+<script src="/static/js/race_route_import.js"></script>
 <script>
 (function(){
   var routeLayer, cpLayer;
@@ -113,6 +132,30 @@
   var confirmButton = document.getElementById('confirmRoute');
   var status = document.getElementById('importStatus');
   var base = window.location.pathname.replace(/\/race-route\/?$/, '/api/race-route/');
+
+  function escapeHtml(value) {
+    var element = document.createElement('span');
+    element.textContent = value == null ? '' : String(value);
+    return element.innerHTML;
+  }
+
+  window.addEventListener('race-route-preview', function(event) {
+    if (!map) return;
+    if (previewLayer) map.geoObjects.remove(previewLayer);
+    if (!event.detail.length) { previewLayer = null; return; }
+    previewLayer = new ymaps.GeoObjectCollection();
+    event.detail.forEach(function(line) {
+      previewLayer.add(new ymaps.Polyline(line.points.map(function(p) { return [p.lat,p.lon]; }), {},
+        {strokeColor:'#d63939',strokeWidth:4,strokeStyle:'dash'}));
+      line.checkpoints.forEach(function(cp) {
+        var safeName = document.createElement('span');
+        safeName.textContent = cp.name;
+        previewLayer.add(new ymaps.Placemark([cp.lat,cp.lon], {hintContent: safeName.innerHTML}));
+      });
+    });
+    map.geoObjects.add(previewLayer);
+    map.setBounds(previewLayer.getBounds(), {checkZoomRange:true, zoomMargin:30});
+  });
 
   function showStatus(text, error) {
     status.textContent = text;
@@ -328,7 +371,7 @@
               : '#f59f00';
 
           var pm = new ymaps.Placemark(pt, {
-            hintContent: cp.code + ' — ' + cp.name
+            hintContent: escapeHtml(cp.code + ' — ' + cp.name)
           }, {
             preset: 'islands#circleDotIcon',
             iconColor: color
@@ -338,9 +381,9 @@
 
           cpHtml +=
             '<tr><td><span class="badge text-white fw-bold" style="background:' +
-            color + ';">' + cp.code +
+            color + ';">' + escapeHtml(cp.code) +
             '</span></td><td class="text-body fw-medium">' +
-            cp.name + '</td></tr>';
+            escapeHtml(cp.name) + '</td></tr>';
         });
 
         map.geoObjects.add(cpLayer);
@@ -350,7 +393,15 @@
       }
 
       if (bounds.length) {
-        map.setBounds(bounds, {
+        // API принимает два угла области, а не произвольный массив точек линии
+        var area = bounds.reduce(function(result, point) {
+          result[0][0] = Math.min(result[0][0], point[0]);
+          result[0][1] = Math.min(result[0][1], point[1]);
+          result[1][0] = Math.max(result[1][0], point[0]);
+          result[1][1] = Math.max(result[1][1], point[1]);
+          return result;
+        }, [[Infinity, Infinity], [-Infinity, -Infinity]]);
+        map.setBounds(area, {
           checkZoomRange: true,
           zoomMargin: 40
         });
