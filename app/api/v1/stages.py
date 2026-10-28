@@ -3,9 +3,9 @@
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
-from pydantic import AwareDatetime
 
 from app.api.deps import SessionDep
+from app.schemas.common import QueryDatetime
 from app.schemas.public_stages import (
     CheckpointPublicResponse,
     LeadersResponse,
@@ -56,7 +56,7 @@ async def get_stage_checkpoints(
 async def get_stage_positions(
     session: SessionDep,
     stage_id: Annotated[int, Path(gt=0, le=MAX_ID)],
-    since: Annotated[AwareDatetime, Query()] | None = None,
+    since: Annotated[QueryDatetime | None, Query()] = None,
 ) -> list[PositionPublicResponse]:
     """Последние координаты всех участников на этапе."""
     return await PublicMapService(session).get_positions(stage_id, since=since)
@@ -67,7 +67,7 @@ async def get_stage_leaders(
     session: SessionDep,
     stage_id: Annotated[int, Path(gt=0, le=MAX_ID)],
     discipline: str | None = Query(default=None, description="Код дисциплины"),
-    as_of: Annotated[AwareDatetime, Query()] | None = None,
+    as_of: Annotated[QueryDatetime | None, Query()] = None,
 ) -> LeadersResponse:
     """Рейтинг участников по судейским отметкам."""
     return await PublicMapService(session).get_leaders(stage_id, discipline=discipline, as_of=as_of)

@@ -2,10 +2,10 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
-from pydantic import AwareDatetime
 
 from app.api.deps import NewsPostRepoDep
 from app.enums import NewsSource
+from app.schemas.common import QueryDatetime
 from app.schemas.news import (
     NewsPostListItemResponse,
     NewsPostListResponse,
@@ -24,8 +24,8 @@ async def list_news_posts(
     source: Annotated[NewsSource | None, Query()] = None,
     stage_id: Annotated[int | None, Query(gt=0, le=MAX_ID)] = None,
     important_only: Annotated[bool, Query()] = False,
-    published_from: Annotated[AwareDatetime, Query()] | None = None,
-    published_to: Annotated[AwareDatetime, Query()] | None = None,
+    published_from: Annotated[QueryDatetime | None, Query()] = None,
+    published_to: Annotated[QueryDatetime | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0, le=MAX_OFFSET)] = 0,
 ) -> NewsPostListResponse:

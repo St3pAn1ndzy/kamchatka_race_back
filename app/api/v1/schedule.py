@@ -1,10 +1,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
-from pydantic import AwareDatetime
 
 from app.api.deps import ScheduleEventRepoDep
 from app.enums import ScheduleKind
+from app.schemas.common import QueryDatetime
 from app.schemas.schedule import ScheduleEventListResponse, ScheduleEventResponse
 
 router = APIRouter(
@@ -22,8 +22,8 @@ async def list_schedule_events(
     schedule_events: ScheduleEventRepoDep,
     kind: Annotated[ScheduleKind | None, Query()] = None,
     stage_id: Annotated[int | None, Query(gt=0, le=MAX_ID)] = None,
-    starts_from: Annotated[AwareDatetime, Query()] | None = None,
-    starts_to: Annotated[AwareDatetime, Query()] | None = None,
+    starts_from: Annotated[QueryDatetime | None, Query()] = None,
+    starts_to: Annotated[QueryDatetime | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0, le=MAX_OFFSET)] = 0,
 ) -> ScheduleEventListResponse:
