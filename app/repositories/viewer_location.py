@@ -3,7 +3,7 @@
 from sqlalchemy import case, select
 
 from app.db.models.viewer_location import ViewerLocation
-from app.enums import ViewerLocationKind
+from app.enums import ViewerLocationCategory, ViewerLocationKind
 from app.repositories.base import BaseRepository
 
 
@@ -14,6 +14,7 @@ class ViewerLocationRepository(BaseRepository[ViewerLocation]):
         self,
         *,
         kind: ViewerLocationKind | None = None,
+        category: ViewerLocationCategory | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[ViewerLocation]:
@@ -25,14 +26,20 @@ class ViewerLocationRepository(BaseRepository[ViewerLocation]):
             (ViewerLocation.kind == ViewerLocationKind.FESTIVAL.value, 3),
             else_=4,
         )
+        stmt = select(ViewerLocation).where(ViewerLocation.is_public.is_(True))
+
+        # ═══ ФИЛЬТРЫ — ДО order_by/limit/offset ═══
+        if kind is not None:
+            stmt = stmt.where(ViewerLocation.kind == kind.value)
+
+        if category is not None:
+            stmt = stmt.where(ViewerLocation.category == category.value)
+
+        # ═══ СОРТИРОВКА + ПАГИНАЦИЯ ═══
         stmt = (
-            select(ViewerLocation)
-            .where(ViewerLocation.is_public.is_(True))
-            .order_by(kind_order, ViewerLocation.name, ViewerLocation.id)
+            stmt.order_by(kind_order, ViewerLocation.name, ViewerLocation.id)
             .limit(limit)
             .offset(offset)
         )
-        if kind is not None:
-            stmt = stmt.where(ViewerLocation.kind == kind.value)
 
         return list((await self.session.execute(stmt)).scalars().all())
