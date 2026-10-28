@@ -77,3 +77,8 @@ class FanSubscriptionRepository(BaseRepository[FanSubscription]):
         )
         result = await self.session.execute(stmt)
         return [(int(pid), int(cnt)) for pid, cnt in result.all()]
+
+    async def list_participant_ids(self, user_id: int) -> list[int]:
+        """ID всех участников, на которых подписан пользователь."""
+        stmt = select(FanSubscription.participant_id).where(FanSubscription.user_id == user_id)
+        return list((await self.session.execute(stmt)).scalars().all())
