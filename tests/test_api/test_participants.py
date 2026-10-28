@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from httpx import ASGITransport, AsyncClient
 
-from app.api.deps import get_participant_repo
+from app.api.deps import get_current_user, get_participant_repo
 from app.api.v1 import participants as participants_router
 from app.api.v1.participants import (
     favorite_add,
@@ -15,7 +15,9 @@ from app.api.v1.participants import (
     list_participants,
     supporters_rating,
 )
+from app.db.base import get_session
 from app.enums import ParticipantStatus
+from app.services.cache import cache
 
 
 def _participant(id: int = 5):
@@ -145,3 +147,102 @@ async def test_http_rejects_invalid_participant_list_limit():
         response = await client.get("/participants?limit=0")
     assert response.status_code == 422
     participants.list_filtered.assert_not_awaited()
+
+
+def _make_app(db_session, *, user=None) -> FastAPI:
+    """Свежий FastAPI с роутером participants и переопределёнными зависимостями."""
+    app = FastAPI()
+    app.include_router(participants_router.router)
+
+    async def _session_override():
+        yield db_session
+
+    app.dependency_overrides[get_session] = _session_override
+    if user is not None:
+        app.dependency_overrides[get_current_user] = lambda: user
+    return app
+
+
+async def test_favorites_ids_requires_auth(db_session) -> None:
+    """Без JWT — 401, фильтр «Мои» скрыт на фронте."""
+    app = _make_app(db_session)  # user не переопределён — дефолтный get_current_user
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/participants/favorites/ids")
+    assert response.status_code == 401
+
+
+async def test_favorites_ids_returns_participant_ids(
+    db_session,
+    create_user,
+    create_participant,
+    create_fan_subscription,
+) -> None:
+    """Возвращает ID участников, на которых подписан пользователь."""
+    user = await create_user(vk_user_id=100500)
+    p1 = await create_participant(number=1)
+    p2 = await create_participant(number=2)
+    await create_fan_subscription(user_id=user.id, participant_id=p1.id)
+    await create_fan_subscription(user_id=user.id, participant_id=p2.id)
+
+    app = _make_app(db_session, user=user)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/participants/favorites/ids")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert sorted(data["participant_ids"]) == sorted([p1.id, p2.id])
+
+
+async def test_favorites_ids_empty_for_new_user(db_session, create_user) -> None:
+    """Новый пользователь без подписок — пустой массив, не ошибка."""
+    user = await create_user(vk_user_id=100501)
+
+    app = _make_app(db_session, user=user)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/participants/favorites/ids")
+
+    assert response.status_code == 200
+    assert response.json() == {"participant_ids": []}
+
+
+async def test_favorite_add_invalidates_favorites_cache(
+    db_session,
+    create_user,
+    create_participant,
+) -> None:
+    """POST /favorite инвалидирует кэш — фронт получит свежие данные."""
+    user = await create_user(vk_user_id=100502)
+    participant = await create_participant(number=1)
+
+    cache_key = f"public:favorites:user:{user.id}"
+    await cache.set(cache_key, [], ttl=300)
+    assert await cache.get(cache_key) == []
+
+    app = _make_app(db_session, user=user)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(f"/participants/{participant.id}/favorite")
+
+    assert response.status_code == 200
+    assert await cache.get(cache_key) is None
+
+
+async def test_favorite_remove_invalidates_favorites_cache(
+    db_session,
+    create_user,
+    create_participant,
+    create_fan_subscription,
+) -> None:
+    """DELETE /favorite инвалидирует кэш — фронт не увидит отписанного участника."""
+    user = await create_user(vk_user_id=100503)
+    participant = await create_participant(number=1)
+    await create_fan_subscription(user_id=user.id, participant_id=participant.id)
+
+    cache_key = f"public:favorites:user:{user.id}"
+    await cache.set(cache_key, [participant.id], ttl=300)
+
+    app = _make_app(db_session, user=user)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.delete(f"/participants/{participant.id}/favorite")
+
+    assert response.status_code == 200
+    assert await cache.get(cache_key) is None
