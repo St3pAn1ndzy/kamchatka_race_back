@@ -59,3 +59,9 @@ class FavoriteResponse(BaseSchema):
     ok: bool = True
     created: bool = False
     supporters_count: int
+
+
+class FavoriteIdsResponse(BaseSchema):
+    """ID участников, на которых подписан пользователь."""
+
+    participant_ids: list[int]
