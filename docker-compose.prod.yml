@@ -4,11 +4,12 @@
 # Отличия от docker-compose.yml (dev):
 #   - Uvicorn: 4 воркера вместо 1, без --reload, backlog 2048
 #   - Postgres и Redis не публикуют порты наружу (доступ только по внутренней сети)
-#   - Нет volume-маунтов (код запечён в Docker-образ)
+#   - Нет bind-mount'ов для app/alembic — код запечён в образ
 #   - ENV=prod, restart: always
 #   - Redis: maxmemory 512mb без вытеснения заданий и счётчиков защиты
 #   - Celery worker: concurrency 4 вместо 2
 #   - Health-check для API
+#   - Media, data, scripts — persistent volumes (загрузки, маршруты, сид)
 #
 # Запуск:
 #   docker compose -f docker-compose.prod.yml up --build -d
@@ -68,9 +69,15 @@ services:
       POSTGRES_PORT: 5432
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
     ports:
       - "8000:8000"
-    # НЕТ volumes — код запечён в образ.
+    volumes:
+      # ⚠️ Код НЕ монтируем — он запечён в образ.
+      # Но пользовательские данные (загрузки) и файлы сида — монтируем.
+      - ./media:/app/media
+      - ./data:/app/data
+      - ./scripts:/app/scripts
     depends_on:
       postgres:
         condition: service_healthy
