@@ -113,7 +113,7 @@ poetry run pytest
 poetry run schemathesis run http://localhost:8000/openapi.json --checks all
 ```
 
-**Результат:** 3298+ сгенерированных тест-кейсов. **0 ошибок 500 (Server Error).** Все некорректные данные отбиваются
+**Результат:** 4279+ сгенерированных тест-кейсов. **0 ошибок 500 (Server Error).** Все некорректные данные отбиваются
 422 Unprocessable Content.
 
 ### 3. Нагрузочное тестирование (Locust)
