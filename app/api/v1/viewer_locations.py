@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 
 from app.api.deps import SessionDep, ViewerLocationRepoDep
 from app.config import get_settings
-from app.enums import ViewerLocationKind
+from app.enums import ViewerLocationCategory, ViewerLocationKind
 from app.schemas.content import ViewerLocationPublicResponse
 from app.services.cache import cache
 
@@ -23,9 +23,10 @@ MAX_OFFSET = 10_000
 async def list_viewer_locations(
     session: SessionDep,
     viewer_locations: ViewerLocationRepoDep,
-    kind: Annotated[
-        ViewerLocationKind | None,
-        Query(description="Фильтр по типу локации"),
+    kind: Annotated[ViewerLocationKind | None, Query(description="Тип локации")] = None,
+    category: Annotated[
+        ViewerLocationCategory | None,
+        Query(description="Категория (food / kids / stages / areas / other)"),
     ] = None,
     limit: Annotated[
         int,
@@ -49,12 +50,19 @@ async def list_viewer_locations(
     Сортировка: по типу (start → finish → viewpoint → festival → other),
     затем по названию. Кэш 1 час.
     """
-    cache_key = f"public:viewer-locations:{kind.value if kind else 'all'}:{limit}:{offset}"
+    cache_key = (
+        f"public:viewer-locations:"
+        f"{kind.value if kind else 'all'}:"
+        f"{category.value if category else 'all'}:"
+        f"{limit}:{offset}"
+    )
     cached = await cache.get(cache_key)
     if cached is not None:
         return [ViewerLocationPublicResponse(**item) for item in cached]
 
-    items = await viewer_locations.list_public(kind=kind, limit=limit, offset=offset)
+    items = await viewer_locations.list_public(
+        kind=kind, category=category, limit=limit, offset=offset
+    )
     result = [ViewerLocationPublicResponse.model_validate(item) for item in items]
 
     settings = get_settings()
