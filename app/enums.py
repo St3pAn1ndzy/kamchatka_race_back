@@ -70,6 +70,16 @@ class ViewerLocationKind(StrEnum):
     OTHER = "other"
 
 
+class ViewerLocationCategory(StrEnum):
+    """Категория локации для UX-фильтров (таблетки на карте)."""
+
+    STAGES = "stages"  # Сцены (Главная сцена, Шатёр)
+    AREAS = "areas"  # Площадки (Фотозона, Этнозона)
+    FOOD = "food"  # Еда (Фудкорт)
+    KIDS = "kids"  # Детям (Детская зона)
+    OTHER = "other"  # Для всего остального (например, смотровые)
+
+
 class UserFeedbackStatus(StrEnum):
     NEW = "new"
     IN_PROGRESS = "in_progress"
