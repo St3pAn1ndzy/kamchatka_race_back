@@ -3,9 +3,9 @@
 <div id="stageRoutePage" class="col-12 d-block">
 <section class="card mb-3" aria-labelledby="raceImportTitle">
   <div class="card-body">
-    <h3 id="raceImportTitle">Импорт всей трассы с КП</h3>
-    <form id="raceImport" data-csrf="{{ route_import_csrf }}">
-      <label for="raceFile" class="form-label">Общий файл KML или GPX до 8 МиБ</label>
+    <h3 id="raceImportTitle">Импорт маршрута с КП</h3>
+    <form id="raceImport" data-csrf="{{ route_import_csrf }}" data-stage-id="{{ selected_stage_id or '' }}">
+      <label for="raceFile" class="form-label">Файл одного этапа или всей трассы KML или GPX до 8 МиБ</label>
       <input id="raceFile" type="file" accept=".kml,.gpx" class="form-control" required>
       <button type="submit" class="btn btn-outline-primary mt-2">Разобрать всю трассу</button>
       <p class="text-muted mt-2">Линии и КП сохраняются после сопоставления этапам и подтверждения направления. Во время этапа можно переносить существующие КП: названия, типы и количество должны совпадать с сохранёнными. Судейские отметки и GPS-история сохраняются</p>
@@ -20,7 +20,7 @@
   </div>
 </section>
 <section class="mb-3" aria-labelledby="importTitle">
-  <h3 id="importTitle">Импорт маршрута</h3>
+  <h3 id="importTitle">Замена только линии маршрута</h3>
   <form id="routeImport" data-csrf="{{ route_import_csrf }}" class="row g-2 align-items-end">
     <div class="col-md-4">
       <label class="form-label" for="importStage">Этап</label>
@@ -44,7 +44,8 @@
     </div>
   </form>
   <p class="text-muted small mt-2 mb-1">
-    Одна линия, 2–2000 точек, до 2 МиБ · КП и высоты не импортируются
+    Одна линия, 2–2000 точек, до 2 МиБ · Координаты КП не меняются, их километраж пересчитывается
+    <a href="#raceImportTitle">Для переноса КП используйте импорт маршрута с КП</a>
   </p>
   <div id="importStatus" role="status" aria-live="polite"></div>
 </section>
@@ -120,7 +121,7 @@
 
 {% block tail %}
 {{ super() }}
-<script src="/static/js/race_route_import.js"></script>
+<script src="/static/js/race_route_import.js?v=2"></script>
 <script>
 (function(){
   var routeLayer, cpLayer;
