@@ -4,19 +4,19 @@ from types import SimpleNamespace
 
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.audit_log import AuditLog
 from app.db.models.checkpoint import Checkpoint
 from app.db.models.official_mark import OfficialMark
-from app.db.models.season import Season
 from app.db.models.stage import Stage
 from app.db.models.stage_route_point import StageRoutePoint
 from app.db.models.track_point import TrackPoint
 from app.enums import CheckpointKind
 from app.services.cache import cache
+from app.services.route_distances import lock_route_seasons, update_route_distances
 from app.services.tracking_metrics import _distance_km, reproject_latest_points, route_progress_km
 
 
@@ -46,12 +46,7 @@ class RaceRouteImportService:
         if not all(s.direction_confirmed for s in selections):
             raise HTTPException(422, "Подтвердите направление каждого этапа")
         # Импорты одного сезона не должны одновременно сдвигать километраж последующих КП
-        await self.session.scalars(
-            select(Season.id)
-            .where(Season.id.in_(select(Stage.season_id).where(Stage.id.in_(ids))))
-            .order_by(Season.id)
-            .with_for_update()
-        )
+        await lock_route_seasons(self.session, ids)
         stages = list(
             await self.session.scalars(
                 select(Stage).where(Stage.id.in_(ids)).order_by(Stage.id).with_for_update()
@@ -142,31 +137,11 @@ class RaceRouteImportService:
                     409,
                     "На начатом этапе можно переносить существующие КП: сохраните их названия, типы и количество в файле",
                 )
-        season_stages = list(
-            await self.session.scalars(
-                select(Stage)
-                .where(Stage.season_id == stages[0].season_id)
-                .order_by(Stage.order_index, Stage.number, Stage.id)
-            )
-        )
-        offsets, previous_offsets, accumulated, previous_total = {}, {}, 0.0, 0.0
-        for stage in season_stages:
-            offsets[stage.id] = accumulated
-            previous_offsets[stage.id] = previous_total
-            previous_total += stage.distance_km
-            accumulated += prepared[stage.id][2] if stage.id in prepared else stage.distance_km
-        by_id = {s.id: s for s in stages}
         try:
-            # Перенос одного этапа меняет общий километраж следующих, но не их КП и отметки
-            for stage in season_stages:
-                delta = offsets[stage.id] - previous_offsets[stage.id]
-                if stage.id not in prepared and delta:
-                    await self.session.execute(
-                        update(Checkpoint)
-                        .where(Checkpoint.stage_id == stage.id)
-                        .values(km_from_race_start=Checkpoint.km_from_race_start + delta)
-                    )
-            for stage_id, (points, cps, distance) in prepared.items():
+            offsets = await update_route_distances(
+                self.session, stages, {stage_id: data[2] for stage_id, data in prepared.items()}
+            )
+            for stage_id, (points, cps, _distance) in prepared.items():
                 await self.session.execute(
                     delete(StageRoutePoint).where(StageRoutePoint.stage_id == stage_id)
                 )
@@ -204,7 +179,6 @@ class RaceRouteImportService:
                                 is_public=True,
                             )
                         )
-                by_id[stage_id].distance_km = distance
                 await reproject_latest_points(
                     self.session, stage_id, [SimpleNamespace(**p) for p in points]
                 )
