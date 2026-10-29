@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from markupsafe import Markup
 from sqladmin import action
 from sqlalchemy import select
@@ -11,7 +12,9 @@ from app.admin_panel.formatters import fmt_bool, fmt_datetime
 from app.admin_panel.utils import get_int_param
 from app.db.base import async_session_factory
 from app.db.models import AuditLog, OfficialMark, TrackPoint
+from app.schemas.admin_marks import OfficialMarkCreateRequest
 from app.security.admin_sessions import get_active_admin_for_session
+from app.services.admin_marks import AdminMarkService
 from app.services.cache import cache
 
 
@@ -161,6 +164,25 @@ class OfficialMarkAdmin(BaseAdminView, model=OfficialMark):
         OfficialMark.penalty_minutes,
         OfficialMark.mandatory_stop_minutes,
     ]
+
+    async def insert_model(self, request: Request, data: dict):
+        admin_id = getattr(request.state, "admin_id", None)
+        if admin_id is None:
+            raise ValueError("Не удалось определить администратора")
+        body = OfficialMarkCreateRequest(
+            participant_id=data["participant"],
+            checkpoint_id=data["checkpoint"],
+            mark_time=data["mark_time"],
+            penalty_minutes=data["penalty_minutes"],
+            mandatory_stop_minutes=data["mandatory_stop_minutes"],
+            comment=data.get("comment"),
+        )
+        # Панель использует синхронную сессию, а сервис отметок — асинхронную
+        async with async_session_factory() as session:
+            try:
+                return await AdminMarkService(session).create(body, admin_id=admin_id)
+            except HTTPException as exc:
+                raise ValueError(exc.detail) from exc
 
     # ═══ РУЧНАЯ ФИЛЬТРАЦИЯ ═══
     def list_query(self, request: Request):
