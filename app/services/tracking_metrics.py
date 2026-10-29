@@ -68,10 +68,9 @@ def route_progress_km(
 
 async def reproject_latest_points(session: AsyncSession, stage_id: int, route: Sequence) -> None:
     """Обновляет прогресс последних точек без изменения координат и прошлой GPS-истории"""
-    points = await session.scalars(
+    points = await session.stream_scalars(
         select(TrackPoint)
         .where(TrackPoint.stage_id == stage_id)
-        .distinct(TrackPoint.device_id, TrackPoint.participant_id, TrackPoint.is_confirmed)
         .order_by(
             TrackPoint.device_id,
             TrackPoint.participant_id,
@@ -79,9 +78,19 @@ async def reproject_latest_points(session: AsyncSession, stage_id: int, route: S
             TrackPoint.recorded_at.desc(),
             TrackPoint.id.desc(),
         )
+        .execution_options(yield_per=500)
     )
-    for point in points:
-        point.km_from_start = route_progress_km(route, point.lat, point.lon)
+    latest, assignment, found = None, None, False
+    async for point in points:
+        key = (point.device_id, point.participant_id, point.is_confirmed)
+        if key != assignment:
+            assignment, latest, found = key, point, False
+            latest.km_from_start = None
+        if not found:
+            progress = route_progress_km(route, point.lat, point.lon)
+            if progress is not None:
+                latest.km_from_start = progress
+                found = True
 
 
 class TrackingMetricsService:
