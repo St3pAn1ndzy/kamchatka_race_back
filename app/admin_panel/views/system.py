@@ -1,6 +1,8 @@
 from markupsafe import Markup
 from sqlalchemy import select
 from starlette.requests import Request
+from wtforms import PasswordField
+from wtforms.validators import ValidationError
 
 from app.admin_panel.base import BaseAdminView
 from app.admin_panel.categories import CategoryAdminEnum
@@ -9,6 +11,12 @@ from app.admin_panel.utils import get_int_param
 from app.db.models.admin_account import AdminAccount
 from app.db.models.admin_session import AdminSession
 from app.db.models.audit_log import AuditLog
+from app.security.passwords import hash_password
+
+
+def validate_password_bytes(form, field):
+    if field.data and len(field.data.encode("utf-8")) > 72:
+        raise ValidationError("Пароль должен занимать не более 72 байт в UTF-8")
 
 
 class AdminAccountAdmin(BaseAdminView, model=AdminAccount):
@@ -89,6 +97,31 @@ class AdminAccountAdmin(BaseAdminView, model=AdminAccount):
         AdminAccount.display_name: {"placeholder": "Главный администратор"},
         AdminAccount.vk_user_id: {"placeholder": "123456 (опционально)"},
     }
+
+    async def scaffold_form(self, rules=None):
+        form = await super().scaffold_form(rules)
+        return type(
+            "AdminAccountForm",
+            (form,),
+            {
+                "password": PasswordField(
+                    "Пароль",
+                    validators=[validate_password_bytes],
+                    description="Оставьте пустым, чтобы сохранить текущий пароль",
+                    render_kw={"autocomplete": "new-password"},
+                ),
+            },
+        )
+
+    async def on_model_change(self, data, model, is_created, request):
+        password = data.pop("password", "")
+        if password:
+            if len(password.encode("utf-8")) > 72:
+                raise ValueError("Пароль должен занимать не более 72 байт в UTF-8")
+            model.password_hash = hash_password(password)
+        if data.get("login") and not model.password_hash:
+            raise ValueError("Для входа по логину укажите пароль")
+        await super().on_model_change(data, model, is_created, request)
 
     def list_query(self, request: Request):
         stmt = select(self.model)
