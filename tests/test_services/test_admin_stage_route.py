@@ -150,17 +150,16 @@ async def test_replace_route_rejects_missing_stage() -> None:
 
 
 @pytest.mark.asyncio
-async def test_replace_route_rejects_stage_with_track_points() -> None:
+async def test_replace_route_allows_gps_history(monkeypatch) -> None:
+    """Замена линии разрешена после старта и пересчитывает последние GPS-точки"""
+    reproject = AsyncMock()
+    monkeypatch.setattr("app.services.admin_stage_route.reproject_latest_points", reproject)
     service, session = _service(has_track_points=True)
     body = StageRouteReplaceRequest(points=[{"lat": 53, "lon": 158}, {"lat": 54, "lon": 159}])
 
-    with pytest.raises(HTTPException) as error:
-        await service.replace_route(1, body, admin_id=7)
-
-    assert error.value.status_code == 409
-    service.routes.replace_for_stage.assert_not_awaited()
-    session.add.assert_not_called()
-    session.commit.assert_not_awaited()
+    await service.replace_route(1, body, admin_id=7)
+    reproject.assert_awaited_once_with(session, 1, [])
+    session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio

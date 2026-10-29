@@ -108,7 +108,7 @@ async def test_import_saves_route_audit_and_refreshes_public_map(
     assert updated.json()["coordinates"] == [[158, 53], [159, 54]]
 
 
-async def test_import_cannot_replace_stage_with_real_track_points(
+async def test_import_replaces_stage_without_deleting_real_track_points(
     import_client,
     db_session,
     create_season,
@@ -118,7 +118,7 @@ async def test_import_cannot_replace_stage_with_real_track_points(
     create_participant,
     create_track_point,
 ):
-    """Наличие реальной GPS-точки блокирует подтверждение и сохраняет прежний маршрут"""
+    """Замена маршрута с GPS-историей сохраняет точку и записывает аудит"""
     client, _ = import_client
     season = await create_season()
     stage = await create_stage(season_id=season.id)
@@ -127,7 +127,8 @@ async def test_import_cannot_replace_stage_with_real_track_points(
     stage_id = stage.id
     await create_route_point(stage_id=stage_id, position=0, lat=50, lon=150)
     await create_route_point(stage_id=stage_id, position=1, lat=51, lon=151)
-    await create_track_point(participant_id=participant.id, stage_id=stage_id)
+    point = await create_track_point(participant_id=participant.id, stage_id=stage_id)
+    point_id, coordinates = point.id, (point.lat, point.lon)
     token = await _token(client)
 
     response = await client.post(
@@ -135,12 +136,22 @@ async def test_import_cannot_replace_stage_with_real_track_points(
         headers={"X-Route-Import-Token": token},
         json={"points": [{"lat": 53, "lon": 158}, {"lat": 54, "lon": 159}]},
     )
-    assert response.status_code == 409
-    assert await _points(db_session, stage_id) == [(0, 50, 150), (1, 51, 151)]
+    assert response.status_code == 200
+    assert await _points(db_session, stage_id) == [(0, 53, 158), (1, 54, 159)]
+    from app.db.models.track_point import TrackPoint
+
+    saved = await db_session.get(TrackPoint, point_id)
+    assert (saved.lat, saved.lon) == coordinates
     assert (
-        await db_session.scalars(
-            select(AuditLog).where(
-                AuditLog.action == "stage_route_replaced", AuditLog.entity_id == str(stage_id)
-            )
+        len(
+            (
+                await db_session.scalars(
+                    select(AuditLog).where(
+                        AuditLog.action == "stage_route_replaced",
+                        AuditLog.entity_id == str(stage_id),
+                    )
+                )
+            ).all()
         )
-    ).all() == []
+        == 1
+    )

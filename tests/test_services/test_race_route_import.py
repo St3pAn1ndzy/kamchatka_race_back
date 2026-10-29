@@ -232,3 +232,110 @@ async def test_any_started_stage_blocks_whole_package(
         )
     assert error.value.status_code == 409
     assert list(await db_session.scalars(select(StageRoutePoint))) == []
+
+
+async def test_active_stage_moves_existing_checkpoints_without_losing_marks(
+    db_session,
+    create_admin,
+    create_season,
+    create_stage,
+    create_participant,
+    create_checkpoint,
+    create_track_point,
+    create_official_mark,
+):
+    """Перенос КП на идущем этапе сохраняет их ID, отметки и исходные GPS-координаты"""
+    from app.db.models.official_mark import OfficialMark
+
+    db_session.sync_session.expire_on_commit = False
+    admin = await create_admin()
+    season = await create_season()
+    stage = await create_stage(season_id=season.id)
+    stage.status = "active"
+    participant = await create_participant()
+    start = await create_checkpoint(stage_id=stage.id, name="Старт", kind="start")
+    finish = await create_checkpoint(stage_id=stage.id, name="Финиш", kind="finish")
+    mark = await create_official_mark(participant_id=participant.id, checkpoint_id=start.id)
+    gps = await create_track_point(
+        participant_id=participant.id, stage_id=stage.id, lat=53.0, lon=158.0
+    )
+    coords = (gps.lat, gps.lon)
+    await RaceRouteImportService(db_session).save(
+        [line()],
+        [
+            {
+                "stage_id": stage.id,
+                "reverse": False,
+                "direction_confirmed": True,
+                "kinds": ["start", "finish"],
+            }
+        ],
+        admin_id=admin.id,
+        file_hash="weather",
+    )
+    assert (await db_session.get(Checkpoint, start.id)).lat == 53
+    assert (await db_session.get(Checkpoint, finish.id)).lat == 53.01
+    assert (await db_session.get(OfficialMark, mark.id)).checkpoint_id == start.id
+    assert (gps.lat, gps.lon) == coords
+    assert gps.km_from_start == 0
+    assert len(list(await db_session.scalars(select(Checkpoint)))) == 2
+
+
+async def test_moving_one_stage_shifts_following_checkpoint_distance(
+    db_session,
+    create_admin,
+    create_season,
+    create_stage,
+    create_checkpoint,
+):
+    """Изменение длины одного этапа сдвигает километраж следующих КП без их пересоздания"""
+    db_session.sync_session.expire_on_commit = False
+    admin = await create_admin()
+    season = await create_season()
+    first = await create_stage(season_id=season.id, order_index=1, distance_km=10)
+    second = await create_stage(season_id=season.id, number=2, order_index=2)
+    cp = await create_checkpoint(stage_id=second.id, km_from_race_start=15)
+    await RaceRouteImportService(db_session).save(
+        [line()],
+        [
+            {
+                "stage_id": first.id,
+                "reverse": False,
+                "direction_confirmed": True,
+                "kinds": ["start", "finish"],
+            }
+        ],
+        admin_id=admin.id,
+        file_hash="weather",
+    )
+    await db_session.refresh(cp)
+    assert cp.km_from_race_start == pytest.approx(first.distance_km + 5)
+
+
+async def test_finished_stage_cannot_be_rewritten(
+    db_session,
+    create_admin,
+    create_season,
+    create_stage,
+):
+    """Завершённый этап нельзя переписать погодным импортом"""
+    admin = await create_admin()
+    season = await create_season()
+    stage = await create_stage(season_id=season.id)
+    stage.status = "finished"
+    await db_session.flush()
+    with pytest.raises(HTTPException) as error:
+        await RaceRouteImportService(db_session).save(
+            [line()],
+            [
+                {
+                    "stage_id": stage.id,
+                    "reverse": False,
+                    "direction_confirmed": True,
+                    "kinds": ["start", "finish"],
+                }
+            ],
+            admin_id=admin.id,
+            file_hash="x",
+        )
+    assert error.value.status_code == 409

@@ -8,7 +8,7 @@
       <label for="raceFile" class="form-label">Общий файл KML или GPX до 8 МиБ</label>
       <input id="raceFile" type="file" accept=".kml,.gpx" class="form-control" required>
       <button type="submit" class="btn btn-outline-primary mt-2">Разобрать всю трассу</button>
-      <p class="text-muted mt-2">Линии и КП будут заменены только после сопоставления этапам и подтверждения направления каждой линии</p>
+      <p class="text-muted mt-2">Линии и КП сохраняются после сопоставления этапам и подтверждения направления. Во время этапа можно переносить существующие КП: названия, типы и количество должны совпадать с сохранёнными. Судейские отметки и GPS-история сохраняются</p>
       <div id="raceMapping" class="row g-3"></div>
       <button id="confirmRace" type="button" class="btn btn-primary mt-3" disabled>Подтвердить замену всех выбранных этапов и КП</button>
       <div id="raceStatus" role="status" aria-live="polite" class="mt-2"></div>
@@ -26,7 +26,7 @@
       <label class="form-label" for="importStage">Этап</label>
       <select class="form-select" id="importStage" required>
         {% for s in stages %}
-        <option value="{{ s.id }}">{{ s.number }} — {{ s.name }}</option>
+        <option value="{{ s.id }}" {% if s.id == selected_stage_id %}selected{% endif %}>{{ s.number }} — {{ s.name }}</option>
         {% endfor %}
       </select>
     </div>
