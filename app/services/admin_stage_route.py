@@ -8,6 +8,7 @@ from app.repositories.stage_route_point import StageRoutePointRepository
 from app.repositories.track_point import TrackPointRepository
 from app.schemas.admin_stage_route import StageRouteReplaceRequest
 from app.services.cache import cache
+from app.services.tracking_metrics import reproject_latest_points
 
 
 class AdminStageRouteService:
@@ -43,7 +44,8 @@ class AdminStageRouteService:
         admin_id: int,
     ) -> list[StageRoutePoint]:
         # Блокируем этап, чтобы две админские замены не пересеклись
-        if await self.stages.get_for_update(stage_id) is None:
+        stage = await self.stages.get_for_update(stage_id)
+        if stage is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Этап не найден")
 
         old_points = await self.routes.list_for_stage(stage_id)
@@ -53,13 +55,16 @@ class AdminStageRouteService:
             await self.session.commit()
             return old_points
 
-        if await self.track_points.exists_for_stage(stage_id):
+        has_history = await self.track_points.exists_for_stage(stage_id)
+        if stage.status == "finished" or (has_history and not coordinates):
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                "Маршрут нельзя менять после появления трек-точек этапа",
+                "Нельзя менять завершённый этап или очищать маршрут с GPS-историей",
             )
 
         saved = await self.routes.replace_for_stage(stage_id, coordinates)
+        if has_history:
+            await reproject_latest_points(self.session, stage_id, saved)
         self.session.add(
             AuditLog(
                 admin_id=admin_id,
@@ -74,4 +79,6 @@ class AdminStageRouteService:
         )
         await self.session.commit()
         await cache.delete(f"public:map:route:{stage_id}")
+        await cache.invalidate_pattern(f"public:map:model:{stage_id}:*")
+        await cache.invalidate_pattern("admin:*")
         return saved
