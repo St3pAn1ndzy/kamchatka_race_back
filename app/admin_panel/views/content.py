@@ -19,6 +19,7 @@ from app.admin_panel.formatters import (
 from app.admin_panel.utils import get_int_param
 from app.db.base import async_session_factory
 from app.db.models import AuditLog, FAQItem, NewsPost, ScheduleEvent, ViewerLocation
+from app.enums import ViewerLocationCategory
 from app.security.admin_sessions import get_active_admin_for_session
 from app.services.cache import cache
 from app.services.media_storage import media_storage
@@ -570,8 +571,19 @@ class ViewerLocationAdmin(BaseAdminView, model=ViewerLocation):
     column_searchable_list = [ViewerLocation.name]
     column_selectinload = [ViewerLocation.stage]
 
-    form_overrides = {"kind": SelectField}
+    form_overrides = {"kind": SelectField, "category": SelectField}
     form_args = {
+        "category": {
+            "label": "Категория",
+            "choices": [
+                (category.value, label)
+                for category, label in zip(
+                    ViewerLocationCategory,
+                    ("Сцены", "Площадки", "Еда", "Детям", "Другое"),
+                    strict=True,
+                )
+            ],
+        },
         "kind": {
             "choices": [
                 ("start", "Старт"),

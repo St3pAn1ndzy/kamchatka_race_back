@@ -131,6 +131,7 @@ async def test_stage_link_selects_requested_import_stage(route_client, monkeypat
     response = await client.get("/admin/race-route?stage_id=7", headers={"X-Test-Admin": "yes"})
     assert response.status_code == 200
     assert re.search(r'<option value="7"\s+selected', response.text)
+    assert re.search(r'id="raceImport"[^>]*data-stage-id="7"', response.text)
 
 
 def test_stage_list_offers_route_replacement():
@@ -140,8 +141,10 @@ def test_stage_list_offers_route_replacement():
 
     stage = SimpleNamespace(id=7, name="<script>Название</script>")
     link = str(StageAdmin.column_formatters[Stage.name](stage, None))
+    assert "/admin-panel/race-route?stage_id=7#raceImportTitle" in link
     assert "/admin-panel/race-route?stage_id=7#importTitle" in link
-    assert "Заменить маршрут" in link
+    assert "Маршрут и КП" in link
+    assert "Только линия" in link
     assert "<script>" not in link
 
 
