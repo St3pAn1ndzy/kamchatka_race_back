@@ -71,6 +71,9 @@
       });
       row.dataset.index = index;
       rows.append(row);
+      if (lines.length === 1 && form.dataset.stageId) {
+        stage.value = form.dataset.stageId;
+      }
     });
   }
   file.addEventListener('change', function () {
