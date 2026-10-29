@@ -10,6 +10,7 @@ from sqladmin import BaseView, expose
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from app.admin_panel.utils import get_int_param
 from app.db.base import async_session_factory
 from app.schemas.admin_stage_route import StageRouteReplaceRequest
 from app.services.admin_route import AdminRouteService
@@ -33,7 +34,11 @@ class RaceRouteView(BaseView):
         return await self.templates.TemplateResponse(
             request,
             "sqladmin/race_route.html",
-            {"stages": stages, "route_import_csrf": token},
+            {
+                "stages": stages,
+                "route_import_csrf": token,
+                "selected_stage_id": get_int_param(request, "stage_id"),
+            },
         )
 
     @expose("/api/race-route/{stage_id:int}", methods=["GET"])
