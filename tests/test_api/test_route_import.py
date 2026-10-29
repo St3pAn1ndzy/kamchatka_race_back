@@ -120,6 +120,31 @@ async def _token(client):
     return re.search(r'data-csrf="([^"]+)"', response.text).group(1)
 
 
+async def test_stage_link_selects_requested_import_stage(route_client, monkeypatch):
+    """Переход из списка этапов сразу выбирает нужный этап в форме импорта"""
+    client, _ = route_client
+    stages = [
+        {"id": sid, "number": sid, "name": f"Этап {sid}", "distance_km": 10} for sid in (1, 7)
+    ]
+    directory = SimpleNamespace(get_stages=AsyncMock(return_value=stages))
+    monkeypatch.setattr("app.admin_panel.views.race_route.AdminRouteService", lambda _: directory)
+    response = await client.get("/admin/race-route?stage_id=7", headers={"X-Test-Admin": "yes"})
+    assert response.status_code == 200
+    assert re.search(r'<option value="7"\s+selected', response.text)
+
+
+def test_stage_list_offers_route_replacement():
+    """У каждого этапа есть ссылка на импорт с его ID и безопасным названием"""
+    from app.admin_panel.views.event import StageAdmin
+    from app.db.models.stage import Stage
+
+    stage = SimpleNamespace(id=7, name="<script>Название</script>")
+    link = str(StageAdmin.column_formatters[Stage.name](stage, None))
+    assert "/admin-panel/race-route?stage_id=7#importTitle" in link
+    assert "Заменить маршрут" in link
+    assert "<script>" not in link
+
+
 async def test_preview_returns_coordinates_without_saving(route_client):
     """Предпросмотр разбирает файл для выбранного этапа, но не меняет маршрут"""
     client, service = route_client
