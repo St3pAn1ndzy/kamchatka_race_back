@@ -1,6 +1,6 @@
 """Views для сущностей события: сезоны, дисциплины, этапы, КП."""
 
-from markupsafe import Markup
+from markupsafe import Markup, escape
 from sqlalchemy import select
 from starlette.requests import Request
 from wtforms import SelectField
@@ -304,6 +304,10 @@ class StageAdmin(BaseAdminView, model=Stage):
         Stage.start_time: lambda m, a: fmt_datetime(m.start_time),
         Stage.status: lambda m, a: fmt_stage_status(m.status),
         Stage.results_publication: lambda m, a: fmt_publication(m.results_publication),
+        Stage.name: lambda m, a: Markup(
+            f'{escape(m.name)} <a href="/admin-panel/race-route?stage_id={m.id}#importTitle" '
+            'class="btn btn-sm btn-outline-primary">Заменить маршрут</a>'
+        ),
     }
     column_formatters_detail = {
         Stage.number: lambda m, a: f"№{m.number}",
