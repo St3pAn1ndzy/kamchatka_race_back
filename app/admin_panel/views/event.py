@@ -305,8 +305,10 @@ class StageAdmin(BaseAdminView, model=Stage):
         Stage.status: lambda m, a: fmt_stage_status(m.status),
         Stage.results_publication: lambda m, a: fmt_publication(m.results_publication),
         Stage.name: lambda m, a: Markup(
-            f'{escape(m.name)} <a href="/admin-panel/race-route?stage_id={m.id}#importTitle" '
-            'class="btn btn-sm btn-outline-primary">Заменить маршрут</a>'
+            f'{escape(m.name)} <a href="/admin-panel/race-route?stage_id={m.id}#raceImportTitle" '
+            'class="btn btn-sm btn-outline-primary">Маршрут и КП</a> '
+            f'<a href="/admin-panel/race-route?stage_id={m.id}#importTitle" '
+            'class="btn btn-sm btn-outline-secondary">Только линия</a>'
         ),
     }
     column_formatters_detail = {
