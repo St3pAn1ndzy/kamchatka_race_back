@@ -34,7 +34,10 @@
     container.replaceChildren(...(devices.length ? [card] : []));
   }
 
+  let busy = false;
   async function refresh() {
+    if (busy) return;
+    busy = true;
     try {
       const response = await fetch('/admin-panel/api/dashboard-stats', {cache: 'no-store'});
       if (!response.ok || response.redirected) return;
@@ -48,6 +51,8 @@
       }
     } catch (_) {
       // Ошибка связи не должна скрывать последнюю известную тревогу
+    } finally {
+      busy = false;
     }
   }
   refresh();
