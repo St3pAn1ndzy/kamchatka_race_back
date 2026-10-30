@@ -80,6 +80,18 @@ class ViewerLocationCategory(StrEnum):
     OTHER = "other"  # Для всего остального (например, смотровые)
 
 
+class ViewerLocationGlyph(StrEnum):
+    """Глиф иконки локации на карте (фронт маппит на VKUI-иконки)."""
+
+    MIC = "mic"  # сцена
+    FOOD = "food"  # еда
+    HOUSE = "house"  # шатёр
+    IMAGE = "image"  # фотозона
+    GLOBE = "globe"  # этнозона
+    SMILE = "smile"  # детская зона
+    PIN = "pin"  # дефолт (старт, финиш, смотровые)
+
+
 class UserFeedbackStatus(StrEnum):
     NEW = "new"
     IN_PROGRESS = "in_progress"
