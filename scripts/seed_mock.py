@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db.base import async_session_factory
@@ -379,10 +380,127 @@ def _note_created(created: dict[str, int], key: str, amount: int) -> None:
     created[key] = created.get(key, 0) + amount
 
 
+async def ensure_stages(
+    session: AsyncSession, season: Season, stage_data: list[dict], no_track: bool = False
+) -> list[Stage]:
+    """Добавляет недостающие номера только в выбранный сезон без изменения существующих"""
+    data_numbers = set()
+    for data in stage_data:
+        number = data["number"]
+        if type(number) is not int or number <= 0 or number in data_numbers:
+            raise ValueError(f"Недопустимый или повторяющийся номер этапа seed: {number}")
+        data_numbers.add(number)
+
+    with session.no_autoflush:
+        locked_id = await session.scalar(
+            select(Season.id).where(Season.id == season.id).with_for_update()
+        )
+        if locked_id is None:
+            raise ValueError(f"Сезон {season.id} не найден")
+        stages = list(
+            await session.scalars(
+                select(Stage).where(Stage.season_id == season.id).order_by(Stage.number, Stage.id)
+            )
+        )
+        existing_numbers = set()
+        for stage in stages:
+            if stage.number <= 0 or stage.number in existing_numbers:
+                raise ValueError(
+                    f"Недопустимый или повторяющийся номер этапа {stage.number} "
+                    f"в сезоне {season.id}"
+                )
+            existing_numbers.add(stage.number)
+
+        added = []
+        for data in stage_data:
+            if data["number"] in existing_numbers:
+                continue
+            start_dt = datetime.fromisoformat(data["start_utc"].replace("Z", "+00:00"))
+            active = data["number"] == 1 and not no_track
+            added.append(
+                Stage(
+                    name=f"Этап {data['number']}. {data['name']}",
+                    distance_km=float(data["distance"]),
+                    start_time=start_dt,
+                    finish_time=start_dt + timedelta(hours=data["duration"]),
+                    order_index=data["number"] - 1,
+                    tracker_interval_seconds=1200,
+                    status=StageStatus.ACTIVE.value if active else StageStatus.PLANNED.value,
+                    results_publication=(
+                        PublicationStatus.PROVISIONAL.value
+                        if active
+                        else PublicationStatus.DRAFT.value
+                    ),
+                    season_id=season.id,
+                    number=data["number"],
+                )
+            )
+        if added:
+            session.add_all(added)
+            await session.flush(added)
+        logger.info("Stage: добавлено %s, сохранено %s", len(added), len(stages))
+        return sorted([*stages, *added], key=lambda stage: stage.number)
+
+
 # --- Основная логика -------------------------------------------------------
 
 
-async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) -> None:
+async def validate_seed_scenario(
+    session: AsyncSession, scenario: str, stage_data: list[dict]
+) -> None:
+    """Отклоняет смешивание явного профиля с несовместимыми данными до первой записи"""
+    with session.no_autoflush:
+        season_id = await session.scalar(
+            select(Season.id).where(Season.year == SEASON_YEAR).with_for_update()
+        )
+        stages = (
+            list(
+                await session.scalars(
+                    select(Stage)
+                    .where(Stage.season_id == season_id)
+                    .order_by(Stage.number, Stage.id)
+                )
+            )
+            if season_id is not None
+            else []
+        )
+        numbers = [stage.number for stage in stages]
+        expected = {data["number"] for data in stage_data}
+        incompatible = bool(stages) and (
+            len(numbers) != len(set(numbers)) or set(numbers) != expected
+        )
+        if scenario == "route-import":
+            incompatible = incompatible or any(
+                stage.status != StageStatus.PLANNED.value
+                or stage.results_publication != PublicationStatus.DRAFT.value
+                for stage in stages
+            )
+            has_gps = await _exists(session, TrackPoint)
+            has_marks = await _exists(session, OfficialMark)
+            has_sos = await session.scalar(select(Device.id).where(Device.sos_active).limit(1))
+            race = await session.scalar(select(RaceStatus).limit(1))
+            incompatible = (
+                incompatible
+                or has_gps
+                or has_marks
+                or has_sos is not None
+                or (race is not None and race.status != RaceState.UPCOMING.value)
+            )
+        if incompatible:
+            raise ValueError(f"Данные несовместимы со сценарием {scenario}, пересоздайте с --reset")
+
+
+async def main(
+    *, reset: bool, users_count: int, no_track: bool, force: bool, scenario: str = "standard"
+) -> None:
+    """Заполняет стандартную базу или один из явных демонстрационных профилей"""
+    if scenario not in {"standard", "overview", "route-import"}:
+        raise ValueError(f"Неизвестный сценарий seed: {scenario}")
+    stage_data = STAGES_DATA[:3] if scenario == "overview" else STAGES_DATA
+    if scenario == "route-import":
+        no_track = True
+    elif scenario == "overview":
+        no_track = False
     if settings.ENV != "dev" and not force:
         raise RuntimeError(
             f"Seed разрешён только в ENV=dev, сейчас ENV={settings.ENV!r}. Для прод-окружения используйте --force."
@@ -395,6 +513,8 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
     created: dict[str, int] = {}
 
     async with async_session_factory() as session:
+        if scenario != "standard" and not reset:
+            await validate_seed_scenario(session, scenario, stage_data)
         if reset:
             logger.info("Сброс: очищаю таблицы")
             reset_order = [
@@ -429,7 +549,8 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
         now = datetime.now(tz=UTC)
 
         # --- Season ---
-        if not await _exists(session, Season):
+        season = await session.scalar(select(Season).where(Season.year == SEASON_YEAR))
+        if season is None:
             season = Season(
                 year=SEASON_YEAR,
                 title=SEASON_TITLE,
@@ -441,7 +562,6 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             await session.flush()
             _note_created(created, "Season", 1)
         else:
-            season = (await session.execute(select(Season).limit(1))).scalar_one_or_none()
             logger.info("Season уже есть — пропускаю")
 
         # --- Discipline ---
@@ -541,75 +661,46 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             logger.info("Participant уже есть — пропускаю")
 
         # --- Stage ---
-        if not await _exists(session, Stage):
-            stages = []
-            for s_data in STAGES_DATA:
-                start_dt = datetime.fromisoformat(s_data["start_utc"].replace("Z", "+00:00"))
-                finish_dt = start_dt + timedelta(hours=s_data["duration"])
-                stages.append(
-                    Stage(
-                        name=f"Этап {s_data['number']}. {s_data['name']}",
-                        distance_km=float(s_data["distance"]),
-                        start_time=start_dt,
-                        finish_time=finish_dt,
-                        order_index=s_data["number"] - 1,
-                        tracker_interval_seconds=1200,
-                        status=(
-                            StageStatus.ACTIVE.value
-                            if s_data["number"] == 1
-                            else StageStatus.PLANNED.value
-                        ),
-                        results_publication=(
-                            PublicationStatus.PROVISIONAL.value
-                            if s_data["number"] == 1
-                            else PublicationStatus.DRAFT.value
-                        ),
-                        season_id=season.id,
-                        number=s_data["number"],
-                    )
-                )
-            session.add_all(stages)
-            await session.flush()
-            _note_created(created, "Stage", len(stages))
-        else:
-            stages = (
-                (await session.execute(select(Stage).order_by(Stage.order_index))).scalars().all()
-            )
-            logger.info("Stage уже есть — пропускаю")
+        existing_stage_ids = set(
+            await session.scalars(select(Stage.id).where(Stage.season_id == season.id))
+        )
+        stages = await ensure_stages(session, season, stage_data, no_track=no_track)
+        _note_created(created, "Stage", sum(s.id not in existing_stage_ids for s in stages))
 
         first_stage = stages[0]
         first_admin = admin
 
         # --- Загрузка реального маршрута из JSON ---
         route_json = {}
-        if not ROUTE_JSON_PATH.exists():
-            raise RuntimeError(
-                f"Файл {ROUTE_JSON_PATH} не найден. "
-                f"Сид не может продолжить без реальной геометрии маршрута. "
-                f"Проверь, что в docker-compose.yaml у сервиса api смонтирован ./data:/app/data"
-            )
+        if scenario != "route-import":
+            if not ROUTE_JSON_PATH.exists():
+                raise RuntimeError(
+                    f"Файл {ROUTE_JSON_PATH} не найден. "
+                    f"Сид не может продолжить без реальной геометрии маршрута. "
+                    f"Проверь, что в docker-compose.yaml у сервиса api смонтирован ./data:/app/data"
+                )
 
-        with open(ROUTE_JSON_PATH, encoding="utf-8") as f:
-            route_json = json.load(f)
+            with open(ROUTE_JSON_PATH, encoding="utf-8") as f:
+                route_json = json.load(f)
 
-        # ═══ Валидация: все этапы должны иметь координаты ═══
-        missing_stages = [
-            s_data["number"]
-            for s_data in STAGES_DATA
-            if not any(
-                js["number"] == s_data["number"] and js.get("coordinates")
-                for js in route_json.get("stages", [])
-            )
-        ]
-        if missing_stages:
-            raise RuntimeError(
-                f"В {ROUTE_JSON_PATH} нет координат для этапов: {missing_stages}. "
-                f"Проверь файл — все 6 этапов должны иметь массив coordinates."
-            )
+            # Проверяем геометрию только этапов выбранного сценария
+            missing_stages = [
+                data["number"]
+                for data in stage_data
+                if not any(
+                    js["number"] == data["number"] and js.get("coordinates")
+                    for js in route_json.get("stages", [])
+                )
+            ]
+            if missing_stages:
+                raise RuntimeError(
+                    f"В {ROUTE_JSON_PATH} нет координат для этапов: {missing_stages}. "
+                    f"Проверь файл — все {len(stage_data)} этапов должны иметь массив coordinates."
+                )
 
         # --- Checkpoint & StageRoutePoint ---
         checkpoints = []
-        if not await _exists(session, Checkpoint):
+        if scenario != "route-import" and not await _exists(session, Checkpoint):
             for stage in stages:
                 json_stage = next(
                     (js for js in route_json.get("stages", []) if js["number"] == stage.number),
@@ -688,15 +779,28 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
             )
             logger.info("Checkpoint уже есть — пропускаю")
 
-        first_stage_cps = sorted(
-            [cp for cp in checkpoints if cp.stage_id == first_stage.id], key=lambda c: c.order_index
-        )
-        path_start = next(cp for cp in first_stage_cps if cp.kind == CheckpointKind.START.value)
-        path_finish = next(cp for cp in first_stage_cps if cp.kind == CheckpointKind.FINISH.value)
+        if not no_track:
+            first_stage_cps = sorted(
+                [cp for cp in checkpoints if cp.stage_id == first_stage.id],
+                key=lambda c: c.order_index,
+            )
+            path_start = next(cp for cp in first_stage_cps if cp.kind == CheckpointKind.START.value)
+            path_finish = next(
+                cp for cp in first_stage_cps if cp.kind == CheckpointKind.FINISH.value
+            )
 
         # --- RaceStatus (текущий режим гонки) ---
         if not await _exists(session, RaceStatus):
-            session.add(RaceStatus(status=RaceState.LIVE.value, current_stage_id=first_stage.id))
+            session.add(
+                RaceStatus(
+                    status=(
+                        RaceState.UPCOMING.value
+                        if scenario == "route-import"
+                        else RaceState.LIVE.value
+                    ),
+                    current_stage_id=None if scenario == "route-import" else first_stage.id,
+                )
+            )
             await session.flush()
             _note_created(created, "RaceStatus", 1)
 
@@ -711,7 +815,7 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
                     stage_id=first_stage.id,
                     is_active=True,
                     battery_percent=rng.randint(10, 100),
-                    sos_active=(i in (3, 8)),
+                    sos_active=(scenario != "route-import" and i in (3, 8)),
                     last_message_at=now - timedelta(hours=2),
                 )
                 for i in range(1, len(participants) + 1)
@@ -1178,7 +1282,8 @@ async def main(*, reset: bool, users_count: int, no_track: bool, force: bool) ->
 
         # ═══ СБРОС КЭША ═══
         await cache.invalidate_pattern("public:*")
-        logger.info("Кэш public:* сброшен")
+        await cache.invalidate_pattern("admin:*")
+        logger.info("Кэш public:* и admin:* сброшен")
 
         # --- Сводка ---
         print("\nСоздано:")
@@ -1223,9 +1328,21 @@ if __name__ == "__main__":
     parser.add_argument("--users", type=int, default=30, help="Количество пользователей")
     parser.add_argument("--no-track", action="store_true", help="Без треков")
     parser.add_argument("--force", action="store_true", help="Разрешить в prod")
+    parser.add_argument(
+        "--scenario",
+        choices=("standard", "overview", "route-import"),
+        default="standard",
+        help="Стандартные 6 этапов, обзор 3 этапов или подготовка 6 этапов к импорту",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
     asyncio.run(
-        main(reset=args.reset, users_count=args.users, no_track=args.no_track, force=args.force)
+        main(
+            reset=args.reset,
+            users_count=args.users,
+            no_track=args.no_track,
+            force=args.force,
+            scenario=args.scenario,
+        )
     )
