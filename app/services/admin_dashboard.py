@@ -336,6 +336,8 @@ class AdminDashboardService:
         positions = await self.device_repo.list_active_with_positions()
         participants = [
             {
+                "device_id": pos.device_id,
+                "participant_id": pos.participant_id,
                 "number": pos.participant_number,
                 "name": pos.participant_name,
                 "lat": pos.lat,
