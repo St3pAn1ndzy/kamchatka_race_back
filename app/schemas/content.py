@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.enums import ViewerLocationCategory, ViewerLocationKind
+from app.enums import ViewerLocationCategory, ViewerLocationGlyph, ViewerLocationKind
 from app.schemas.base import BaseSchema
 
 
@@ -31,6 +31,7 @@ class ViewerLocationPublicResponse(BaseSchema):
     name: str
     kind: ViewerLocationKind
     category: ViewerLocationCategory
+    glyph: ViewerLocationGlyph
     lat: float
     lon: float
     address: str | None = None
