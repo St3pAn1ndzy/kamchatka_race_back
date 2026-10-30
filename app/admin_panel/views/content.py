@@ -504,6 +504,8 @@ class ViewerLocationAdmin(BaseAdminView, model=ViewerLocation):
     column_list = [
         ViewerLocation.name,
         ViewerLocation.kind,
+        ViewerLocation.category,
+        ViewerLocation.glyph,
         ViewerLocation.travel_time_minutes,
         ViewerLocation.stage,
         ViewerLocation.is_public,
@@ -511,6 +513,8 @@ class ViewerLocationAdmin(BaseAdminView, model=ViewerLocation):
     column_labels = {
         ViewerLocation.name: "Название",
         ViewerLocation.kind: "Тип",
+        ViewerLocation.category: "Категория",
+        ViewerLocation.glyph: "Иконка",
         ViewerLocation.travel_time_minutes: "В пути, мин",
         ViewerLocation.stage: "Этап",
         ViewerLocation.is_public: "Публичная",
@@ -561,6 +565,8 @@ class ViewerLocationAdmin(BaseAdminView, model=ViewerLocation):
     column_details_list = [
         ViewerLocation.name,
         ViewerLocation.kind,
+        ViewerLocation.category,
+        ViewerLocation.glyph,
         ViewerLocation.description,
         ViewerLocation.travel_time_minutes,
         ViewerLocation.lat,
@@ -571,7 +577,11 @@ class ViewerLocationAdmin(BaseAdminView, model=ViewerLocation):
     column_searchable_list = [ViewerLocation.name]
     column_selectinload = [ViewerLocation.stage]
 
-    form_overrides = {"kind": SelectField, "category": SelectField}
+    form_overrides = {
+        "kind": SelectField,
+        "category": SelectField,
+        "glyph": SelectField,
+    }
     form_args = {
         "category": {
             "label": "Категория",
@@ -591,6 +601,17 @@ class ViewerLocationAdmin(BaseAdminView, model=ViewerLocation):
                 ("viewpoint", "Смотровая"),
                 ("festival", "Фестиваль"),
                 ("other", "Другое"),
+            ],
+        },
+        "glyph": {
+            "choices": [
+                ("mic", "Сцена (микрофон)"),
+                ("food", "Еда"),
+                ("house", "Шатёр (домик)"),
+                ("image", "Фотозона"),
+                ("globe", "Этнозона (глобус)"),
+                ("smile", "Детская зона"),
+                ("pin", "Дефолт (пин)"),
             ],
         },
     }
