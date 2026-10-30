@@ -3,6 +3,7 @@
 {% block content %}
 
 {# ═══ SOS-БЛОК ═══ #}
+<div id="dashboard-sos" class="col-12 d-block" aria-live="polite">
 {% if sos_devices %}
 <div class="card border-danger mb-4 shadow-sm" style="border-color:rgba(214,57,57,0.35)!important;background:linear-gradient(90deg,rgba(214,57,57,0.05) 0%,rgba(214,57,57,0.01) 100%);">
   <div class="card-body">
@@ -47,6 +48,7 @@
   </div>
 </div>
 {% endif %}
+</div>
 
 {# ═══ БЫСТРЫЕ ДЕЙСТВИЯ ═══ #}
 <div class="quick-actions mb-4">
@@ -179,6 +181,7 @@
         <div class="d-flex align-items-baseline gap-2">
           <div class="h1 mb-0 fw-bold {% if stats.devices_stale > 0 %}text-danger{% endif %}" id="metric-devices">{{ stats.devices_online }} <span class="fs-3 text-muted">/ {{ stats.devices_total }}</span></div>
         </div>
+        <div id="metric-stale">
         {% if stats.devices_stale > 0 %}
         <div class="text-danger small fw-bold mt-3">
           <i class="fa-solid fa-triangle-exclamation me-1"></i> {{ stats.devices_stale }} потеряли связь!
@@ -186,6 +189,7 @@
         {% else %}
         <div class="text-success small fw-bold mt-3"><i class="fa-solid fa-check me-1"></i> Все на связи</div>
         {% endif %}
+        </div>
       </div>
     </div>
   </div>
@@ -313,134 +317,10 @@
 
 {% block tail %}
 {{ super() }}
+<script src="/static/js/dashboard_sos.js?v=1"></script>
+<script src="/static/js/dashboard_map.js?v=1"></script>
 <script>
 (function(){
-  var updatedEl = document.getElementById('map-updated');
-  var loaderEl = document.getElementById('mapLoader');
-  var globalMap = null;
-  var allCoordsGlobal = []; // Храним все координаты для сброса
-
-  if (typeof ymaps === 'undefined') {
-    if (updatedEl) updatedEl.textContent = 'API Карт не загружено';
-    return;
-  }
-
-  ymaps.ready(function(){
-    globalMap = new ymaps.Map('miniMap', {
-      center: [53.0, 158.7],
-      zoom: 8,
-      controls: ['zoomControl', 'fullscreenControl']
-    });
-    globalMap.container.fitToViewport();
-
-    function loadMapData(){
-      fetch('/admin-panel/api/dashboard-map-data')
-        .then(function(r){ return r.json(); })
-        .then(function(data){
-          globalMap.geoObjects.removeAll();
-          var allCoords = [];
-
-          if (data.route && data.route.length) {
-            var coords = data.route.map(function(p){ return [p.lat, p.lon]; });
-            allCoords = allCoords.concat(coords);
-            var polyline = new ymaps.Polyline(coords, {}, {
-              strokeColor: '#005A9C', strokeWidth: 4, strokeOpacity: 0.8
-            });
-            globalMap.geoObjects.add(polyline);
-          }
-
-          if (data.checkpoints) {
-            data.checkpoints.forEach(function(cp){
-              var color = cp.kind === 'start' ? '#2fb344' : cp.kind === 'finish' ? '#d63939' : '#f59f00';
-              allCoords.push([cp.lat, cp.lon]);
-              var placemark = new ymaps.Placemark([cp.lat, cp.lon], {
-                hintContent: cp.code + ' — ' + cp.name,
-                balloonContent: '<b>' + cp.code + '</b><br>' + cp.name
-              }, { preset: 'islands#circleDotIcon', iconColor: color });
-              globalMap.geoObjects.add(placemark);
-            });
-          }
-
-          if (data.participants) {
-            var clusterer = new ymaps.Clusterer({
-              preset: 'islands#invertedVioletClusterIcons',
-              groupByCoordinates: false,
-              clusterDisableClickZoom: false,
-              clusterHideIconOnBalloonOpen: false,
-              geoObjectHideIconOnBalloonOpen: false
-            });
-            var participantPlacemarks = [];
-
-            data.participants.forEach(function(p){
-              if (p.lat && p.lon) {
-                allCoords.push([p.lat, p.lon]);
-                var placemark = new ymaps.Placemark([p.lat, p.lon], {
-                  hintContent: '№' + (p.number||'?') + ' ' + (p.name||''),
-                  balloonContent: '<div class="p-1"><b>Участник №' + (p.number||'?') + '</b><br>' + (p.name||'') + '</div>'
-                }, {
-                  preset: p.sos ? 'islands#redDotIcon' : 'islands#blueDotIcon'
-                });
-                participantPlacemarks.push(placemark);
-              }
-            });
-            clusterer.add(participantPlacemarks);
-            globalMap.geoObjects.add(clusterer);
-          }
-
-          // Сохраняем для сброса
-          allCoordsGlobal = allCoords;
-
-          if (allCoords.length > 0) {
-            var minLat = Math.min.apply(null, allCoords.map(function(c){ return c[0]; }));
-            var maxLat = Math.max.apply(null, allCoords.map(function(c){ return c[0]; }));
-            var minLon = Math.min.apply(null, allCoords.map(function(c){ return c[1]; }));
-            var maxLon = Math.max.apply(null, allCoords.map(function(c){ return c[1]; }));
-
-            globalMap.setBounds([[minLat, minLon], [maxLat, maxLon]], {
-              checkZoomRange: true, zoomMargin: 80
-            });
-          } else {
-             globalMap.setCenter([53.0, 158.7], 8);
-          }
-
-          if (loaderEl) loaderEl.style.display = 'none';
-          if (updatedEl) updatedEl.textContent = 'Обновлено ' + new Date().toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'});
-        })
-        .catch(function(err){
-          console.error(err);
-          if (loaderEl) loaderEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-2 text-danger"></i> Ошибка загрузки';
-          if (updatedEl) updatedEl.textContent = 'Ошибка';
-        });
-    }
-
-    loadMapData();
-    setInterval(loadMapData, 30000);
-
-    // Кнопка "Показать всех"
-    window.resetMapView = function(){
-        if (allCoordsGlobal.length > 0) {
-            var minLat = Math.min.apply(null, allCoordsGlobal.map(function(c){ return c[0]; }));
-            var maxLat = Math.max.apply(null, allCoordsGlobal.map(function(c){ return c[0]; }));
-            var minLon = Math.min.apply(null, allCoordsGlobal.map(function(c){ return c[1]; }));
-            var maxLon = Math.max.apply(null, allCoordsGlobal.map(function(c){ return c[1]; }));
-            globalMap.setBounds([[minLat, minLon], [maxLat, maxLon]], {
-                checkZoomRange: true, zoomMargin: 80
-            });
-        }
-    };
-
-    // Обработчик кнопок "На карте"
-    document.querySelectorAll('.show-on-map').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var lat = parseFloat(this.getAttribute('data-lat'));
-        var lon = parseFloat(this.getAttribute('data-lon'));
-        if (lat && lon && globalMap) {
-          globalMap.setCenter([lat, lon], 13, { duration: 300 });
-          document.getElementById('miniMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      });
-    });
-
     // Фильтрация блока "Требуют внимания"
     var attentionItems = document.querySelectorAll('.attention-item');
     document.querySelectorAll('.filter-attention').forEach(function(btn) {
@@ -461,7 +341,6 @@
             });
         });
     });
-  });
 
   // Фоновое обновление метрик
   setInterval(function() {
