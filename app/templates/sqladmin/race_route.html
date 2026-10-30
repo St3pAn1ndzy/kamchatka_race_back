@@ -10,6 +10,7 @@
       <button type="submit" class="btn btn-outline-primary mt-2">Разобрать всю трассу</button>
       <p class="text-muted mt-2">Линии и КП сохраняются после сопоставления этапам и подтверждения направления. Во время этапа можно переносить существующие КП: названия, типы и количество должны совпадать с сохранёнными. Судейские отметки и GPS-история сохраняются</p>
       <div id="raceMapping" class="row g-3"></div>
+      <button id="showRacePreview" type="button" class="btn btn-outline-primary mt-3" disabled>Показать предпросмотр</button>
       <button id="confirmRace" type="button" class="btn btn-primary mt-3" disabled>Подтвердить замену всех выбранных этапов и КП</button>
       <div id="raceStatus" role="status" aria-live="polite" class="mt-2"></div>
       <template id="raceStageOptions">
@@ -121,11 +122,13 @@
 
 {% block tail %}
 {{ super() }}
-<script src="/static/js/race_route_import.js?v=2"></script>
+<script src="/static/js/race_route_import.js?v=3"></script>
 <script>
 (function(){
   var routeLayer, cpLayer;
   var map = null, previewLayer = null, preview = null, revision = 0;
+  // Полный импорт хранится отдельно от предпросмотра линии выбранного этапа
+  var fullPreviewLayer = null, fullPreview = [];
   var form = document.getElementById('routeImport');
   var stageSelect = document.getElementById('importStage');
   var fileInput = document.getElementById('routeFile');
@@ -140,22 +143,30 @@
     return element.innerHTML;
   }
 
-  window.addEventListener('race-route-preview', function(event) {
-    if (!map) return;
-    if (previewLayer) map.geoObjects.remove(previewLayer);
-    if (!event.detail.length) { previewLayer = null; return; }
-    previewLayer = new ymaps.GeoObjectCollection();
-    event.detail.forEach(function(line) {
-      previewLayer.add(new ymaps.Polyline(line.points.map(function(p) { return [p.lat,p.lon]; }), {},
-        {strokeColor:'#d63939',strokeWidth:4,strokeStyle:'dash'}));
-      line.checkpoints.forEach(function(cp) {
-        var safeName = document.createElement('span');
-        safeName.textContent = cp.name;
-        previewLayer.add(new ymaps.Placemark([cp.lat,cp.lon], {hintContent: safeName.innerHTML}));
+  function showFullPreview() {
+    if (!map || !fullPreview.length) return;
+    if (!fullPreviewLayer) {
+      fullPreviewLayer = new ymaps.GeoObjectCollection();
+      fullPreview.forEach(function(line) {
+        fullPreviewLayer.add(new ymaps.Polyline(line.points.map(function(p) { return [p.lat,p.lon]; }), {},
+          {strokeColor:'#d63939',strokeWidth:4,strokeStyle:'dash'}));
+        line.checkpoints.forEach(function(cp) {
+          fullPreviewLayer.add(new ymaps.Placemark([cp.lat,cp.lon], {hintContent: escapeHtml(cp.name)}));
+        });
       });
-    });
-    map.geoObjects.add(previewLayer);
-    map.setBounds(previewLayer.getBounds(), {checkZoomRange:true, zoomMargin:30});
+      map.geoObjects.add(fullPreviewLayer);
+    }
+    map.setBounds(fullPreviewLayer.getBounds(), {checkZoomRange:true, zoomMargin:30});
+  }
+
+  window.addEventListener('race-route-preview', function(event) {
+    // Данные сохраняются даже до готовности карты и очищаются только своим источником
+    if (fullPreview !== event.detail) {
+      if (map && fullPreviewLayer) map.geoObjects.remove(fullPreviewLayer);
+      fullPreviewLayer = null;
+      fullPreview = event.detail;
+    }
+    showFullPreview();
   });
 
   function showStatus(text, error) {
@@ -437,6 +448,7 @@
     }
 
     showPreview();
+    showFullPreview();
   });
 })();
 </script>
