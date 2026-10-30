@@ -3,12 +3,12 @@
 import json
 from contextlib import asynccontextmanager
 from fnmatch import fnmatchcase
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from sqlalchemy import event, func, select
 
+from app.config import Settings
 from app.db.models import (
     Checkpoint,
     Device,
@@ -22,6 +22,21 @@ from app.db.models import (
 from scripts import seed_mock as seed
 
 
+def scenario_settings(scenario):
+    """Задаёт локальное окружение и отдельные ресурсы выбранного профиля"""
+    database, redis_db = {
+        "overview": ("avacha_demo_overview", 13),
+        "route-import": ("avacha_demo_import", 14),
+    }.get(scenario, ("avacha", 0))
+    return Settings(
+        ENV="dev",
+        POSTGRES_HOST="localhost",
+        POSTGRES_DB=database,
+        REDIS_HOST="127.0.0.1",
+        REDIS_DB=redis_db,
+    )
+
+
 @pytest.fixture
 def seed_main(db_session, monkeypatch):
     """Подменяет только окружение и внешние эффекты без подмены логики seed"""
@@ -31,22 +46,92 @@ def seed_main(db_session, monkeypatch):
         yield db_session
 
     monkeypatch.setattr(seed, "async_session_factory", factory)
-    monkeypatch.setattr(seed, "settings", SimpleNamespace(ENV="dev"))
     monkeypatch.setattr(seed, "_copy_seed_media", lambda *args: None)
     monkeypatch.setattr(seed.cache, "invalidate_pattern", AsyncMock())
     monkeypatch.setattr(db_session.sync_session, "expire_on_commit", False)
 
     async def run(scenario="standard", **kwargs):
+        monkeypatch.setattr(seed, "settings", scenario_settings(scenario))
         await seed.main(
-            reset=False,
+            reset=kwargs.pop("reset", False),
             users_count=2,
             no_track=kwargs.pop("no_track", False),
-            force=False,
+            force=kwargs.pop("force", False),
             scenario=scenario,
             **kwargs,
         )
 
     return run
+
+
+@pytest.mark.parametrize("scenario", ["overview", "route-import"])
+@pytest.mark.parametrize("reset", [False, True])
+@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize("database", ["avacha", "avacha_test", "other-profile"])
+async def test_explicit_profile_rejects_wrong_database_before_session(
+    monkeypatch, scenario, reset, force, database
+):
+    """Даже reset с force не открывает сессию основной или чужой базы"""
+    if database == "other-profile":
+        database = "avacha_demo_import" if scenario == "overview" else "avacha_demo_overview"
+    monkeypatch.setattr(
+        seed, "settings", scenario_settings(scenario).model_copy(update={"POSTGRES_DB": database})
+    )
+    factory = Mock(side_effect=AssertionError("Сессия не должна открываться"))
+    monkeypatch.setattr(seed, "async_session_factory", factory)
+    with pytest.raises(ValueError, match="демонстрационн.*баз"):
+        await seed.main(reset=reset, users_count=2, no_track=False, force=force, scenario=scenario)
+    factory.assert_not_called()
+
+
+@pytest.mark.parametrize("scenario", ["overview", "route-import"])
+@pytest.mark.parametrize(
+    "overrides",
+    [{"ENV": "prod"}, {"POSTGRES_HOST": "database.example"}, {"REDIS_HOST": "cache.example"}],
+)
+async def test_explicit_profile_requires_local_dev_even_with_reset_force(
+    monkeypatch, scenario, overrides
+):
+    """Именованная демобаза не разрешает рабочее окружение и удалённые сервисы"""
+    monkeypatch.setattr(seed, "settings", scenario_settings(scenario).model_copy(update=overrides))
+    factory = Mock(side_effect=AssertionError("Сессия не должна открываться"))
+    monkeypatch.setattr(seed, "async_session_factory", factory)
+    with pytest.raises(ValueError, match="локальн"):
+        await seed.main(reset=True, users_count=2, no_track=False, force=True, scenario=scenario)
+    factory.assert_not_called()
+
+
+@pytest.mark.parametrize("scenario", ["overview", "route-import"])
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1"])
+async def test_explicit_profile_accepts_its_local_demo_database(monkeypatch, scenario, host):
+    """Корректный профиль проходит защиту до открытия сессии"""
+    monkeypatch.setattr(
+        seed,
+        "settings",
+        scenario_settings(scenario).model_copy(update={"POSTGRES_HOST": host, "REDIS_HOST": host}),
+    )
+    factory = Mock(side_effect=RuntimeError("Открытие сессии"))
+    monkeypatch.setattr(seed, "async_session_factory", factory)
+    with pytest.raises(RuntimeError, match="Открытие сессии"):
+        await seed.main(reset=True, users_count=2, no_track=False, force=True, scenario=scenario)
+    factory.assert_called_once_with()
+
+
+@pytest.mark.parametrize(("environment", "force"), [("dev", False), ("prod", True)])
+async def test_standard_keeps_existing_environment_rules(monkeypatch, environment, force):
+    """Стандартный запуск сохраняет поддержку основной базы и прежнего force"""
+    monkeypatch.setattr(
+        seed,
+        "settings",
+        scenario_settings("standard").model_copy(
+            update={"ENV": environment, "POSTGRES_HOST": "postgres", "REDIS_HOST": "redis"}
+        ),
+    )
+    factory = Mock(side_effect=RuntimeError("Открытие сессии"))
+    monkeypatch.setattr(seed, "async_session_factory", factory)
+    with pytest.raises(RuntimeError, match="Открытие сессии"):
+        await seed.main(reset=True, users_count=2, no_track=False, force=force)
+    factory.assert_called_once_with()
 
 
 async def count(session, model):
@@ -183,6 +268,66 @@ async def test_standard_no_track_still_creates_checkpoints(db_session, seed_main
         assert await count(db_session, model) == 0
 
 
+async def test_overview_to_standard_initializes_only_new_stages(db_session, seed_main):
+    """Дополнение до шести этапов сохраняет старые КП и маршрут и допускает повторный запуск"""
+    await seed_main("overview")
+    stage = await db_session.scalar(select(Stage).where(Stage.number == 2))
+    stage.name = "Изменённый этап"
+    stage.results_publication = "official"
+    cp = await db_session.scalar(select(Checkpoint).where(Checkpoint.stage_id == stage.id).limit(1))
+    cp.name = "Изменённый КП"
+    cp.lat = 53.123
+    point = await db_session.scalar(
+        select(StageRoutePoint).where(StageRoutePoint.stage_id == stage.id).limit(1)
+    )
+    point.lat = 53.456
+    await db_session.flush()
+
+    async def snapshot(model, stage_ids=None):
+        query = select(model.__table__).order_by(model.id)
+        if stage_ids is not None:
+            column = model.id if model is Stage else model.stage_id
+            query = query.where(column.in_(stage_ids))
+        return (await db_session.execute(query)).all()
+
+    models = (Stage, Checkpoint, StageRoutePoint)
+    old_ids = list(await db_session.scalars(select(Stage.id)))
+    before = [await snapshot(model, old_ids) for model in models]
+    await seed_main()
+    assert [await snapshot(model, old_ids) for model in models] == before
+    stages = list(await db_session.scalars(select(Stage).order_by(Stage.number)))
+    assert [s.number for s in stages] == [1, 2, 3, 4, 5, 6]
+    route_data = json.loads(seed.ROUTE_JSON_PATH.read_text())["stages"]
+    for stage in stages[3:]:
+        cps = list(
+            await db_session.scalars(
+                select(Checkpoint)
+                .where(Checkpoint.stage_id == stage.id)
+                .order_by(Checkpoint.order_index)
+            )
+        )
+        assert [cp.kind for cp in cps] == ["start", "checkpoint", "checkpoint", "finish"]
+        points = list(
+            await db_session.scalars(
+                select(StageRoutePoint)
+                .where(StageRoutePoint.stage_id == stage.id)
+                .order_by(StageRoutePoint.position)
+            )
+        )
+        coords = next(data["coordinates"] for data in route_data if data["number"] == stage.number)
+        assert [p.position for p in points] == list(range(len(coords)))
+        assert [[p.lon, p.lat] for p in points] == coords
+        assert [cp.lon for cp in cps] == [
+            coords[i][0] for i in (0, int(len(coords) * 0.3), int(len(coords) * 0.7), -1)
+        ]
+        assert [cp.lat for cp in cps] == [
+            coords[i][1] for i in (0, int(len(coords) * 0.3), int(len(coords) * 0.7), -1)
+        ]
+    complete = [await snapshot(model) for model in models]
+    await seed_main()
+    assert [await snapshot(model) for model in models] == complete
+
+
 async def test_unknown_scenario_rejected_before_seed(db_session, seed_main):
     """Неизвестное имя сценария отклоняется без создания сезона"""
     with pytest.raises(ValueError, match="сценарий"):
@@ -223,3 +368,16 @@ async def test_failed_commit_does_not_invalidate_cache(db_session, seed_main, mo
     with pytest.raises(RuntimeError, match="commit failed"):
         await seed_main("route-import")
     seed.cache.invalidate_pattern.assert_not_awaited()
+
+
+@pytest.mark.parametrize("scenario", ["overview", "route-import"])
+async def test_explicit_profile_rejects_shared_cache_before_session(monkeypatch, scenario):
+    """Демосид не очищает общий Redis даже при правильном имени базы и reset с force"""
+    monkeypatch.setattr(
+        seed, "settings", scenario_settings(scenario).model_copy(update={"REDIS_DB": 0})
+    )
+    factory = Mock(side_effect=AssertionError("Сессия не должна открываться"))
+    monkeypatch.setattr(seed, "async_session_factory", factory)
+    with pytest.raises(ValueError, match="Redis"):
+        await seed.main(reset=True, users_count=2, no_track=False, force=True, scenario=scenario)
+    factory.assert_not_called()
