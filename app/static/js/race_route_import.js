@@ -6,6 +6,7 @@
   const rows = document.getElementById('raceMapping');
   const status = document.getElementById('raceStatus');
   const confirm = document.getElementById('confirmRace');
+  const show = document.getElementById('showRacePreview');
   const submit = form.querySelector('button[type="submit"]');
   let preview = null;
   let busy = false;
@@ -21,6 +22,7 @@
     file.disabled = value;
     submit.disabled = value;
     confirm.disabled = value || !preview;
+    show.disabled = value || !preview;
   }
   function field(parent, text, element) {
     const label = document.createElement('label');
@@ -76,8 +78,13 @@
       }
     });
   }
+  // Повторный показ не разбирает файл и не пересоздаёт настройки сопоставления
+  show.addEventListener('click', function () {
+    if (busy || !preview) return;
+    window.dispatchEvent(new CustomEvent('race-route-preview', {detail:preview}));
+  });
   file.addEventListener('change', function () {
-    revision += 1; preview = null; rows.replaceChildren(); confirm.disabled = true; message('', false);
+    revision += 1; preview = null; rows.replaceChildren(); setBusy(busy); message('', false);
     window.dispatchEvent(new CustomEvent('race-route-preview', {detail:[]}));
   });
   async function request(action, mapping) {
