@@ -64,6 +64,7 @@ from app.enums import (
 from app.security.passwords import hash_password
 from app.security.tokens import create_user_token
 from app.services.cache import cache
+from scripts.demo import SCENARIOS, scenario_environment
 
 logger = logging.getLogger("avacha.seed")
 settings = get_settings()
@@ -496,6 +497,14 @@ async def main(
     """Заполняет стандартную базу или один из явных демонстрационных профилей"""
     if scenario not in {"standard", "overview", "route-import"}:
         raise ValueError(f"Неизвестный сценарий seed: {scenario}")
+    if scenario != "standard":
+        scenario_environment(scenario, settings)
+        if SCENARIOS[scenario].database != settings.POSTGRES_DB:
+            raise ValueError(
+                f"Сценарий {scenario} требует демонстрационную базу {SCENARIOS[scenario].database}"
+            )
+        if SCENARIOS[scenario].redis_db != settings.REDIS_DB:
+            raise ValueError(f"Сценарий {scenario} требует Redis DB={SCENARIOS[scenario].redis_db}")
     stage_data = STAGES_DATA[:3] if scenario == "overview" else STAGES_DATA
     if scenario == "route-import":
         no_track = True
@@ -665,7 +674,8 @@ async def main(
             await session.scalars(select(Stage.id).where(Stage.season_id == season.id))
         )
         stages = await ensure_stages(session, season, stage_data, no_track=no_track)
-        _note_created(created, "Stage", sum(s.id not in existing_stage_ids for s in stages))
+        new_stages = [stage for stage in stages if stage.id not in existing_stage_ids]
+        _note_created(created, "Stage", len(new_stages))
 
         first_stage = stages[0]
         first_admin = admin
@@ -700,8 +710,8 @@ async def main(
 
         # --- Checkpoint & StageRoutePoint ---
         checkpoints = []
-        if scenario != "route-import" and not await _exists(session, Checkpoint):
-            for stage in stages:
+        if scenario != "route-import" and new_stages:
+            for stage in new_stages:
                 json_stage = next(
                     (js for js in route_json.get("stages", []) if js["number"] == stage.number),
                     None,
@@ -773,11 +783,9 @@ async def main(
             session.add_all(checkpoints)
             await session.flush()
             _note_created(created, "Checkpoint", len(checkpoints))
-        else:
-            checkpoints = (
-                (await session.execute(select(Checkpoint).order_by(Checkpoint.id))).scalars().all()
-            )
-            logger.info("Checkpoint уже есть — пропускаю")
+        checkpoints = (
+            (await session.execute(select(Checkpoint).order_by(Checkpoint.id))).scalars().all()
+        )
 
         if not no_track:
             first_stage_cps = sorted(
