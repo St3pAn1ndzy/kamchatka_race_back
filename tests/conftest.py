@@ -447,6 +447,8 @@ async def create_viewer_location(db_session):
         *,
         name: str = "Тестовая локация",
         kind: str = "start",
+        category: str = "other",
+        glyph: str = "pin",
         lat: float = 53.0,
         lon: float = 158.7,
         is_public: bool = True,
@@ -455,6 +457,8 @@ async def create_viewer_location(db_session):
         location = ViewerLocation(
             name=name,
             kind=kind,
+            category=category,
+            glyph=glyph,
             lat=lat,
             lon=lon,
             is_public=is_public,

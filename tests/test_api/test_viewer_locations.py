@@ -76,3 +76,38 @@ async def test_response_fields(client, create_viewer_location) -> None:
     assert "is_public" not in item
     assert "created_at" not in item
     assert "updated_at" not in item
+
+
+async def test_viewer_locations_have_glyph_field(
+    client, db_session, create_viewer_location
+) -> None:
+    """В ответе /api/v1/content/viewer-locations у каждой локации есть glyph."""
+    await create_viewer_location(
+        name="Главная сцена", kind="festival", category="stages", glyph="mic"
+    )
+    await create_viewer_location(name="Фудкорт", kind="festival", category="food", glyph="food")
+
+    response = await client.get("/api/v1/content/viewer-locations")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+
+    glyphs = {item["name"]: item["glyph"] for item in data}
+    assert glyphs == {"Главная сцена": "mic", "Фудкорт": "food"}
+
+
+async def test_viewer_locations_glyph_survives_cache(
+    client, db_session, create_viewer_location
+) -> None:
+    """glyph корректно сериализуется в кэш и восстанавливается из него."""
+    await create_viewer_location(name="Фудкорт", kind="festival", category="food", glyph="food")
+
+    # Первый запрос — из БД, заполняет кэш
+    first = await client.get("/api/v1/content/viewer-locations")
+    assert first.status_code == 200
+    assert first.json()[0]["glyph"] == "food"
+
+    # Второй запрос — из кэша
+    second = await client.get("/api/v1/content/viewer-locations")
+    assert second.json()[0]["glyph"] == "food"
