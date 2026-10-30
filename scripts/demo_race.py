@@ -46,7 +46,7 @@ async def run(args: argparse.Namespace) -> None:
                 await demo.cleanup()
                 await session.commit()
                 await demo.invalidate_cache()
-                print("Демоточки удалены, исходное состояние трекера восстановлено", flush=True)
+                print("Демоточки удалены, более свежие изменения трекера сохранены", flush=True)
     finally:
         await cache.close()
         await async_engine.dispose()
