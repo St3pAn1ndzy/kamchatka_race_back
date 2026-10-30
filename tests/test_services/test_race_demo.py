@@ -104,3 +104,76 @@ async def test_demo_rejects_device_without_route(
     with pytest.raises(ValueError, match="маршрут"):
         await RaceDemo.prepare(db_session, device.id)
     assert not device.sos_active
+
+
+@pytest.mark.parametrize("database,redis_db", [("avacha", 13), ("avacha_demo_overview", 0)])
+def test_direct_demo_rejects_shared_resources(database, redis_db):
+    """Прямой запуск не пишет демоточки в основную базу или общий кеш"""
+    from app.config import Settings
+
+    with pytest.raises(ValueError):
+        check_demo_settings(
+            Settings(
+                ENV="dev",
+                POSTGRES_HOST="localhost",
+                REDIS_HOST="localhost",
+                POSTGRES_DB=database,
+                REDIS_DB=redis_db,
+            )
+        )
+
+
+@pytest.fixture
+async def prepared_demo(
+    db_session, create_season, create_stage, create_participant, create_device, create_route_point
+):
+    """Создаёт привязанный трекер с линией для проверки остановки демонстрации"""
+    db_session.sync_session.expire_on_commit = False
+    season = await create_season()
+    stage = await create_stage(season_id=season.id)
+    participant = await create_participant()
+    device = await create_device(participant_id=participant.id, stage_id=stage.id)
+    await create_route_point(stage_id=stage.id, position=0, lat=53, lon=158)
+    await create_route_point(stage_id=stage.id, position=1, lat=53.01, lon=158.01)
+    demo = await RaceDemo.prepare(db_session, device.id)
+    return demo
+
+
+async def test_cleanup_after_rollback_uses_saved_device_id(db_session, prepared_demo):
+    """После rollback очистка удаляет ранее зафиксированные точки без неявной загрузки ORM"""
+    demo = prepared_demo
+    await demo.tick(0, sos=True)
+    await db_session.commit()
+    await db_session.execute(select(TrackPoint.id))
+    await db_session.rollback()
+    await demo.cleanup()
+    await db_session.commit()
+    assert list(await db_session.scalars(select(TrackPoint.id))) == []
+
+
+async def test_cleanup_preserves_newer_device_message(db_session, prepared_demo):
+    """Очистка не затирает более поздний SOS и время сообщения другого источника"""
+    from datetime import timedelta
+
+    demo = prepared_demo
+    point = await demo.tick(0, sos=False)
+    await db_session.commit()
+    newer = point.recorded_at + timedelta(seconds=10)
+    demo.device.sos_active = True
+    demo.device.last_message_at = newer
+    await db_session.commit()
+    await demo.cleanup()
+    await db_session.commit()
+    assert demo.device.sos_active is True
+    assert demo.device.last_message_at == newer
+    assert list(await db_session.scalars(select(TrackPoint.id))) == []
+
+
+async def test_second_demo_rejected_while_first_has_points(db_session, prepared_demo):
+    """Второй запуск не перехватывает устройство с незавершённой демонстрацией"""
+    demo = prepared_demo
+    await demo.tick(0, sos=True)
+    await db_session.commit()
+    with pytest.raises(ValueError, match="демонстрац"):
+        await RaceDemo.prepare(db_session, demo.device.id)
+    await demo.cleanup()
