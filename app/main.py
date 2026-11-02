@@ -23,6 +23,7 @@ from app.api.errors import (
 )
 from app.api.health import router as health_router
 from app.api.middleware import LoggingMiddleware, RequestIDMiddleware
+from app.api.service.router import service_router
 from app.api.v1.router import api_router
 from app.config import get_settings
 from app.db.base import async_engine
@@ -99,6 +100,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(api_router)
     app.include_router(admin_router)
+    app.include_router(service_router)
 
     # SQLAdmin на синхронном движке.
     admin_engine = create_engine(settings.SYNC_DATABASE_URL, pool_pre_ping=True)
