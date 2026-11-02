@@ -28,9 +28,12 @@ async def list_scenarios():
 @router.post("/{scenario_name}", dependencies=[Depends(verify_dev_mode)])
 async def switch_scenario(scenario_name: str):
     """Переключает состояние приложения на указанный сценарий"""
-
-    await apply_scenario(scenario_name)
-    return {"status": "ok", "scenario": scenario_name}
+    try:
+        await apply_scenario(scenario_name)
+        return {"status": "ok", "scenario": scenario_name}
+    except ValueError as e:
+        # Перехватываем ошибку "Сценарий не найден"
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 async def run_demo_movement(device_id: int, steps: int):
