@@ -33,7 +33,7 @@ async def switch_scenario(scenario_name: str):
         return {"status": "ok", "scenario": scenario_name}
     except ValueError as e:
         # Перехватываем ошибку "Сценарий не найден"
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 async def run_demo_movement(device_id: int, steps: int):

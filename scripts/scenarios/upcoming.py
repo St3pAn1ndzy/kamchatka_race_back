@@ -19,7 +19,6 @@ async def seed(session: AsyncSession, created: dict[str, int]) -> None:
     base = await seed_base(session, created)
     users = base["users"]
     participants = base["participants"]
-    stages = base["stages"]
 
     # ═══ Ключевое: RaceStatus = upcoming ═══
     session.add(RaceStatus(status=RaceState.UPCOMING.value, current_stage_id=None))

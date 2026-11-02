@@ -167,7 +167,6 @@ async def seed_base(session: AsyncSession, created: dict[str, int]) -> dict:
         raise RuntimeError(f"{ROUTE_JSON_PATH} не найден. Смонтируй ./data:/app/data")
 
     route_json = json.loads(ROUTE_JSON_PATH.read_text(encoding="utf-8"))
-    rng = random.Random(2027)
 
     checkpoints = []
     route_points = []
@@ -191,7 +190,7 @@ async def seed_base(session: AsyncSession, created: dict[str, int]) -> dict:
             )
 
         # Checkpoints — 4 на этап
-        def make_cp(code, name, kind, coord, order_idx):
+        def make_cp(stage, code, name, kind, coord, order_idx):
             return Checkpoint(
                 stage_id=stage.id,
                 code=code,
@@ -209,8 +208,9 @@ async def seed_base(session: AsyncSession, created: dict[str, int]) -> dict:
 
         checkpoints.extend(
             [
-                make_cp("Старт", "Старт этапа", CheckpointKind.START.value, coords[0], 0),
+                make_cp(stage, "Старт", "Старт этапа", CheckpointKind.START.value, coords[0], 0),
                 make_cp(
+                    stage,
                     "КП-1",
                     "Контрольный пункт 1",
                     CheckpointKind.CHECKPOINT.value,
@@ -218,13 +218,14 @@ async def seed_base(session: AsyncSession, created: dict[str, int]) -> dict:
                     1,
                 ),
                 make_cp(
+                    stage,
                     "КП-2",
                     "Контрольный пункт 2",
                     CheckpointKind.CHECKPOINT.value,
                     coords[int(len(coords) * 0.7)],
                     2,
                 ),
-                make_cp("Финиш", "Финиш этапа", CheckpointKind.FINISH.value, coords[-1], 3),
+                make_cp(stage, "Финиш", "Финиш этапа", CheckpointKind.FINISH.value, coords[-1], 3),
             ]
         )
 
