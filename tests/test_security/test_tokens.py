@@ -50,8 +50,11 @@ def test_decode_invalid() -> None:
 
 
 def test_decode_tampered_signature() -> None:
+    """Подмена значащего символа подписи делает токен недействительным"""
     token, _ = create_user_token(USER_ID, VK_USER_ID)
-    tampered = token[:-1] + ("a" if token[-1] != "a" else "b")
+    header, payload, signature = token.split(".")
+    signature = ("a" if signature[0] != "a" else "b") + signature[1:]
+    tampered = f"{header}.{payload}.{signature}"
     assert decode_token(tampered) is None
 
 
