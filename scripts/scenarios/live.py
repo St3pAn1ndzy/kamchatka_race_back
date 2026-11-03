@@ -24,7 +24,7 @@ from app.enums import (
     RaceState,
     StageStatus,
 )
-from scripts.scenarios.app_scenarios_data import APP_DISCIPLINES, APP_MUSHERS
+from scripts.scenarios.app_scenarios_data import APP_CHECKPOINTS, APP_DISCIPLINES, APP_MUSHERS
 from scripts.scenarios.common import seed_base
 
 
@@ -37,7 +37,11 @@ def _dedup_key(imei: str, recorded_at: datetime) -> str:
 async def seed(session: AsyncSession, created: dict[str, int]) -> None:
     """Сценарий 2: Гонка идет"""
     base = await seed_base(
-        session, created, custom_disciplines=APP_DISCIPLINES, custom_mushers=APP_MUSHERS
+        session,
+        created,
+        custom_disciplines=APP_DISCIPLINES,
+        custom_mushers=APP_MUSHERS,
+        custom_checkpoints=APP_CHECKPOINTS,
     )
     users = base["users"]
     participants = base["participants"]
