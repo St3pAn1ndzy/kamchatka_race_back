@@ -24,6 +24,9 @@ class StageProtocolRow(BaseSchema):
     participant_id: int
     participant_name: str
     participant_number: int
+    discipline_id: int | None = None
+    discipline_code: str | None = None
+    discipline_name: str | None = None
     start_time: datetime | None = None
     finish_time: datetime | None = None
     elapsed_time_seconds: int | None = None
@@ -48,6 +51,9 @@ class StandingRow(BaseSchema):
     participant_id: int
     participant_name: str
     participant_number: int
+    discipline_id: int | None = None
+    discipline_code: str | None = None
+    discipline_name: str | None = None
     total_penalty_seconds: int = 0
     total_mandatory_stop_seconds: int = 0
     final_time_seconds: int | None = None
@@ -68,6 +74,9 @@ class LeaderboardEntry(BaseSchema):
     participant_id: int
     participant_name: str
     participant_number: int
+    discipline_id: int | None = None
+    discipline_code: str | None = None
+    discipline_name: str | None = None
     position: int
     final_time_seconds: int | None = None
     stages_finished: int = 0
