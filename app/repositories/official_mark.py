@@ -5,6 +5,7 @@ from sqlalchemy.orm import selectinload
 
 from app.db.models.checkpoint import Checkpoint
 from app.db.models.official_mark import OfficialMark
+from app.db.models.participant import Participant
 from app.repositories.base import BaseRepository
 
 
@@ -43,7 +44,7 @@ class OfficialMarkRepository(BaseRepository[OfficialMark]):
             .where(Checkpoint.stage_id == stage_id)
             .options(
                 selectinload(OfficialMark.checkpoint),
-                selectinload(OfficialMark.participant),
+                selectinload(OfficialMark.participant).selectinload(Participant.discipline_ref),
             )
             .order_by(OfficialMark.participant_id, OfficialMark.mark_time)
         )
@@ -85,7 +86,7 @@ class OfficialMarkRepository(BaseRepository[OfficialMark]):
             .join(Checkpoint, OfficialMark.checkpoint_id == Checkpoint.id)
             .options(
                 selectinload(OfficialMark.checkpoint),
-                selectinload(OfficialMark.participant),
+                selectinload(OfficialMark.participant).selectinload(Participant.discipline_ref),
             )
             .order_by(OfficialMark.participant_id, OfficialMark.mark_time)
         )
