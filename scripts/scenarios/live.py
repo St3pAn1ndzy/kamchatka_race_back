@@ -24,6 +24,7 @@ from app.enums import (
     RaceState,
     StageStatus,
 )
+from scripts.scenarios.app_scenarios_data import APP_DISCIPLINES, APP_MUSHERS
 from scripts.scenarios.common import seed_base
 
 
@@ -35,7 +36,9 @@ def _dedup_key(imei: str, recorded_at: datetime) -> str:
 
 async def seed(session: AsyncSession, created: dict[str, int]) -> None:
     """Сценарий 2: Гонка идет"""
-    base = await seed_base(session, created)
+    base = await seed_base(
+        session, created, custom_disciplines=APP_DISCIPLINES, custom_mushers=APP_MUSHERS
+    )
     users = base["users"]
     participants = base["participants"]
     stages = base["stages"]
@@ -61,18 +64,19 @@ async def seed(session: AsyncSession, created: dict[str, int]) -> None:
     created["RaceStatus"] = 1
 
     # ═══ 3. Меняем статусы участников ═══
+    # 10 едут, 3 финишировали, 1 сошел, остальные (21 - 14 = 7) еще не стартовали
     statuses = (
         [ParticipantStatus.ACTIVE.value] * 10
         + [ParticipantStatus.FINISHED.value] * 3
         + [ParticipantStatus.WITHDRAWN.value] * 1
-        + [ParticipantStatus.REGISTERED.value] * 1
+        + [ParticipantStatus.REGISTERED.value] * (len(participants) - 14)
     )
     for i, participant in enumerate(participants):
         participant.status = statuses[i]
 
-    # Принудительно делаем Волкова (№7) активным (он на трассе)
-    volkov = next(p for p in participants if p.number == 7)
-    volkov.status = ParticipantStatus.ACTIVE.value
+    # Дорохов (№7) принудительно активен (на трассе)
+    dorohov = next(p for p in participants if p.number == 7)
+    dorohov.status = ParticipantStatus.ACTIVE.value
 
     # ═══ 4. Выдаем трекеры (Device) ═══
     devices = [
@@ -206,7 +210,7 @@ async def seed(session: AsyncSession, created: dict[str, int]) -> None:
     demo_user = users[0]
 
     fan_subs = [
-        FanSubscription(user_id=demo_user.id, participant_id=volkov.id),
+        FanSubscription(user_id=demo_user.id, participant_id=dorohov.id),
         FanSubscription(user_id=demo_user.id, participant_id=participants[1].id),
         FanSubscription(user_id=demo_user.id, participant_id=participants[4].id),
     ]
@@ -217,8 +221,8 @@ async def seed(session: AsyncSession, created: dict[str, int]) -> None:
         NotificationQueue(
             user_id=demo_user.id,
             event_type=NotificationEventType.FAVORITE_UPDATE.value,
-            title=f"Ваш каюр {volkov.name} на трассе",
-            body=f"Участник №{volkov.number} проходит Этап 2. Следите за обновлениями на карте.",
+            title=f"Ваш каюр {dorohov.name} на трассе",
+            body=f"Участник №{dorohov.number} проходит Этап 2. Следите за обновлениями на карте.",
             status=NotificationStatus.SENT.value,
             attempts=1,
             scheduled_at=now - timedelta(minutes=10),

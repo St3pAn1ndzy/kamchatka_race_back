@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import FanSubscription, NotificationQueue, RaceStatus
 from app.enums import NotificationEventType, NotificationStatus, RaceState
+from scripts.scenarios.app_scenarios_data import APP_DISCIPLINES, APP_MUSHERS
 from scripts.scenarios.common import seed_base
 
 
@@ -16,7 +17,9 @@ async def seed(session: AsyncSession, created: dict[str, int]) -> None:
     - Есть FanSubscription у тестового пользователя (для «Болею за»)
     - Есть NotificationQueue (для профиля)
     """
-    base = await seed_base(session, created)
+    base = await seed_base(
+        session, created, custom_disciplines=APP_DISCIPLINES, custom_mushers=APP_MUSHERS
+    )
     users = base["users"]
     participants = base["participants"]
 
