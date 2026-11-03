@@ -17,7 +17,7 @@ async def test_standings_returns_service_result():
     expected = RaceStandings(rows=[])
     service.get_standings.return_value = expected
     assert await standings(service) is expected
-    service.get_standings.assert_awaited_once_with()
+    service.get_standings.assert_awaited_once_with(discipline_id=None, season_id=None)
 
 
 async def test_draft_stage_is_not_exposed():
@@ -27,7 +27,7 @@ async def test_draft_stage_is_not_exposed():
     with pytest.raises(HTTPException) as exc:
         await stage_protocol(8, service)
     assert exc.value.status_code == 404
-    service.get_stage_protocol.assert_awaited_once_with(8)
+    service.get_stage_protocol.assert_awaited_once_with(8, discipline_id=None)
 
 
 async def test_published_stage_is_returned():
@@ -45,7 +45,7 @@ async def test_leaderboard_passes_limit():
     service = AsyncMock()
     service.get_leaderboard.return_value = []
     assert await leaderboard(service, limit=17) == []
-    service.get_leaderboard.assert_awaited_once_with(limit=17)
+    service.get_leaderboard.assert_awaited_once_with(limit=17, discipline_id=None, season_id=None)
 
 
 async def test_control_times_passes_stage_filter():

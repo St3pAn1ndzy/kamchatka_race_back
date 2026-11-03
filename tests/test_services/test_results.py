@@ -233,8 +233,8 @@ async def test_standings_sum_published_stage_results_and_rank_participants() -> 
     assert [row.stages_finished for row in standings.rows] == [2, 2]
     assert standings.rows[0].total_penalty_seconds == 90
     assert standings.rows[0].total_mandatory_stop_seconds == 10
-    service.get_stage_protocol.assert_any_await(1)
-    service.get_stage_protocol.assert_any_await(2)
+    service.get_stage_protocol.assert_any_await(1, discipline_id=None)
+    service.get_stage_protocol.assert_any_await(2, discipline_id=None)
     session.execute.assert_awaited_once()
 
 
@@ -289,7 +289,7 @@ async def test_leaderboard_respects_limit_and_keeps_official_mode() -> None:
     assert entries[0].participant_id == 1
     assert entries[0].final_time_seconds == 300
     assert entries[0].mode == "official"
-    service.get_standings.assert_awaited_once()
+    service.get_standings.assert_awaited_once_with(discipline_id=None, season_id=None)
 
 
 @pytest.mark.asyncio
