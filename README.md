@@ -1,302 +1,323 @@
 # Авача — VK Mini App Backend
 
-Бэкенд мини-приложения ВКонтакте для зимнего фестиваля и гонки на собачьих упряжках «Авача» (Камчатка).
-Обеспечивает live-трекинг участников, расчёт официальных результатов, карточки каюров и push-уведомления.
+Бэкенд мини-приложения ВКонтакте для фестиваля и гонки на собачьих упряжках «Авача»: трекинг участников, судейские результаты, новости и программа мероприятий
 
-## ✨ Ключевые особенности
+[Запуск](#запуск) · [Админка](#админка-и-импорт-маршрутов) · [Демонстрация](#демонстрация-админки) · [Проверки](#проверки) · [Production](#production) · [Структура проекта](#структура-проекта)
 
-- **Live-трекинг (Iridium360):** Спутниковый мониторинг упряжек. В ответах API отдаётся статус свежести данных
-  (`fresh` / `delayed` / `stale` / `no_data`). Прямой доступ к трекерам закрыт, всё идёт через кэшируемый бэкенд.
-- **Высокая нагрузка:** Redis-кэширование горячих эндпоинтов (карта, позиции). API выдерживает **1000+ одновременных
-  пользователей** (200+ RPS, p95 < 10ms) на локальной машине. Защита от переполнения БД (строгий `MAX_ID` на все ID).
-- **Мониторинг:** Prometheus собирает HTTP-метрики (RPS, latency, ошибки) и бизнес-метрики (cache hit rate, созданные
-  отметки, логины). Grafana визуализирует на готовом дашборде — прямое доказательство стабильности под нагрузкой.
-- **Официальные результаты:** Расчёт протоколов и общего зачёта строго по судейским отметкам (`OfficialMark`). Трекеры
-  не используются для времени.
-- **Кастомная админ-панель (SQLAdmin):**
-    - *Оперативный штаб (Race Control):* Live-таблица с прогрессом участников по дистанции.
-    - *Мониторинг оборудования:* Цветовая индикация состояния трекеров и батарей.
-    - *Импорт результатов:* Разрабатывается в отдельной ветке; формат CSV ожидается от заказчика
-    - *Центр уведомлений:* Массовая отправка push-сообщений.
-- **152-ФЗ:** Логирование с маскировкой чувствительных данных, эндпоинт анонимизации профиля пользователя.
+## Возможности
+
+- **Live-трекинг:** координаты Iridium360, скорость, прогресс и свежесть данных (`fresh`, `delayed`, `stale`, `no_data`)
+- **Официальные результаты:** протоколы этапов и общий зачёт по судейским отметкам, GPS не определяет время прохождения КП
+- **Админка:** оперативный штаб, SOS, оборудование, участники и журнал действий
+- **Маршруты:** импорт KML/GPX с контрольными пунктами и перенос трассы во время этапа
+- **Контент:** новости, программа фестиваля, FAQ, зрительские локации и push-рассылки
+- **Инфраструктура:** Redis-кеширование, метрики Prometheus и дашборд Grafana
 
 ## Стек
 
-- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0 (async), Alembic, Pydantic v2
-- **Фоновые задачи:** Celery, Redis (Broker), Celery Beat
-- **БД:** PostgreSQL 16
-- **Кэш:** Redis 7
-- **Мониторинг:** Prometheus (сбор метрик) + Grafana (визуализация)
-- **Админка:** SQLAdmin + Jinja2 + Tabler UI
-- **Инфраструктура:** Docker Compose, Poetry
-- **Тестирование:** Pytest, Schemathesis, Locust, Ruff
+- **Backend:** Python 3.12, FastAPI, Pydantic 2
+- **База данных:** PostgreSQL 16, SQLAlchemy 2 async, Alembic
+- **Кеш:** Redis 7
+- **Фоновые задачи:** Celery, Celery Beat, Redis как брокер
+- **Админка:** SQLAdmin, Jinja2, Tabler UI, Яндекс Карты
+- **Интеграции:** Iridium360, API ВКонтакте
+- **Мониторинг:** Prometheus, Grafana
+- **Инфраструктура:** Docker Compose, Poetry, GitHub Actions
+- **Проверки:** Pytest, Node.js 22, Ruff, Schemathesis, Locust
 
-## Быстрый старт
+## Запуск
 
-### Требования
+Команды выполняются из корня проекта, Docker должен быть запущен
 
-- Python 3.12+
-- Poetry
-- Docker + Docker Compose
+**Требования:** Docker с Compose и поддержкой `--wait`; для запуска Python на хосте, демоскриптов и проверок — Python 3.12+, Poetry 2 с поддержкой `[dependency-groups]`, для JavaScript-тестов — Node.js 22
 
-### Установка и запуск
+### 1. Настроить окружение
 
 ```sh
-# 1. Устанавливаем зависимости
-poetry install --with dev
-
-# 2. Создаём .env, только если его ещё нет
-cp .env.template .env
-# Для dev без ключа Iridium используется мок
-# Если 5432 занят другим PostgreSQL, укажите POSTGRES_PORT=5433 в .env
-
-# 3. Поднимаем БД и Redis
-docker compose up -d postgres redis
-
-# 4. Применяем миграции
-poetry run alembic upgrade head
-
-# 5. Заполняем локальную dev-базу демонстрационными данными без очистки
-poetry run python -m scripts.seed_mock
-
-# 6. Запускаем FastAPI в Docker
-docker compose up --build -d api
+test -f .env || cp .env.template .env
 ```
 
-**Точки входа:**
+Для локальной работы оставьте `ENV=dev`; если порт PostgreSQL 5432 занят, укажите `POSTGRES_PORT=5433` в `.env`
 
-- API: http://localhost:8000
-- Swagger: http://localhost:8000/docs
-- Админ-панель: http://localhost:8000/admin-panel (admin / admin123)
-- Health-check: http://localhost:8000/health
-- Prometheus metrics: http://localhost:8000/metrics
-
-**Запуск полного стека (API + Celery + Prometheus + Grafana):**
+### 2. Поднять PostgreSQL и Redis
 
 ```sh
-docker compose up --build
+docker compose up -d --wait postgres redis
+```
+
+### 3. Собрать API и применить миграции
+
+```sh
+docker compose build api
+docker compose run --rm --no-deps api alembic upgrade head
+```
+
+### 4. Добавить тестовые данные — при необходимости
+
+```sh
+docker compose run --rm --no-deps api python -m scripts.seed_mock
+```
+
+Seed создаёт шесть этапов, 15 участников, маршруты, GPS-точки и судейские отметки
+
+Локальный вход в админку: `admin / admin123`; флаг `--reset` очищает текущую базу перед заполнением
+
+### 5. Запустить API
+
+```sh
+docker compose up -d api
+```
+
+| Сервис | Адрес |
+| --- | --- |
+| Swagger | http://localhost:8000/docs |
+| Админка | http://localhost:8000/admin-panel |
+| Проверка ответа API | http://localhost:8000/health |
+| Метрики | http://localhost:8000/metrics |
+
+### 6. Подключить фоновые задачи и мониторинг — при необходимости
+
+```sh
+docker compose up --build -d worker beat prometheus grafana
 ```
 
 - Prometheus: http://localhost:9090
-- Grafana: http://localhost:3001
-  Миграции выполняются перед запуском API и фоновых задач. Для запуска API вне Docker:
-  `poetry run uvicorn app.main:app --reload` (контейнер API на том же порту должен быть остановлен).
-  Подробная инструкция и устранение ошибок: [локальный запуск](docs/local-development.md).
+- Grafana: http://localhost:3001, локальный вход `admin / admin`
+- В dev Grafana добавьте источник Prometheus `http://prometheus:9090`, если он ещё не настроен
 
-**Запуск production-конфигурации (4 воркера Uvicorn):**
+Worker и Beat нужны для периодического опроса Iridium и обработки уведомлений
+
+При `ENV=dev` и пустом `IRIDIUM_API_KEY` используется mock-клиент; для реальных интеграций заполните параметры Iridium и ВК в `.env`
+
+### API вне Docker
+
+Создайте `.env` по шагу 1, задайте `POSTGRES_HOST=localhost` и `REDIS_HOST=localhost`; порты должны совпадать с опубликованными портами Compose
 
 ```sh
-docker compose -f docker-compose.prod.yml up --build -d
+poetry install --with dev
+docker compose up -d --wait postgres redis
+poetry run alembic upgrade head
+docker compose stop api
+poetry run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-> В prod-режиме Grafana доступна только на `127.0.0.1:3001` (для безопасности). Доступ — через SSH-туннель:
-> `ssh -L 3001:localhost:3001 user@server`.
+Для фоновых задач используйте `docker compose up --build -d worker beat`; Prometheus из Compose запускает также контейнер API, который займёт тот же порт 8000
 
-## 🧪 Тестирование и надежность
+### Полезные команды
 
-Проект покрыт тестами на нескольких уровнях.
+| Действие | Команда |
+| --- | --- |
+| Состояние контейнеров | `docker compose ps` |
+| Логи API | `docker compose logs --tail=100 -f api` |
+| Логи фоновых задач | `docker compose logs --tail=100 -f worker beat` |
+| Остановить контейнеры | `docker compose stop` |
 
-### 1. Unit & Integration (Pytest)
-
-Интеграционные тесты используют изоляцию транзакций (`SAVEPOINT`), что позволяет тестировать реальные запросы к БД без
-загрязнения данных между тестами.
+После обновления кода с зависимостями или миграциями:
 
 ```sh
-poetry run pytest
+docker compose stop api worker beat
+docker compose build api worker beat
+docker compose run --rm --no-deps api alembic upgrade head
+docker compose up -d api worker beat
 ```
 
-### 2. Fuzz-тестирование (Schemathesis)
+## Админка и импорт маршрутов
 
-Прогон всех эндпоинтов невалидными данными (SQL-инъекции, переполнения, `null`).
+Вход: http://localhost:8000/admin-panel, локальные реквизиты после seed — `admin / admin123`
+
+| Раздел | Назначение |
+| --- | --- |
+| Дашборд и оперативный штаб | SOS, карта, позиции и прогресс участников |
+| Участники и трекеры | Карточки, статусы, назначение устройств и контроль связи |
+| Отметки и протоколы | Ввод судейского времени, отмена ошибочных отметок и публикация результатов |
+| Гонка и маршрут | Просмотр этапов, предпросмотр и импорт KML/GPX |
+| Контент и рассылки | Новости, программа, справочная информация и очередь push-уведомлений |
+| Журнал аудита | История административных изменений |
+
+Для импорта откройте «Гонка и маршрут», загрузите файл, проверьте предпросмотр и подтвердите сохранение
+
+- **Маршрут с КП:** до 8 МиБ, сопоставление линий существующим этапам, выбор направления и типов КП
+- **Только линия:** до 2 МиБ и 2000 точек, координаты существующих КП не меняются
+- **Во время этапа:** допускается перенос линии и существующих КП с сохранением их названий, типов и количества; отметки и GPS-история сохраняются
+- **Завершённый этап:** изменение маршрута запрещено
+
+CSV-импорт судейских таблиц пока не подключён к панели
+
+Порядок работы сотрудников описан в [руководстве по админке](docs/staff-guide.md)
+
+## Демонстрация админки
+
+| Профиль | Адрес админки | PostgreSQL / Redis DB | Данные |
+| --- | --- | --- | --- |
+| `overview` | http://127.0.0.1:8000/admin-panel | `avacha_demo_overview` / `13` | Три этапа с маршрутами, GPS и отметками |
+| `route-import` | http://localhost:8001/admin-panel | `avacha_demo_import` / `14` | Шесть этапов без маршрутов, КП, GPS и отметок для показа импорта |
+
+**1. Подготовить оба профиля** — в `.env` нужны `ENV=dev`, `POSTGRES_HOST=localhost` и `REDIS_HOST=localhost`
 
 ```sh
-poetry run schemathesis run http://localhost:8000/openapi.json --checks all
+poetry install --with dev
+docker compose up -d --wait postgres redis
+docker compose stop api
+poetry run python -m scripts.demo prepare
 ```
 
-**Результат:** 4279+ сгенерированных тест-кейсов. **0 ошибок 500 (Server Error).** Все некорректные данные отбиваются
-422 Unprocessable Content.
+Повторная подготовка сохраняет данные; `prepare --reset` очищает и заново заполняет обе демобазы
 
-### 3. Нагрузочное тестирование (Locust)
-
-Эмуляция поведения болельщиков в VK Mini App.
+**2. Запустить серверы в разных терминалах**
 
 ```sh
+# Терминал 1 — обзор админки
+poetry run python -m scripts.demo serve overview
+```
+
+```sh
+# Терминал 2 — импорт маршрута
+poetry run python -m scripts.demo serve route-import
+```
+
+Используйте адреса из таблицы: разные имена хоста разделяют cookie входа; не запускайте обычный контейнер API поверх демосерверов
+
+**3. Показать движение с SOS** — откройте карту обзорной админки и запустите в третьем терминале:
+
+```sh
+poetry run python -m scripts.demo move --device-id 1 --steps 24 --interval 5 --sos-at 6
+```
+
+`device-id` — ID трекера; SOS включается на шестом шаге, при штатном завершении скрипт удаляет свои GPS-точки
+
+### Сценарии фронтенда
+
+В `ENV=dev` доступны `GET /api/v1/dev/scenarios/` и `POST /api/v1/dev/scenarios/{name}` с именами `upcoming`, `live`, `finished`
+
+| Сценарий | Состояние приложения |
+| --- | --- |
+| `upcoming` | Этапы запланированы, участники зарегистрированы, GPS-точек нет |
+| `live` | Первый этап завершён, второй идёт, участники отображаются на трассе |
+| `finished` | Все этапы завершены, добавлен анонс следующей гонки |
+
+> Переключение сценария очищает всю базу подключённого API, включая пользователей и администраторов — используйте отдельный тестовый экземпляр, доступ не защищён авторизацией
+
+Это отдельный режим, не запускайте его в базах двух демонстраций админки
+
+## Проверки
+
+Требуются зависимости `poetry install --with dev`, Node.js 22 и запущенные PostgreSQL и Redis
+
+Один раз создайте тестовую базу, при нестандартных реквизитах замените роль и имя:
+
+```sh
+docker compose exec postgres createdb -U avacha avacha_test
+```
+
+В `pyproject.toml` для тестов заданы `ENV=test`, `POSTGRES_DB=avacha_test` и `REDIS_DB=15`; схема этой базы пересоздаётся, кеш очищается — не запускайте прогоны параллельно на одних ресурсах
+
+```sh
+poetry run pytest -q
+node --test tests/js/*.test.cjs
+poetry run ruff check app/ tests/
+poetry run ruff format --check app/ tests/
+poetry run python -m scripts.export_openapi
+```
+
+CI проверяет Ruff, Pytest, JavaScript и генерацию OpenAPI
+
+Дополнительные проверки на отдельном тестовом экземпляре API:
+
+```sh
+poetry run schemathesis run http://localhost:8000/openapi.json --include-method GET --checks all
 poetry run locust -f loadtests/locustfile.py --host=http://localhost:8000
 ```
 
-**Результаты (1000 users, Docker Compose prod-конфигурация с 4 воркерами Uvicorn):**
+Locust использует участников с ID 1–15 и этап с ID 1; результаты прошлого прогона: [статистика](docs/load-test-prod-stats.png) и [графики](docs/load-test-prod-charts.png)
 
-- Пропускная способность: **200.8 RPS**
-- Медиана (p50): **3 ms**
-- 95-й процентиль (p95): **7 ms**
-- Ошибки: **около 0.011%** (8 из 70 376 запросов). Скриншот не фиксирует причину этих ошибок.
+## Мониторинг
 
-> *Артефакты тестирования доступны в папке [`docs/`](./docs).*
+Prometheus собирает метрики с `api:8000/metrics` каждые 10 секунд, дашборд Grafana хранится в `monitoring/dashboards/avacha.json`
 
-## 📊 Мониторинг (Prometheus + Grafana)
+- HTTP: частота запросов, время ответа и ошибки
+- Бизнес-метрики: попадания и промахи кеша, судейские отметки, уведомления, входы пользователей и точки трекеров
+- Просмотр: Grafana → Dashboards → Avacha → Avacha Backend
 
-Проект экспортирует метрики на `/metrics` (Prometheus format). Prometheus скрейпит их каждые 10 секунд, Grafana
-визуализирует на готовом дашборде **Avacha Backend**.
+В dev источник Prometheus подключается вручную, в production Compose настроен provisioning источника и дашборда
 
-### Что видно на дашборде
+Настройка сбора метрик рассчитана на API в Docker; для локального Uvicorn измените адрес в `monitoring/prometheus.yml`
 
-**Технические метрики (генерируются автоматически через `prometheus-fastapi-instrumentator`):**
+## Production
 
-- **Запросов в секунду (RPS)** — текущая нагрузка на API.
-- **Latency (p50 / p95 / p99)** — перцентили времени ответа.
-- **Ошибки 5xx** — количество серверных ошибок (должно быть 0).
-- **Топ-10 эндпоинтов** — самые нагруженные ручки.
-- **Среднее время ответа** по эндпоинтам.
-
-**Бизнес-метрики (инкрементируются в сервисах):**
-
-- **Cache Hit Rate** — доля запросов, отданных из Redis. В нагрузочном тесте достигнуто **99%**.
-- **Cache hits / misses** — разбивка по namespace (map / stages / results / dashboard).
-- **Всего судейских отметок** — счётчик `MARKS_CREATED`.
-- **Логины по платформам** — VK / web.
-
-### Как зайти
-
-1. Запусти полный стек: `docker compose up --build`.
-2. Открой Grafana: http://localhost:3001.
-3. Логин → Dashboards → **Avacha** → **Avacha Backend**.
-
-Дашборд автоматически загружается из `monitoring/dashboards/avacha.json` через provisioning. Ничего настраивать
-руками не нужно.
-
-### Как посмотреть метрики из консоли
+В `.env` настройте секреты, пароли, доступы ВК и Iridium, CORS и адрес доверенного прокси `FORWARDED_ALLOW_IPS`; демонстрационные пароли замените
 
 ```sh
-# Сырые метрики в Prometheus-формате
-curl http://localhost:8000/metrics | grep avacha_
+docker compose -f docker-compose.prod.yml build api worker beat
+docker compose -f docker-compose.prod.yml up -d --wait postgres redis
+docker compose -f docker-compose.prod.yml run --rm --no-deps api alembic upgrade head
+docker compose -f docker-compose.prod.yml up -d api worker beat prometheus grafana
 ```
 
-## 🛠 Админ-панель для организаторов
+Конфигурация запускает четыре процесса Uvicorn и Celery с concurrency 4; миграции применяются отдельно, TLS, домен и резервное копирование настраиваются вне Compose
 
-В проекте развернута кастомная админка на базе SQLAdmin:
+Grafana доступна на сервере по `127.0.0.1:3001`, удалённый доступ — через SSH-туннель:
 
-- **Дашборд:** SOS-сигналы, метрики гонки, автообновление.
-- **Мониторинг:** Таблица трекеров с цветовой индикацией (зеленый/желтый/красный).
-- **Race Control:** Таблица лидеров с прогресс-барами.
-- **Push Sender:** Форма массовой рассылки.
-- **Импорт CSV:** Пока не включён в `develop`; требуется согласовать формат и реализовать парсер
-
-Вход через API и форму админки использует общий лимит: 10 попыток за 60 секунд с одного IP.
-Лимит включает успешные входы. При превышении возвращается HTTP 429 с `Retry-After`;
-при недоступном Redis вход возвращает HTTP 503. На остальные маршруты это ограничение не распространяется.
-Счётчик общий для всех процессов Uvicorn. За reverse proxy настройте конкретные доверенные
-адреса через `FORWARDED_ALLOW_IPS`; заголовкам от произвольных клиентов доверять нельзя.
-
-Production Compose отключает `DEBUG` и запрещает вытеснение ключей из общего Redis,
-чтобы кэш не вытеснил задания Celery или счётчики защиты. При достижении лимита памяти
-Redis отклоняет новые записи: память нужно контролировать; кэш и брокер стоит разнести
-по отдельным инстансам при дальнейшем развитии инфраструктуры.
+```sh
+ssh -L 3001:localhost:3001 user@server
+```
 
 ## Переменные окружения
 
-Файл `.env.template` содержит все необходимые ключи. Обязательные для запуска: `SECRET_KEY`, `VK_SECURE_KEY`,
-`POSTGRES_*`.
+Локальные значения — в [.env.template](.env.template), полный список настроек — в [app/config.py](app/config.py)
 
-| Переменная                       | Назначение                                  | По умолчанию |
-|----------------------------------|---------------------------------------------|--------------|
-| `ENV`                            | Окружение (`dev` / `prod`)                  | `dev`        |
-| `SECRET_KEY`                     | Секрет JWT                                  | `change-me`  |
-| `VK_APP_ID` / `VK_SECURE_KEY`    | Параметры VK Mini App                       | —            |
-| `IRIDIUM_API_KEY`                | Ключ доступа к спутниковым трекерам         | —            |
-| `TRACKING_POLL_INTERVAL_SECONDS` | Интервал опроса Iridium (сек)               | `900`        |
-| `CACHE_TTL_STAGES`               | TTL кэша справочников (сек)                 | `3600`       |
-| `CACHE_TTL_RESULTS`              | TTL кэша протоколов (сек)                   | `300`        |
-| `CACHE_TTL_MAP`                  | TTL кэша позиций на карте (сек)             | `15`         |
-| `CACHE_TTL_STATS`                | TTL кэша статистики дашборда (сек)          | `30`         |
-| `GRAFANA_ADMIN_USER`             | Логин Grafana (prod)                        | `admin`      |
-| `GRAFANA_ADMIN_PASSWORD`         | Пароль Grafana (prod)                       | `admin`      |
-| `ADMIN_LOGIN_MAX_ATTEMPTS`       | Попыток входа с одного IP за окно           | `10`         |
-| `ADMIN_LOGIN_WINDOW_SECONDS`     | Длительность окна входа, секунд             | `60`         |
-| `FORWARDED_ALLOW_IPS`            | Доверенные адреса reverse proxy для Uvicorn | `127.0.0.1`  |
+| Параметры | Назначение |
+| --- | --- |
+| `ENV`, `DEBUG` | Окружение и режим отладки; production Compose задаёт `prod` и `false` |
+| `POSTGRES_*`, `REDIS_*` | Подключения к БД и кешу |
+| `CELERY_BROKER_DB`, `CELERY_RESULT_DB` | Redis DB для задач и результатов Celery |
+| `SECRET_KEY`, `ADMIN_PANEL_SESSION_SECRET` | Секреты JWT и сессии админки |
+| `VK_*`, `IRIDIUM_*` | Доступы и параметры внешних API |
+| `CORS_ORIGINS`, `CORS_ORIGIN_REGEX` | Разрешённые источники запросов фронтенда |
+| `TRACKING_POLL_INTERVAL_SECONDS` | Интервал опроса Iridium, по умолчанию 900 секунд |
+| `CACHE_TTL_*` | Время жизни кеша |
+| `ADMIN_LOGIN_MAX_ATTEMPTS`, `ADMIN_LOGIN_WINDOW_SECONDS` | Общий лимит входа: по умолчанию 10 попыток за 60 секунд с одного IP |
+| `FORWARDED_ALLOW_IPS` | Адреса доверенного прокси в production Compose |
+| `GRAFANA_ADMIN_*`, `GRAFANA_ROOT_URL` | Учётная запись и адрес Grafana в production Compose |
 
 ## Структура проекта
 
 ```text
 app/
-  main.py              # create_app(), middleware
-  config.py            # Pydantic Settings
-  metrics.py           # Prometheus бизнес-метрики
-  enums.py             # Все Enums
-  api/                 # Роутеры (v1/ и admin/)
-  services/            # Бизнес-логика (кэш, трекинг, результаты)
-  repositories/        # Слой доступа к данным (SQLAlchemy)
-  db/                  # Base, engine, модели
-  schemas/             # Pydantic схемы
-  security/            # JWT, VK Auth, Admin Sessions
-  integrations/        # Клиенты Iridium360 и VK API
-  tasks/               # Celery задачи (пуши, парсинг Iridium)
-  admin_panel/         # Кастомная админка (views, templates)
-alembic/versions/      # Миграции
-loadtests/             # Скрипты Locust
-monitoring/            # Prometheus + Grafana конфиги
-  prometheus.yml
-  grafana-datasources.yml
-  grafana-dashboards.yml
-  dashboards/
-    avacha.json        # JSON дашборда
-tests/                 # Pytest + Schemathesis
-docs/                  # Скриншоты тестов
+  main.py             # Создание FastAPI, middleware и подключение роутеров
+  config.py           # Настройки окружения
+  metrics.py          # Метрики Prometheus
+  enums.py            # Статусы и перечисления
+  api/                # Публичные, административные и сервисные маршруты
+  admin_panel/        # Экраны и формы SQLAdmin
+  services/           # Трекинг, результаты, импорт, кеш и другая бизнес-логика
+  repositories/       # Запросы к данным через SQLAlchemy
+  db/                 # Подключения и модели БД
+  schemas/            # Схемы запросов и ответов Pydantic
+  security/           # Авторизация, сессии и защита входа
+  integrations/       # Клиенты Iridium360 и ВКонтакте
+  tasks/              # Задачи Celery
+  templates/          # HTML-шаблоны админки
+  static/             # Стили и JavaScript админки
+alembic/versions/     # Миграции БД
+scripts/             # Seed, демосерверы, движение участников и экспорт OpenAPI
+  scenarios/          # Данные для сценариев фронтенда
+data/                # Исходные данные маршрутов
+media/               # Загруженные изображения
+monitoring/          # Конфигурации Prometheus и Grafana, дашборды
+loadtests/           # Нагрузочный сценарий Locust
+tests/               # Тесты API, сервисов, репозиториев, интеграций и JavaScript
+docs/                # Руководство сотрудников и результаты нагрузочных тестов
+.github/workflows/   # Проверки CI
 ```
 
-## Тестовые данные (Seed)
+## Если запуск не получился
 
-```sh
-# Очистить БД и заполнить тестовыми данными (15 каюров, треки, отметки, юзеры)
-poetry run python -m scripts.seed_mock --reset
-```
+| Проблема | Решение |
+| --- | --- |
+| Нет модуля `sqlalchemy` | Выполните `poetry install --with dev`, проверьте `poetry env info --executable`; выйдите из чужого активного окружения перед установкой |
+| Порт 8000 занят | Остановите контейнер API или второй Uvicorn |
+| Не найдена таблица или столбец | Примените `alembic upgrade head` к базе запущенного API |
+| В демо нет линии маршрута | Для обзора используйте `overview`; `route-import` изначально пустой |
+| Ошибка входа 429 / 503 | При 429 дождитесь `Retry-After`, при 503 проверьте Redis |
 
-**Админ:** `admin` / `admin123`. *Работает только при `ENV=dev`.*
-
-## 🎭 Демонстрационные сценарии (для защиты)
-
-Для удобства показа MVP реализован изолированный сервисный API. Он позволяет мгновенно переключать состояния приложения
-(наполнять базу разными данными) без перезапуска сервера и залезания в терминал.
-
-> ⚠️ **Важно:** Все методы работают **только** при `ENV=dev` (в продакшене они возвращают `403 Forbidden`). Каждый вызов
-> сценария **полностью очищает** текущую базу и накатывает новые данные.
-
-**Базовый URL:** `/api/v1/dev/scenarios`
-
-### 1. Переключение сценариев
-
-* `GET /` — получить список доступных сценариев.
-* `POST /{scenario_name}` — применить сценарий. Доступны три варианта:
-    * `upcoming` — **«До старта»**. Карта пуста, трекеры не выданы, участники в статусе заявки.
-    * `live` — **«Гонка идет»**. Участники на трассе, отображаются треки и результаты 1-го этапа, у Волкова (№7) есть
-      активная подписка.
-    * `finished` — **«Финиш»**. Все этапы завершены, результаты официально опубликованы, добавлен баннер следующей
-      гонки.
-
-### 2. Демонстрация движения (Kinetic Demo)
-
-Если нужно показать комиссии, как участник движется по карте в реальном времени, используется эндпоинт, который
-запускает фоновую задачу `RaceDemo`.
-
-* `POST /move/{device_id}` — запускает плавное движение указанного трекера по маршруту текущего этапа (пауза между
-  точками — 3 секунды).
-    * `device_id` — ID устройства.
-    * `steps` (query-параметр, по умолчанию 15) — количество шагов.
-
-*После завершения демо точка останется на финише.*
-
-## Импорт маршрута этапа
-
-В админке откройте «Гонка и маршрут», выберите этап и файл `.kml` или `.gpx`
-Нажмите «Предпросмотр», проверьте линию на карте и подтвердите «Заменить маршрут»
-До подтверждения сохранённый маршрут не меняется
-
-Поддерживается одна линия KML `LineString` либо один маршрут GPX `rte` / `trk` с одним сегментом
-Размер файла — до 2 МиБ, количество точек — от 2 до 2000
-Контрольные пункты и высоты не импортируются, несколько линий не склеиваются
-После появления GPS-точек этапа замена маршрута запрещена
-Изменения записываются в аудит, публичный кэш маршрута сбрасывается после сохранения
-Миграции БД для импорта не требуются, зависимости устанавливаются через `poetry install`
-
-## Ссылки
-
-- Официальное сообщество гонки: https://vk.ru/avacha.race
+Официальное сообщество гонки: [vk.ru/avacha.race](https://vk.ru/avacha.race)
