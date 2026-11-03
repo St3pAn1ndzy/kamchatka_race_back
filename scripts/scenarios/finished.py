@@ -17,7 +17,7 @@ from app.enums import (
     RaceState,
     StageStatus,
 )
-from scripts.scenarios.app_scenarios_data import APP_DISCIPLINES, APP_MUSHERS
+from scripts.scenarios.app_scenarios_data import APP_CHECKPOINTS, APP_DISCIPLINES, APP_MUSHERS
 from scripts.scenarios.common import seed_base
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -68,7 +68,11 @@ def _parse_time(t_str: str) -> timedelta | None:
 
 async def seed(session: AsyncSession, created: dict[str, int]) -> None:
     base = await seed_base(
-        session, created, custom_disciplines=APP_DISCIPLINES, custom_mushers=APP_MUSHERS
+        session,
+        created,
+        custom_disciplines=APP_DISCIPLINES,
+        custom_mushers=APP_MUSHERS,
+        custom_checkpoints=APP_CHECKPOINTS,
     )
     participants = base["participants"]
     stages = base["stages"]
