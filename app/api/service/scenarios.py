@@ -44,12 +44,16 @@ async def run_demo_movement(device_id: int, steps: int):
             demo = await RaceDemo.prepare(session, device_id)
             logger.info(f"Запуск движения для трекера {device_id}")
 
-            # Волков уже на 65% пути, начинаем оттуда
             start_ratio = 0.65
             end_ratio = 1.0
 
             for step in range(steps):
-                # Интерполируем от 65% до 100%
+                # --- ФИКС: Синхронизация с БД перед шагом ---
+                # Если Celery обновил last_message_at, мы принудительно затираем
+                # внутреннее состояние демо, чтобы RaceDemo не падал с ошибкой
+                await session.refresh(demo.device)
+                demo.last_written = (demo.device.sos_active, demo.device.last_message_at)
+
                 progress = start_ratio + ((end_ratio - start_ratio) * (step / (steps - 1)))
                 await demo.tick(progress, sos=False)
                 await session.commit()
