@@ -61,7 +61,12 @@ def _copy_media(folder: str, filename: str, target: str) -> str | None:
     return f"/media/{target}/{filename}"
 
 
-async def seed_base(session: AsyncSession, created: dict[str, int]) -> dict:
+async def seed_base(
+    session: AsyncSession,
+    created: dict[str, int],
+    custom_disciplines: list | None = None,
+    custom_mushers: list | None = None,
+) -> dict:
     """Season, disciplines, admin, users, route, checkpoints, program, content.
 
     Возвращает:
@@ -83,14 +88,45 @@ async def seed_base(session: AsyncSession, created: dict[str, int]) -> dict:
     created["Season"] = 1
 
     # ── Disciplines ──
+    discs_to_use = custom_disciplines if custom_disciplines is not None else DISCIPLINES
     disciplines = [
         Discipline(season_id=season.id, code=code, name=name, sort_order=i, is_active=True)
-        for i, (code, name) in enumerate(DISCIPLINES)
+        for i, (code, name) in enumerate(discs_to_use)
     ]
     session.add_all(disciplines)
     await session.flush()
     discipline_ids = [d.id for d in disciplines]
+    discipline_map = {d.code: d.id for d in disciplines}
     created["Discipline"] = len(disciplines)
+
+    # ── Participants ──
+    mushers_to_use = custom_mushers if custom_mushers is not None else MUSHERS
+    participants = []
+    for index, item in enumerate(mushers_to_use):
+        name, region = item[0], item[1]
+        photo_url = _copy_media("participants", f"{index + 1}.jpg", "participants")
+
+        # Определяем дисциплину (если передан код — берем из маппинга, иначе по кругу)
+        if len(item) > 2:
+            disc_id = discipline_map[item[2]]
+        else:
+            disc_id = discipline_ids[index % len(discipline_ids)]
+
+        participants.append(
+            Participant(
+                name=name,
+                number=index + 1,
+                region=region,
+                discipline_id=disc_id,
+                photo_url=photo_url,
+                bio=f"Опытный каюр из региона {region}. Участник гонки «Авача 2027».",
+                dogs_count=random.Random(2027 + index).randint(4, 12),
+                status=ParticipantStatus.REGISTERED.value,
+            )
+        )
+    session.add_all(participants)
+    await session.flush()
+    created["Participant"] = len(participants)
 
     # ── Admin ──
     admin = AdminAccount(
@@ -119,26 +155,6 @@ async def seed_base(session: AsyncSession, created: dict[str, int]) -> dict:
     session.add_all(users)
     await session.flush()
     created["User"] = len(users)
-
-    # ── Participants (все registered, статус меняет сценарий) ──
-    participants = []
-    for index, (name, region) in enumerate(MUSHERS):
-        photo_url = _copy_media("participants", f"{index + 1}.jpg", "participants")
-        participants.append(
-            Participant(
-                name=name,
-                number=index + 1,
-                region=region,
-                discipline_id=discipline_ids[index % len(discipline_ids)],
-                photo_url=photo_url,
-                bio=f"Опытный каюр из региона {region}. Участник гонки «Авача 2027».",
-                dogs_count=random.Random(2027 + index).randint(4, 12),
-                status=ParticipantStatus.REGISTERED.value,
-            )
-        )
-    session.add_all(participants)
-    await session.flush()
-    created["Participant"] = len(participants)
 
     # ── Stages (все planned, статус меняет сценарий) ──
     stages = []
