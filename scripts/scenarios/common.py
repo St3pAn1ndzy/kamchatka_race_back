@@ -66,6 +66,7 @@ async def seed_base(
     created: dict[str, int],
     custom_disciplines: list | None = None,
     custom_mushers: list | None = None,
+    custom_checkpoints: dict | None = None,
 ) -> dict:
     """Season, disciplines, admin, users, route, checkpoints, program, content.
 
@@ -205,45 +206,83 @@ async def seed_base(
                 )
             )
 
-        # Checkpoints — 4 на этап
-        def make_cp(stage, code, name, kind, coord, order_idx):
-            return Checkpoint(
-                stage_id=stage.id,
-                code=code,
-                name=name,
-                kind=kind,
-                description=f"{name} (этап {stage.number})",
-                lat=coord[1],
-                lon=coord[0],
-                altitude=100,
-                km_from_race_start=0,
-                order_index=order_idx,
-                has_judge=True,
-                is_public=True,
-            )
+        # Checkpoints
+        if custom_checkpoints and stage.number in custom_checkpoints:
+            # Используем кастомные КП
+            for order_idx, cp_data in enumerate(custom_checkpoints[stage.number]):
+                # Вычисляем индекс точки на маршруте по километражу
+                ratio = cp_data["km"] / stage.distance_km
+                route_idx = min(int(ratio * len(coords)), len(coords) - 1)
+                coord = coords[route_idx]
 
-        checkpoints.extend(
-            [
-                make_cp(stage, "Старт", "Старт этапа", CheckpointKind.START.value, coords[0], 0),
-                make_cp(
-                    stage,
-                    "КП-1",
-                    "Контрольный пункт 1",
-                    CheckpointKind.CHECKPOINT.value,
-                    coords[int(len(coords) * 0.3)],
-                    1,
-                ),
-                make_cp(
-                    stage,
-                    "КП-2",
-                    "Контрольный пункт 2",
-                    CheckpointKind.CHECKPOINT.value,
-                    coords[int(len(coords) * 0.7)],
-                    2,
-                ),
-                make_cp(stage, "Финиш", "Финиш этапа", CheckpointKind.FINISH.value, coords[-1], 3),
-            ]
-        )
+                checkpoints.append(
+                    Checkpoint(
+                        stage_id=stage.id,
+                        code=cp_data["code"],
+                        name=cp_data["name"],
+                        kind=cp_data["kind"],
+                        description=f"{cp_data['name']} (этап {stage.number})",
+                        lat=coord[1],
+                        lon=coord[0],
+                        altitude=100,
+                        km_from_race_start=cp_data["km"],
+                        order_index=order_idx,
+                        has_judge=True,
+                        is_public=True,
+                    )
+                )
+        else:
+            # Стандартная генерация 4 КП (для админки)
+            def make_cp(stage_obj, code, name, kind, coord, order_idx, km):
+                return Checkpoint(
+                    stage_id=stage_obj.id,
+                    code=code,
+                    name=name,
+                    kind=kind,
+                    description=f"{name} (этап {stage_obj.number})",
+                    lat=coord[1],
+                    lon=coord[0],
+                    altitude=100,
+                    km_from_race_start=km,
+                    order_index=order_idx,
+                    has_judge=True,
+                    is_public=True,
+                )
+
+            checkpoints.extend(
+                [
+                    make_cp(
+                        stage, "Старт", "Старт этапа", CheckpointKind.START.value, coords[0], 0, 0
+                    ),
+                    make_cp(
+                        stage,
+                        "КП-1",
+                        "Контрольный пункт 1",
+                        CheckpointKind.CHECKPOINT.value,
+                        coords[int(len(coords) * 0.3)],
+                        1,
+                        stage.distance_km * 0.3,
+                    ),
+                    make_cp(
+                        stage,
+                        "КП-2",
+                        "Контрольный пункт 2",
+                        CheckpointKind.CHECKPOINT.value,
+                        coords[int(len(coords) * 0.7)],
+                        2,
+                        stage.distance_km * 0.7,
+                    ),
+                    make_cp(
+                        stage,
+                        "Финиш",
+                        "Финиш этапа",
+                        CheckpointKind.FINISH.value,
+                        coords[-1],
+                        3,
+                        stage.distance_km,
+                    ),
+                ]
+            )
 
     session.add_all(route_points)
     session.add_all(checkpoints)
