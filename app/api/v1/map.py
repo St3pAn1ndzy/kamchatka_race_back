@@ -27,9 +27,9 @@ async def map_participants(
     stage_id: Annotated[int | None, Query(gt=0, le=MAX_ID)] = None,
     discipline_ids: Annotated[
         list[int] | None,
-        Query(description="Фильтр по дисциплинам"),
+        Query(gt=0, le=MAX_ID, description="Фильтр по дисциплинам"),
     ] = None,
-    limit: Annotated[int, Query(ge=1, le=1000)] = 500,
+    limit: int = Query(20, ge=1, le=100),
     offset: Annotated[int, Query(ge=0, le=MAX_OFFSET)] = 0,
 ) -> MapParticipantsResponse:
     """Участники на карте.
