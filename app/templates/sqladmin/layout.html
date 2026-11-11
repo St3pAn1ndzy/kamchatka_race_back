@@ -1,0 +1,174 @@
+{% extends "sqladmin/_base.html" %}
+{% from 'sqladmin/_macros.html' import display_menu %}
+
+{% set _admin_state = request.state.__dict__ %}
+{% set admin_name = _admin_state.get('admin_display_name', request.session.get('admin_display_name', 'Администратор')) %}
+{% set admin_login = _admin_state.get('admin_login', request.session.get('admin_login', '')) %}
+{% set admin_id = _admin_state.get('admin_id', request.session.get('admin_id', '')) %}
+{% set name_parts = admin_name.split() %}
+{% set initials = '' %}
+{% for part in name_parts[:2] %}
+  {% if part | length > 0 %}
+    {% set initials = initials + part[:1] %}
+  {% endif %}
+{% endfor %}
+{% set initials = initials | upper %}
+{% if initials | length < 2 and admin_login %}
+  {% set initials = admin_login[:2] | upper %}
+{% endif %}
+
+{% block body %}
+<div class="wrapper">
+  {# ─── САЙДБАР ─────────────────────────────────── #}
+  <aside class="navbar navbar-expand-lg navbar-vertical navbar-expand-md navbar-dark" data-bs-theme="dark">
+    <div class="container-fluid">
+      <h1 class="navbar-brand navbar-brand-autodark">
+        <a href="{{ url_for('admin:index') }}">
+          {% if admin.logo_url %}
+          <img src="{{ admin.logo_url }}" width="{{ admin.logo_width }}" height="{{ admin.logo_height }}" alt="{{ admin.title }}" class="navbar-brand-logo" />
+          {% else %}
+          <h3>{{ admin.title }}</h3>
+          {% endif %}
+        </a>
+      </h1>
+      <nav class="navbar navbar-expand-sm shadow-none" id="navbar-menu"
+        data-sqladmin-menu="{{ admin.base_url }}">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
+          aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          {{ display_menu(admin._menu, request) }}
+        </div>
+      </nav>
+    </div>
+  </aside>
+
+  {# ─── КОНТЕНТ ──────────────────────────────────── #}
+  <div class="page-wrapper">
+
+    {# ─── КАСТОМНАЯ ШАПКА ───────────────────────── #}
+    <div class="custom-topbar">
+      <div style="min-width:0;">
+        <div class="page-title">{{ title }}</div>
+        {% if subtitle %}
+        <div class="page-pretitle">{{ subtitle }}</div>
+        {% endif %}
+      </div>
+
+      <div class="topbar-actions" style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+
+        {# ═══ SOS-ПЛАШКА (скрыта по умолчанию) ═══ #}
+        <a href="/admin-panel/race-control" id="sosAlertBadge" class="d-none text-decoration-none" title="Перейти в Оперативный штаб">
+          <div class="d-flex align-items-center gap-2 px-3 py-1 rounded-pill" style="background: rgba(214,57,57,0.15); border: 1px solid rgba(214,57,57,0.4);">
+            <span class="sos-pulse-dot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #d63939;"></span>
+            <span class="fw-bold text-danger small">SOS: <span id="sosAlertCount">0</span></span>
+          </div>
+        </a>
+
+        {# Статус Iridium — подтягивается через JS #}
+        <div class="topbar-status" id="iridiumStatus" title="Статус трекеров Iridium360">
+          <span class="status-dot-live" id="iridiumDot"></span>
+          <span class="fw-semibold">Iridium360</span>
+          <span class="divider"></span>
+          <span id="iridiumStats">— / —</span>
+        </div>
+
+        {# Профиль администратора — выпадающее меню #}
+        <div class="dropdown topbar-profile">
+          <button class="btn dropdown-toggle d-flex align-items-center gap-2 p-1 border-0 bg-transparent"
+                  type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                  style="cursor:pointer;">
+            <span class="topbar-avatar">{{ initials or 'АП' }}</span>
+            <div class="topbar-user d-none d-lg-flex text-start">
+              <span class="name">{{ admin_name }}</span>
+              <span class="role">{{ admin_login or 'Панель управления' }}</span>
+            </div>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:180px;">
+            <li><span class="dropdown-item-text text-muted small">{{ admin_login }}</span></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('admin:details', identity='admin-account', pk=admin_id) }}">
+                <i class="fa-regular fa-user me-2"></i>Профиль
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ request.url_for('admin:logout') }}">
+                <i class="fa-solid fa-arrow-right-from-bracket me-2 text-danger"></i><span class="text-danger">Выйти</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="theme-btn" onclick="toggleTheme()" title="Переключить тему">
+          <i class="fa-regular fa-moon" id="themeIcon"></i>
+        </div>
+
+      </div>
+    </div>
+
+    {# ─── ТЕЛО СТРАНИЦЫ ─────────────────────────── #}
+    <div class="page-body flex-grow-1">
+      <div class="container-fluid">
+        <div class="row row-deck row-cards">
+          {% block content %} {% endblock %}
+          {% block flash %}
+          {% include 'sqladmin/flash.html' %}
+          {% endblock %}
+          {% block secret_modal %}
+          {% include 'sqladmin/secret_modal.html' %}
+          {% endblock %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
+<script>
+(function(){
+  // ═══ ТЕМА ═══
+  var r = document.documentElement;
+  var icon = document.getElementById('themeIcon');
+  var saved = localStorage.getItem('avacha_theme');
+  if (saved === 'dark') {
+    r.setAttribute('data-bs-theme','dark');
+    if(icon) icon.className = 'fa-regular fa-sun';
+  } else {
+    r.setAttribute('data-bs-theme','light');
+    if(icon) icon.className = 'fa-regular fa-moon';
+  }
+  window.toggleTheme = function(){
+    var cur = r.getAttribute('data-bs-theme');
+    var next = cur === 'dark' ? 'light' : 'dark';
+    r.setAttribute('data-bs-theme', next);
+    localStorage.setItem('avacha_theme', next);
+    if(icon) icon.className = next === 'dark' ? 'fa-regular fa-sun' : 'fa-regular fa-moon';
+  };
+
+  // ═══ СТАТУС IRIDIUM ═══
+  function refreshIridiumStatus(){
+    fetch('/admin-panel/api/dashboard-stats', { headers: { 'Accept': 'application/json' } })
+    .then(function(res){ return res.ok ? res.json() : null; })
+    .then(function(data){
+      if (!data || !data.stats) return;
+      var s = data.stats;
+      var online = document.getElementById('iridiumStats');
+      var dot = document.getElementById('iridiumDot');
+      if (online) online.textContent = s.devices_online + ' / ' + s.devices_total;
+      if (dot) {
+        dot.classList.remove('is-warning','is-danger');
+        if (s.devices_sos > 0 || s.devices_stale > 0) dot.classList.add('is-danger');
+        else if (s.devices_online < s.devices_total) dot.classList.add('is-warning');
+      }
+    }).catch(function(){});
+  }
+  refreshIridiumStatus();
+  setInterval(refreshIridiumStatus, 60000);
+})();
+</script>
+{% endblock %}

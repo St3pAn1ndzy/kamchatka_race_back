@@ -1,0 +1,368 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+
+{# ═══ SOS-БЛОК ═══ #}
+<div id="dashboard-sos" class="col-12 d-block" aria-live="polite">
+{% if sos_devices %}
+<div class="card border-danger mb-4 shadow-sm" style="border-color:rgba(214,57,57,0.35)!important;background:linear-gradient(90deg,rgba(214,57,57,0.05) 0%,rgba(214,57,57,0.01) 100%);">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div class="d-flex align-items-center gap-3">
+        <span class="avatar avatar-md bg-danger text-white sos-pulse-dot">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </span>
+        <div>
+          <h2 class="mb-0 text-danger" style="font-weight:800;font-size:1.15rem;">
+            SOS! {% if sos_devices|length == 1 %}Участник{% else %}Участники{% endif %}
+            {% for d in sos_devices %}{% if not loop.first %}, {% endif %}№{{ d.participant_number }}{% endfor %}
+          </h2>
+          <div class="text-secondary small">
+            Сигнал требует немедленной проверки. Отображается только в админ-панели.
+          </div>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="/admin-panel/race-control" class="btn btn-danger btn-sm">
+          <i class="fa-solid fa-tower-broadcast me-1"></i> Открыть Штаб
+        </a>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-2">
+      {% for d in sos_devices %}
+      <div class="col-md-6 col-xl-4">
+        <div class="d-flex align-items-center gap-3 p-3 rounded border" style="border-color:rgba(214,57,57,0.2);background:rgba(214,57,57,0.03);">
+          <i class="fa-solid fa-location-dot text-danger fs-4"></i>
+          <div class="min-width-0">
+            <div class="fw-bold">№{{ d.participant_number }} {{ d.participant_name or '—' }}</div>
+            <div class="text-muted small text-truncate">{{ d.device_name }} · Iridium {{ d.iridium_number }}</div>
+            {% if d.last_message_at %}
+            <div class="text-danger small">{{ d.last_message_at.strftime('%d.%m %H:%M') }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+</div>
+
+{# ═══ БЫСТРЫЕ ДЕЙСТВИЯ ═══ #}
+<div class="quick-actions mb-4">
+  <a href="/admin-panel/official-mark/create" class="quick-action-btn shadow-sm">
+    <i class="fa-solid fa-stopwatch"></i> Внести отметку судьи
+  </a>
+  <a href="/admin-panel/push-sender" class="quick-action-btn shadow-sm">
+    <i class="fa-solid fa-bullhorn"></i> Отправить push
+  </a>
+  <a href="/admin-panel/news-post/create" class="quick-action-btn shadow-sm">
+    <i class="fa-solid fa-newspaper"></i> Опубликовать новость
+  </a>
+  <a href="/admin-panel/race-route#raceImportTitle" class="quick-action-btn shadow-sm">
+    <i class="fa-solid fa-route"></i> Перенести маршрут и КП
+  </a>
+</div>
+
+{# ═══ РЕЖИМ ГОНКИ + ТАЙМЛАЙН ═══ #}
+<div class="card mb-4 shadow-sm border-0">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+      <div class="d-flex align-items-center gap-3">
+        <span class="fw-bold text-muted text-uppercase small">Режим гонки:</span>
+        <div class="race-mode-tabs">
+          <span class="race-mode-tab {% if race_mode.status == 'upcoming' %}is-active{% endif %}">До гонки</span>
+          <span class="race-mode-tab {% if race_mode.status == 'live' %}is-active{% endif %}">Идет гонка</span>
+          <span class="race-mode-tab {% if race_mode.status == 'finished' %}is-active{% endif %}">Завершена</span>
+        </div>
+        {% if race_mode.current_stage_number %}
+        <span class="status-badge status-badge--info">
+          <i class="fa-solid fa-flag"></i> Этап {{ race_mode.current_stage_number }}
+        </span>
+        {% endif %}
+      </div>
+      <a href="/admin-panel/race-control" class="text-muted small text-decoration-none fw-semibold">
+        Оперативный штаб <i class="fa-solid fa-arrow-right ms-1"></i>
+      </a>
+    </div>
+
+    {% if stages_timeline %}
+    <div class="stage-timeline">
+      {% for stage in stages_timeline %}
+      <div class="stage-timeline-item
+        {% if stage.status == 'finished' %}is-done
+        {% elif stage.status == 'active' %}is-active{% endif %}">
+        <div class="stage-timeline-dot"></div>
+        <div class="stage-timeline-date">
+          {% if stage.start_time %}{{ stage.start_time.strftime('%d.%m') }}{% else %}—{% endif %}
+        </div>
+        <div class="stage-timeline-name">Этап {{ stage.number }}</div>
+        {% if stage.status == 'active' %}
+        <div class="stage-timeline-badge">Идёт</div>
+        {% elif stage.status == 'finished' %}
+        <div class="stage-timeline-badge" style="background:rgba(47,179,68,0.1);color:#2fb344;">Завершён</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-muted small">Этапы ещё не добавлены.</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ═══ МЕТРИКИ (Улучшенные) ═══ #}
+<div class="row g-3 mb-4">
+  <!-- Участники -->
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-bold text-uppercase">Участники</span>
+          <i class="fa-solid fa-users text-primary opacity-50"></i>
+        </div>
+        <div class="d-flex align-items-baseline gap-2">
+          <div class="h1 mb-0 fw-bold" id="metric-participants">{{ stats.participants_total }}</div>
+          <span class="text-success small fw-semibold"><i class="fa-solid fa-circle me-1" style="font-size:6px;"></i>{{ stats.participants_active }} на трассе</span>
+        </div>
+        <div class="progress progress-sm mt-3" style="height: 6px;">
+          {% set active_percent = (stats.participants_active / stats.participants_total * 100) if stats.participants_total > 0 else 0 %}
+          <div class="progress-bar bg-success" style="width: {{ active_percent }}%"></div>
+        </div>
+        <div class="text-muted small mt-1">Финишировали: <span class="fw-bold text-dark">{{ stats.participants_finished }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Этапы -->
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-bold text-uppercase">Этапы</span>
+          <i class="fa-solid fa-route text-info opacity-50"></i>
+        </div>
+        <div class="h1 mb-0 fw-bold" id="metric-stages">{{ stats.stages_total }}</div>
+        <div class="text-muted small mt-2">
+          <div class="text-success"><i class="fa-solid fa-circle text-success me-1" style="font-size:6px;"></i> {{ stats.stages_active }} идёт сейчас</div>
+          <div class="text-warning mt-1"><i class="fa-solid fa-circle text-warning me-1" style="font-size:6px;"></i> {{ stats.stages_draft_results }} без публикации</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Отметки -->
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm h-100 border-0 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-bold text-uppercase">Отметки</span>
+          <i class="fa-solid fa-stopwatch text-warning opacity-50"></i>
+        </div>
+        <div class="d-flex align-items-baseline gap-2">
+          <div class="h1 mb-0 fw-bold" id="metric-marks">{{ stats.marks_today }}</div>
+          <span class="text-muted small">сегодня</span>
+        </div>
+        <div class="text-muted small mt-3">Всего за гонку: <span class="fw-bold text-dark">{{ stats.marks_total }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Связь -->
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm h-100 border-0 shadow-sm {% if stats.devices_stale > 0 %}bg-danger-lt{% endif %}">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-bold text-uppercase">Связь</span>
+          <i class="fa-solid fa-satellite-dish {% if stats.devices_stale > 0 %}text-danger{% else %}text-success{% endif %} opacity-50"></i>
+        </div>
+        <div class="d-flex align-items-baseline gap-2">
+          <div class="h1 mb-0 fw-bold {% if stats.devices_stale > 0 %}text-danger{% endif %}" id="metric-devices">{{ stats.devices_online }} <span class="fs-3 text-muted">/ {{ stats.devices_total }}</span></div>
+        </div>
+        <div id="metric-stale">
+        {% if stats.devices_stale > 0 %}
+        <div class="text-danger small fw-bold mt-3">
+          <i class="fa-solid fa-triangle-exclamation me-1"></i> {{ stats.devices_stale }} потеряли связь!
+        </div>
+        {% else %}
+        <div class="text-success small fw-bold mt-3"><i class="fa-solid fa-check me-1"></i> Все на связи</div>
+        {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ═══ КАРТА ═══ #}
+<div class="card mb-4 shadow-sm border-0">
+  <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0 d-flex align-items-center justify-content-between">
+    <h3 class="card-title mb-0"><i class="fa-solid fa-map me-2 text-primary"></i>Положение участников</h3>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-ghost-secondary" onclick="resetMapView()" title="Показать всех участников">
+        <i class="fa-solid fa-expand me-1"></i> Показать всех
+      </button>
+      <span class="text-muted small ms-2" id="map-updated">загрузка…</span>
+    </div>
+  </div>
+  <div class="card-body p-2">
+    <div id="miniMap" class="mini-map" style="border-radius: 8px; position: relative;">
+      <div class="map-loader" id="mapLoader">
+        <i class="fa-solid fa-spinner fa-spin me-2"></i> Загрузка карты...
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ═══ ДВЕ КОЛОНКИ: ВНИМАНИЕ + ДЕЙСТВИЯ ═══ #}
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-header bg-transparent border-bottom-0 pb-0 d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Требуют внимания</h3>
+        <div class="btn-list">
+          <button class="btn btn-sm btn-ghost-secondary filter-attention active" data-filter="all">Все</button>
+          {% if sos_devices %}
+          <button class="btn btn-sm btn-ghost-danger filter-attention" data-filter="sos">SOS</button>
+          {% endif %}
+          <button class="btn btn-sm btn-ghost-warning filter-attention" data-filter="stale">Связь</button>
+        </div>
+      </div>
+      {% if attention_devices %}
+      <div class="card-body p-0 mt-2">
+        {% for d in attention_devices %}
+        <div class="attention-item" data-reason="{{ d.reason }}">
+          <div class="attention-icon {% if d.reason in ('sos','stale','never_seen') %}is-danger{% else %}is-warning{% endif %}">
+            {% if d.reason == 'sos' %}
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            {% elif d.reason == 'stale' or d.reason == 'never_seen' %}
+            <i class="fa-solid fa-signal"></i>
+            {% else %}
+            <i class="fa-solid fa-battery-quarter"></i>
+            {% endif %}
+          </div>
+          <div class="attention-body">
+            <div class="attention-title">
+              {% if d.participant_number %}№{{ d.participant_number }} {{ d.participant_name }}{% else %}{{ d.device_name }}{% endif %}
+            </div>
+            <div class="attention-meta">
+              {% if d.reason == 'sos' %}<span class="text-danger fw-bold">SOS · сигнал тревоги</span>
+              {% elif d.reason == 'never_seen' %}Нет данных с трекера
+              {% elif d.reason == 'stale' %}<span class="text-danger">Потеря связи</span>
+              {% else %}Низкий заряд батареи{% endif %}
+              {% if d.last_message_at %} · {{ d.last_message_at.strftime('%H:%M') }}{% endif %}
+            </div>
+          </div>
+          <div class="d-flex gap-1">
+            {% if d.lat and d.lon %}
+            <button class="btn btn-sm btn-ghost-primary show-on-map"
+                    data-lat="{{ d.lat }}"
+                    data-lon="{{ d.lon }}"
+                    title="Показать на карте">
+              <i class="fa-solid fa-location-crosshairs"></i>
+            </button>
+            {% endif %}
+            <a href="/admin-panel/device/details/{{ d.device_id }}" class="btn btn-sm btn-ghost-secondary" title="Открыть карточку">
+              <i class="fa-solid fa-chevron-right"></i>
+            </a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-icon"><i class="fa-regular fa-circle-check"></i></div>
+        <div class="empty-title">Всё в порядке</div>
+        <div class="empty-text">Нет трекеров, требующих внимания.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-header bg-transparent border-bottom-0 pb-0 d-flex align-items-center justify-content-between">
+        <h3 class="card-title mb-0">Последние действия</h3>
+        <a href="/admin-panel/audit-log/list" class="text-muted small text-decoration-none">Журнал</a>
+      </div>
+      {% if recent_activity %}
+      <div class="card-body py-2 mt-2">
+        {% for item in recent_activity %}
+        <div class="activity-item">
+          <div class="activity-time">{{ item.created_at.strftime('%H:%M') }}</div>
+          <div class="activity-text">
+            <span class="fw-semibold text-dark">{{ item.action }}</span>
+            {% if item.entity_type %} · <span class="text-muted">{{ item.entity_type }}</span>{% endif %}
+            {% if item.entity_id %} #{{ item.entity_id }}{% endif %}
+            {% if item.admin_login %}
+            <span class="text-muted"> — {{ item.admin_login }}</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <div class="empty-icon"><i class="fa-regular fa-clock"></i></div>
+        <div class="empty-title">Пока пусто</div>
+        <div class="empty-text">Здесь появятся последние действия администраторов.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script src="/static/js/dashboard_sos.js?v=1"></script>
+<script src="/static/js/dashboard_map.js?v=1"></script>
+<script>
+(function(){
+    // Фильтрация блока "Требуют внимания"
+    var attentionItems = document.querySelectorAll('.attention-item');
+    document.querySelectorAll('.filter-attention').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.filter-attention').forEach(function(b) { b.classList.remove('active'); });
+            this.classList.add('active');
+            var filter = this.dataset.filter;
+
+            attentionItems.forEach(function(item) {
+                var reason = item.dataset.reason;
+                var show = false;
+                if (filter === 'all') show = true;
+                else if (filter === 'sos') show = (reason === 'sos');
+                else if (filter === 'stale') show = (reason === 'stale' || reason === 'never_seen');
+
+                if (show) item.classList.remove('d-none');
+                else item.classList.add('d-none');
+            });
+        });
+    });
+
+  // Фоновое обновление метрик
+  setInterval(function() {
+    fetch('/admin-panel/api/dashboard-stats')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data || !data.stats) return;
+        var s = data.stats;
+        var elPart = document.getElementById('metric-participants');
+        if (elPart) elPart.innerText = s.participants_total;
+        var elStages = document.getElementById('metric-stages');
+        if (elStages) elStages.innerText = s.stages_total;
+        var elMarks = document.getElementById('metric-marks');
+        if (elMarks) elMarks.innerText = s.marks_today;
+        var elDevices = document.getElementById('metric-devices');
+        if (elDevices) {
+            elDevices.innerHTML = s.devices_online + ' <span class="fs-3 text-muted">/ ' + s.devices_total + '</span>';
+        }
+      })
+      .catch(function(){});
+  }, 30000);
+
+})();
+</script>
+{% endblock %}

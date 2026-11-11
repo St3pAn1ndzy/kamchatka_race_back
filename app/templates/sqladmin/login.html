@@ -1,0 +1,48 @@
+{% extends "sqladmin/_base.html" %}
+
+{% block body %}
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="brand-icon">
+        <i class="fa-regular fa-snowflake"></i>
+      </div>
+      <h1>{{ admin.title }}</h1>
+      <p>Панель управления</p>
+    </div>
+
+    <form class="login-form" action="{{ url_for('admin:login') }}" method="POST" autocomplete="off">
+      <div class="mb-3">
+        <label class="form-label">
+          <i class="fa-regular fa-user"></i> Логин
+        </label>
+        {% if error %}
+        <input name="username" type="text" class="form-control is-invalid" placeholder="Введите логин" required>
+        <div class="login-error">{{ error }}</div>
+        {% else %}
+        <input name="username" type="text" class="form-control" placeholder="Введите логин" required>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">
+          <i class="fa-regular fa-lock"></i> Пароль
+        </label>
+        {% if error %}
+        <input name="password" type="password" class="form-control is-invalid" placeholder="Пароль" required>
+        {% else %}
+        <input name="password" type="password" class="form-control" placeholder="Пароль" required>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="btn">
+        <i class="fa-regular fa-arrow-right-to-bracket me-2"></i> Войти
+      </button>
+    </form>
+
+    <div class="login-footer">
+      <i class="fa-regular fa-dog me-1"></i> Зимний фестиваль · Гонка «Авача»
+    </div>
+  </div>
+</div>
+{% endblock %}

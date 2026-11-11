@@ -1,0 +1,173 @@
+# ============================================================================
+# Production-конфигурация для деплоя.
+#
+# Отличия от docker-compose.yml (dev):
+#   - Uvicorn: 4 воркера вместо 1, без --reload, backlog 2048
+#   - Postgres и Redis не публикуют порты наружу (доступ только по внутренней сети)
+#   - Нет bind-mount'ов для app/alembic — код запечён в образ
+#   - ENV=prod, restart: always
+#   - Redis: maxmemory 512mb без вытеснения заданий и счётчиков защиты
+#   - Celery worker: concurrency 4 вместо 2
+#   - Health-check для API
+#   - Media, data, scripts — persistent volumes (загрузки, маршруты, сид)
+#
+# Запуск:
+#   docker compose -f docker-compose.prod.yml up --build -d
+#
+# Остановка:
+#   docker compose -f docker-compose.prod.yml down
+# ============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-avacha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-avacha}
+      POSTGRES_DB: ${POSTGRES_DB:-avacha}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Порты НЕ публикуются наружу — доступ только по внутренней сети Docker.
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-avacha}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    # Redis хранит также задания Celery: их нельзя вытеснять как обычный кэш
+    command: redis-server --maxmemory 512mb --maxmemory-policy noeviction
+    # Порты НЕ публикуются наружу.
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: always
+
+  api:
+    build: .
+    # 4 воркера Uvicorn распределяют нагрузку по ядрам CPU.
+    # backlog 2048 — увеличиваем очередь TCP-подключений (решает RemoteDisconnected).
+    # proxy-headers + forwarded-allow-ips — работа с X-Forwarded-* за обратным прокси.
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+      --backlog 2048
+      --proxy-headers
+      --forwarded-allow-ips=${FORWARDED_ALLOW_IPS:-127.0.0.1}
+    env_file:
+      - .env
+    environment:
+      ENV: prod
+      DEBUG: "false"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+    ports:
+      - "8000:8000"
+    volumes:
+      # ⚠️ Код НЕ монтируем — он запечён в образ.
+      # Но пользовательские данные (загрузки) и файлы сида — монтируем.
+      - ./media:/app/media
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+    env_file: .env
+    environment:
+      ENV: prod
+      DEBUG: "false"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    env_file: .env
+    environment:
+      ENV: prod
+      DEBUG: "false"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    # Порты НЕ публикуются — Prometheus доступен только внутри Docker-сети
+    depends_on:
+      - api
+    restart: always
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_ALLOW_ORG_CREATE=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3001}
+      - GF_SERVER_HTTP_ADDR=0.0.0.0
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./monitoring/dashboards:/etc/grafana/provisioning/dashboards
+    ports:
+      # ⚠️ Только на localhost
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - prometheus
+    restart: always
+
+volumes:
+  pgdata:
+  prometheus_data:
+  grafana_data:

@@ -1,0 +1,104 @@
+[project]
+name = "kamchatka-race-back"
+version = "0.1.0"
+description = ""
+authors = [
+    { name = "Stepan Obukhov", email = "stepanobukhov2009@gmail.com" }
+]
+requires-python = ">=3.12,<4"
+dependencies = [
+    "sqlalchemy[asyncio] (>=2.0.54,<3.0.0)",
+    "pydantic (>=2.13.5,<3.0.0)",
+    "pydantic-settings (>=2.15.0,<3.0.0)",
+    "asyncpg (>=0.31.0,<0.32.0)",
+    "psycopg2-binary (>=2.9.13,<3.0.0)",
+    "alembic (>=1.20.0,<2.0.0)",
+    "python-jose[cryptography] (>=3.5.0,<4.0.0)",
+    "passlib[bcrypt] (>=1.7.4,<2.0.0)",
+    "bcrypt (==4.0.1)",
+    "fastapi (>=0.141.1,<0.142.0)",
+    "sqladmin (>=0.32.0,<0.33.0)",
+    "uvicorn (>=0.54.0,<0.55.0)",
+    "itsdangerous (>=2.2.0,<3.0.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "celery (>=5.6.3,<6.0.0)",
+    "celery-types (>=0.26.0,<0.27.0)",
+    "redis (>=8.1.0,<9.0.0)",
+    "pytest-env (>=1.8.0,<2.0.0)",
+    "prometheus-fastapi-instrumentator (>=8.1.0,<9.0.0)",
+    "prometheus-client (>=0.26.0,<0.27.0)",
+    "defusedxml (>=0.7.1,<0.8)",
+    "python-multipart (>=0.0.32,<0.1)",
+]
+
+
+[tool.poetry]
+package-mode = false
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+[dependency-groups]
+dev = [
+    "ruff (>=0.16.8,<0.17.0)",
+    "pytest (>=9.1.1,<10.0.0)",
+    "pytest-asyncio (>=1.4.0,<2.0.0)",
+    "schemathesis (>=4.32.3,<5.0.0)",
+    "locust (>=2.47.0,<3.0.0)",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]
+env = [
+    "POSTGRES_DB=avacha_test",
+    "ENV=test",
+    "REDIS_DB=15",
+    # CORS для тестов — зафиксирован, чтобы не зависеть от .env
+    "CORS_ORIGINS=https://vk.com,https://m.vk.com,https://vk.ru,https://m.vk.ru",
+    "CORS_ORIGIN_REGEX=https://.*\\.vk-apps\\.com",
+]
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+exclude = [
+    ".venv",
+    "__pycache__",
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    "alembic/versions",
+]
+
+[tool.ruff.lint]
+select = [
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings
+    "F", # pyflakes
+    "I", # isort (сортировка импортов)
+    "B", # flake8-bugbear
+    "UP", # pyupgrade (устаревший синтаксис)
+    "SIM", # flake8-simplify
+]
+
+ignore = [
+    "B008",
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

@@ -1,0 +1,388 @@
+"""Сервис результатов: расчёт протоколов и сводной из OfficialMark.
+
+Вся логика:
+- Расчёт времени этапа: elapsed = finish - start
+- Итоговое время: final = elapsed + штрафы(сек) - обязательные_остановки(сек)
+- Приоритет у судейских отметок (требование брифа).
+- draft-черновики не показываются в публичном API.
+"""
+
+import logging
+
+from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import get_settings
+from app.db.models.official_mark import OfficialMark
+from app.db.models.participant import Participant
+from app.db.models.season import Season
+from app.db.models.stage import Stage
+from app.enums import CheckpointKind, PublicationStatus
+from app.repositories.official_mark import OfficialMarkRepository
+from app.schemas.results import (
+    ControlTimeEntry,
+    LeaderboardEntry,
+    RaceStandings,
+    StageProtocol,
+    StageProtocolRow,
+    StandingRow,
+)
+from app.services.cache import cache
+
+logger = logging.getLogger("avacha.results")
+
+
+class ResultService:
+    """Расчёт результатов на лету из OfficialMark."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self.mark_repo = OfficialMarkRepository(session)
+
+    # ── Протокол этапа ─────────────────────────────────────────────────
+
+    async def get_stage_protocol(
+        self,
+        stage_id: int,
+        discipline_id: int | None = None,
+    ) -> StageProtocol | None:
+        """Протокол этапа. None только если этап не найден в БД.
+
+        Если этап существует, но результаты в DRAFT — возвращает
+        StageProtocol с publication=DRAFT и пустыми rows. Это позволяет
+        фронтенду отличать «этапа нет» (404) от «результаты не готовы» (200 + draft).
+        """
+        cache_key = f"public:results:stage:{stage_id}:d{discipline_id or 'all'}"
+        # Попытка достать из кэша
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return StageProtocol(**cached)
+
+        stage = await self.session.get(Stage, stage_id)
+        if stage is None:
+            return None
+
+        # Draft — возвращаем 200 с пустыми rows. Это позволяет фронтенду
+        # отличать «этапа нет» (404) от «результаты ещё не готовы» (200 + draft).
+        if stage.results_publication == PublicationStatus.DRAFT.value:
+            protocol = StageProtocol(
+                stage_id=stage.id,
+                stage_name=stage.name,
+                publication=PublicationStatus.DRAFT,
+                rows=[],
+            )
+            settings = get_settings()
+            await cache.set(
+                cache_key,
+                protocol.model_dump(mode="json"),
+                settings.CACHE_TTL_RESULTS,
+            )
+            return protocol
+
+        marks = await self.mark_repo.get_for_stage(stage_id)
+
+        # Группируем отметки по участникам
+        participant_marks: dict[int, list[OfficialMark]] = {}
+        for m in marks:
+            participant_marks.setdefault(m.participant_id, []).append(m)
+
+        rows: list[StageProtocolRow] = []
+        for _, p_marks in participant_marks.items():
+            participant = p_marks[0].participant
+            if participant is None:
+                continue
+
+            # Фильтр по дисциплине
+            if discipline_id is not None and participant.discipline_id != discipline_id:
+                continue
+
+            start_mark = next(
+                (
+                    m
+                    for m in p_marks
+                    if m.checkpoint and m.checkpoint.kind == CheckpointKind.START.value
+                ),
+                None,
+            )
+            finish_mark = next(
+                (
+                    m
+                    for m in p_marks
+                    if m.checkpoint and m.checkpoint.kind == CheckpointKind.FINISH.value
+                ),
+                None,
+            )
+
+            elapsed = None
+            if start_mark and finish_mark:
+                elapsed = int((finish_mark.mark_time - start_mark.mark_time).total_seconds())
+
+            penalty_sec = sum(m.penalty_minutes for m in p_marks) * 60
+            stop_sec = sum(m.mandatory_stop_minutes for m in p_marks) * 60
+
+            final = None
+            if elapsed is not None:
+                final = elapsed + penalty_sec - stop_sec
+                if final < 0:
+                    final = 0
+
+            discipline = participant.discipline_ref
+
+            rows.append(
+                StageProtocolRow(
+                    participant_id=participant.id,
+                    participant_name=participant.name,
+                    participant_number=participant.number,
+                    discipline_id=discipline.id if discipline else None,
+                    discipline_code=discipline.code if discipline else None,
+                    discipline_name=discipline.name if discipline else None,
+                    start_time=start_mark.mark_time if start_mark else None,
+                    finish_time=finish_mark.mark_time if finish_mark else None,
+                    elapsed_time_seconds=elapsed,
+                    total_penalty_seconds=penalty_sec,
+                    total_mandatory_stop_seconds=stop_sec,
+                    final_time_seconds=final,
+                )
+            )
+
+        # Сортировка: финишировавшие по возрастанию final_time, затем нефинишировавшие
+        rows.sort(key=lambda r: (r.final_time_seconds is None, r.final_time_seconds or 0))
+
+        position = 0
+        for row in rows:
+            if row.final_time_seconds is not None:
+                position += 1
+                row.position = position
+
+        protocol = StageProtocol(
+            stage_id=stage.id,
+            stage_name=stage.name,
+            publication=PublicationStatus(stage.results_publication),
+            rows=rows,
+        )
+
+        # Сохраняем в кэш
+        settings = get_settings()
+        await cache.set(
+            cache_key,
+            protocol.model_dump(mode="json"),
+            settings.CACHE_TTL_RESULTS,
+        )
+
+        return protocol
+
+    # ── Сводная таблица лидеров ────────────────────────────────────────
+
+    async def get_standings(
+        self,
+        discipline_id: int | None = None,
+        season_id: int | None = None,
+    ) -> RaceStandings:
+        """Сводная таблица — сумма этапов с publication=(provisional|official).
+
+        Результат кэшируется на CACHE_TTL_RESULTS секунд.
+        """
+        cache_key = f"public:results:standings:d{discipline_id or 'all'}:s{season_id or 'auto'}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return RaceStandings(**cached)
+
+        stages = await self._get_published_stages(season_id=season_id)
+        if not stages:
+            return RaceStandings(mode="official", rows=[])
+
+        # Собираем протоколы всех опубликованных этапов
+        all_rows: list[StageProtocolRow] = []
+        for stage in stages:
+            protocol = await self.get_stage_protocol(stage.id, discipline_id=discipline_id)
+            if protocol is None:
+                continue
+            all_rows.extend(protocol.rows)
+
+        # Группируем по участникам
+        aggregated: dict[int, list[StageProtocolRow]] = {}
+        for row in all_rows:
+            aggregated.setdefault(row.participant_id, []).append(row)
+
+        # 🔴 N+1 fix: один запрос вместо N
+        participant_ids = list(aggregated.keys())
+        participants_map: dict[int, Participant] = {}
+        if participant_ids:
+            stmt = select(Participant).where(Participant.id.in_(participant_ids))
+            for p in (await self.session.execute(stmt)).scalars().all():
+                participants_map[p.id] = p
+
+        standing_rows: list[StandingRow] = []
+        for participant_id, rows in aggregated.items():
+            participant = participants_map.get(participant_id)
+            if participant is None:
+                continue
+
+            total_final = 0
+            stages_finished = 0
+            total_penalty = 0
+            total_stop = 0
+
+            for r in rows:
+                if r.final_time_seconds is not None:
+                    total_final += r.final_time_seconds
+                    stages_finished += 1
+                total_penalty += r.total_penalty_seconds
+                total_stop += r.total_mandatory_stop_seconds
+
+            standing_rows.append(
+                StandingRow(
+                    participant_id=participant.id,
+                    participant_name=participant.name,
+                    participant_number=participant.number,
+                    discipline_id=r.discipline_id,
+                    discipline_code=r.discipline_code,
+                    discipline_name=r.discipline_name,
+                    total_penalty_seconds=total_penalty,
+                    total_mandatory_stop_seconds=total_stop,
+                    final_time_seconds=total_final if stages_finished > 0 else None,
+                    stages_finished=stages_finished,
+                )
+            )
+
+        # Сортировка: по сумме final_time, None — в конец
+        standing_rows.sort(key=lambda r: (r.final_time_seconds is None, r.final_time_seconds or 0))
+
+        position = 0
+        for row in standing_rows:
+            if row.final_time_seconds is not None:
+                position += 1
+                row.position = position
+
+        standings = RaceStandings(mode="official", rows=standing_rows)
+
+        # Сохраняем в кэш
+        settings = get_settings()
+        await cache.set(
+            cache_key,
+            standings.model_dump(mode="json"),
+            settings.CACHE_TTL_RESULTS,
+        )
+
+        return standings
+
+    # ── Таблица лидеров (краткая) ──────────────────────────────────────
+
+    async def get_leaderboard(
+        self,
+        limit: int = 50,
+        discipline_id: int | None = None,
+        season_id: int | None = None,
+    ) -> list[LeaderboardEntry]:
+        """Таблица лидеров.
+
+        mode=official — из OfficialMark (опубликованные этапы).
+        mode=live — TODO: из трекера (следующий эпик).
+
+        Результат кэшируется на CACHE_TTL_RESULTS секунд.
+        """
+        cache_key = (
+            f"public:results:leaderboard:{limit}:d{discipline_id or 'all'}:s{season_id or 'auto'}"
+        )
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return [LeaderboardEntry(**item) for item in cached]
+
+        standings = await self.get_standings(
+            discipline_id=discipline_id,
+            season_id=season_id,
+        )
+        entries: list[LeaderboardEntry] = []
+        for row in standings.rows[:limit]:
+            entries.append(
+                LeaderboardEntry(
+                    participant_id=row.participant_id,
+                    participant_name=row.participant_name,
+                    participant_number=row.participant_number,
+                    discipline_id=row.discipline_id,
+                    discipline_code=row.discipline_code,
+                    discipline_name=row.discipline_name,
+                    position=row.position or 0,
+                    final_time_seconds=row.final_time_seconds,
+                    stages_finished=row.stages_finished,
+                    mode="official",
+                )
+            )
+
+        # Сохраняем в кэш
+        settings = get_settings()
+        await cache.set(
+            cache_key,
+            [e.model_dump(mode="json") for e in entries],
+            settings.CACHE_TTL_RESULTS,
+        )
+
+        return entries
+
+    # ── Отметки участника ──────────────────────────────────────────────
+
+    async def get_control_times(
+        self,
+        participant_id: int,
+        stage_id: int | None = None,
+    ) -> list[ControlTimeEntry]:
+        """Все отметки участника (по этапу или по всем).
+
+        HTTP 404 если участник не найден (прокидывается в роутер).
+        """
+        participant = await self.session.get(Participant, participant_id)
+        if participant is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Participant not found",
+            )
+        marks = await self.mark_repo.get_for_participant(
+            participant_id,
+            stage_id=stage_id,
+        )
+        return [
+            ControlTimeEntry(
+                checkpoint_id=m.checkpoint_id,
+                checkpoint_code=m.checkpoint.code if m.checkpoint else "",
+                checkpoint_name=m.checkpoint.name if m.checkpoint else "",
+                checkpoint_kind=m.checkpoint.kind if m.checkpoint else "",
+                mark_time=m.mark_time,
+                penalty_minutes=m.penalty_minutes,
+                mandatory_stop_minutes=m.mandatory_stop_minutes,
+            )
+            for m in marks
+        ]
+
+    # ── Вспомогательные ────────────────────────────────────────────────
+
+    async def _get_published_stages(self, season_id: int | None = None) -> list[Stage]:
+        """Этапы с publication=provisional или official.
+
+        Если season_id не передан — определяется активный сезон (is_active).
+        Если активного сезона нет — возвращаются все опубликованные этапы.
+        """
+        if season_id is None:
+            season_id = await self._get_active_season_id()
+
+        stmt = (
+            select(Stage)
+            .where(
+                Stage.results_publication.in_(
+                    [
+                        PublicationStatus.PROVISIONAL.value,
+                        PublicationStatus.OFFICIAL.value,
+                    ]
+                )
+            )
+            .order_by(Stage.order_index)
+        )
+        if season_id is not None:
+            stmt = stmt.where(Stage.season_id == season_id)
+
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def _get_active_season_id(self) -> int | None:
+        """ID активного сезона (Season.is_active=True) или None."""
+        stmt = select(Season.id).where(Season.is_active.is_(True)).limit(1)
+        return (await self.session.execute(stmt)).scalar_one_or_none()

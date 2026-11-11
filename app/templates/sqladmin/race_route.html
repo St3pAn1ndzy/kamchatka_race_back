@@ -1,0 +1,455 @@
+{% extends "sqladmin/layout.html" %}
+{% block content %}
+<div id="stageRoutePage" class="col-12 d-block">
+<section class="card mb-3" aria-labelledby="raceImportTitle">
+  <div class="card-body">
+    <h3 id="raceImportTitle">Импорт маршрута с КП</h3>
+    <form id="raceImport" data-csrf="{{ route_import_csrf }}" data-stage-id="{{ selected_stage_id or '' }}">
+      <label for="raceFile" class="form-label">Файл одного этапа или всей трассы KML или GPX до 8 МиБ</label>
+      <input id="raceFile" type="file" accept=".kml,.gpx" class="form-control" required>
+      <button type="submit" class="btn btn-outline-primary mt-2">Разобрать всю трассу</button>
+      <p class="text-muted mt-2">Линии и КП сохраняются после сопоставления этапам и подтверждения направления. Во время этапа можно переносить существующие КП: названия, типы и количество должны совпадать с сохранёнными. Судейские отметки и GPS-история сохраняются</p>
+      <div id="raceMapping" class="row g-3"></div>
+      <button id="showRacePreview" type="button" class="btn btn-outline-primary mt-3" disabled>Показать предпросмотр</button>
+      <button id="confirmRace" type="button" class="btn btn-primary mt-3" disabled>Подтвердить замену всех выбранных этапов и КП</button>
+      <div id="raceStatus" role="status" aria-live="polite" class="mt-2"></div>
+      <template id="raceStageOptions">
+        <option value="">Выберите этап вручную</option>
+        {% for s in stages %}<option value="{{ s.id }}">{{ s.season_label }} · ID {{ s.id }} · {{ s.number }} — {{ s.name }}</option>{% endfor %}
+      </template>
+    </form>
+  </div>
+</section>
+<section class="mb-3" aria-labelledby="importTitle">
+  <h3 id="importTitle">Замена только линии маршрута</h3>
+  <form id="routeImport" data-csrf="{{ route_import_csrf }}" class="row g-2 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label" for="importStage">Этап</label>
+      <select class="form-select" id="importStage" required>
+        {% for s in stages %}
+        <option value="{{ s.id }}" {% if s.id == selected_stage_id %}selected{% endif %}>{{ s.number }} — {{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label" for="routeFile">Файл KML или GPX</label>
+      <input class="form-control" type="file" id="routeFile" accept=".kml,.gpx" required>
+    </div>
+    <div class="col-md-4 d-flex gap-2 flex-wrap">
+      <button class="btn btn-outline-primary" id="previewRoute" type="submit" {% if not stages %}disabled{% endif %}>
+        <i class="fa-solid fa-eye me-1" aria-hidden="true"></i>Предпросмотр
+      </button>
+      <button class="btn btn-primary" id="confirmRoute" type="button" disabled>
+        <i class="fa-solid fa-upload me-1" aria-hidden="true"></i>Заменить маршрут
+      </button>
+    </div>
+  </form>
+  <p class="text-muted small mt-2 mb-1">
+    Одна линия, 2–2000 точек, до 2 МиБ · Координаты КП не меняются, их километраж пересчитывается
+    <a href="#raceImportTitle">Для переноса КП используйте импорт маршрута с КП</a>
+  </p>
+  <div id="importStatus" role="status" aria-live="polite"></div>
+</section>
+
+<div class="row row-cards">
+  <!-- Левая колонка: карта -->
+  <div class="col-lg-8 d-flex">
+    <div class="card w-100">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fa-solid fa-route me-2 text-primary"></i>Маршрут гонки
+        </h3>
+        <div class="card-actions">
+          <span class="text-muted small d-none d-sm-block">
+            Кликните на этап справа, чтобы приблизить
+          </span>
+        </div>
+      </div>
+      <div class="card-body p-2 flex-grow-1">
+        <div id="routeMap"
+             style="height: calc(100vh - 220px); min-height: 500px; width:100%; border-radius: 8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Правая колонка: этапы и контрольные пункты -->
+  <div class="col-lg-4 d-flex flex-column gap-3">
+    <div class="card flex-grow-1" style="max-height: 50%;">
+      <div class="card-header py-2">
+        <h4 class="card-title">Этапы</h4>
+      </div>
+      <div class="card-body p-0 overflow-auto">
+        <div class="list-group list-group-flush" id="stageList">
+          {% for s in stages %}
+          <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 stage-btn py-3"
+                  data-stage-id="{{ s.id }}"
+                  data-name="{{ s.name }}"
+                  data-route='{{ s.route_points | tojson if s.route_points else "[]" }}'
+                  data-checkpoints='{{ s.checkpoints | tojson if s.checkpoints else "[]" }}'>
+            <span class="avatar avatar-sm bg-primary-lt text-primary fw-bold">
+              {{ s.number }}
+            </span>
+            <div class="flex-grow-1 text-start">
+              <div class="fw-bold text-body">{{ s.name }}</div>
+              <div class="text-muted small">{{ '%.2f'|format(s.distance_km) }} км</div>
+            </div>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card flex-grow-1" style="max-height: 50%;">
+      <div class="card-header py-2">
+        <h4 class="card-title">Контрольные пункты</h4>
+      </div>
+      <div class="card-body p-0 overflow-auto">
+        <table class="table table-sm table-vcenter card-table mb-0">
+          <thead class="sticky-top bg-surface-secondary" style="z-index: 1;">
+            <tr>
+              <th class="text-secondary">Код</th>
+              <th class="text-secondary">Название</th>
+            </tr>
+          </thead>
+          <tbody id="cpBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script src="/static/js/race_route_import.js?v=3"></script>
+<script>
+(function(){
+  var routeLayer, cpLayer;
+  var map = null, previewLayer = null, preview = null, revision = 0;
+  // Полный импорт хранится отдельно от предпросмотра линии выбранного этапа
+  var fullPreviewLayer = null, fullPreview = [];
+  var form = document.getElementById('routeImport');
+  var stageSelect = document.getElementById('importStage');
+  var fileInput = document.getElementById('routeFile');
+  var previewButton = document.getElementById('previewRoute');
+  var confirmButton = document.getElementById('confirmRoute');
+  var status = document.getElementById('importStatus');
+  var base = window.location.pathname.replace(/\/race-route\/?$/, '/api/race-route/');
+
+  function escapeHtml(value) {
+    var element = document.createElement('span');
+    element.textContent = value == null ? '' : String(value);
+    return element.innerHTML;
+  }
+
+  function showFullPreview() {
+    if (!map || !fullPreview.length) return;
+    if (!fullPreviewLayer) {
+      fullPreviewLayer = new ymaps.GeoObjectCollection();
+      fullPreview.forEach(function(line) {
+        fullPreviewLayer.add(new ymaps.Polyline(line.points.map(function(p) { return [p.lat,p.lon]; }), {},
+          {strokeColor:'#d63939',strokeWidth:4,strokeStyle:'dash'}));
+        line.checkpoints.forEach(function(cp) {
+          fullPreviewLayer.add(new ymaps.Placemark([cp.lat,cp.lon], {hintContent: escapeHtml(cp.name)}));
+        });
+      });
+      map.geoObjects.add(fullPreviewLayer);
+    }
+    map.setBounds(fullPreviewLayer.getBounds(), {checkZoomRange:true, zoomMargin:30});
+  }
+
+  window.addEventListener('race-route-preview', function(event) {
+    // Данные сохраняются даже до готовности карты и очищаются только своим источником
+    if (fullPreview !== event.detail) {
+      if (map && fullPreviewLayer) map.geoObjects.remove(fullPreviewLayer);
+      fullPreviewLayer = null;
+      fullPreview = event.detail;
+    }
+    showFullPreview();
+  });
+
+  function showStatus(text, error) {
+    status.textContent = text;
+    status.className = error ? 'text-danger mt-2' : 'text-success mt-2';
+  }
+
+  function clearPreview() {
+    revision += 1;
+    preview = null;
+    confirmButton.disabled = true;
+    if (map && previewLayer) map.geoObjects.remove(previewLayer);
+    previewLayer = null;
+    showStatus('', false);
+  }
+
+  function showPreview() {
+    if (!map || !preview) return;
+    if (previewLayer) map.geoObjects.remove(previewLayer);
+
+    previewLayer = new ymaps.Polyline(
+      preview.points.map(function(p) { return [p.lat, p.lon]; }),
+      {},
+      {
+        strokeColor: '#d63939',
+        strokeWidth: 4,
+        strokeStyle: 'dash'
+      }
+    );
+
+    map.geoObjects.add(previewLayer);
+    map.setBounds(previewLayer.geometry.getBounds(), {
+      checkZoomRange: true,
+      zoomMargin: 30
+    });
+  }
+
+  async function send(action, options) {
+    options.headers = Object.assign({}, options.headers, {
+      'X-Route-Import-Token': form.dataset.csrf,
+      'Accept': 'application/json'
+    });
+    options.credentials = 'same-origin';
+
+    var response = await fetch(
+      base + stageSelect.value + '/import/' + action,
+      options
+    );
+
+    if (response.redirected) {
+      throw new Error('Сессия истекла, обновите страницу и войдите заново');
+    }
+
+    var result;
+    try {
+      result = await response.json();
+    } catch (_) {
+      throw new Error('Сервер вернул неожиданный ответ');
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        typeof result.detail === 'string'
+          ? result.detail
+          : 'Не удалось импортировать маршрут'
+      );
+    }
+
+    return result;
+  }
+
+  fileInput.addEventListener('change', clearPreview);
+
+  stageSelect.addEventListener('change', function() {
+    clearPreview();
+    var btn = document.querySelector(
+      '.stage-btn[data-stage-id="' + stageSelect.value + '"]'
+    );
+    if (btn) btn.click();
+  });
+
+  form.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    clearPreview();
+
+    var file = fileInput.files[0];
+    if (!file || !stageSelect.value) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      showStatus('Максимальный размер файла — 2 МиБ', true);
+      return;
+    }
+
+    var current = revision;
+    var data = new FormData();
+    data.append('file', file);
+    previewButton.disabled = true;
+
+    try {
+      var result = await send('preview', {
+        method: 'POST',
+        body: data
+      });
+
+      if (current !== revision) return;
+
+      preview = result;
+      confirmButton.disabled = false;
+      showPreview();
+
+      showStatus(
+        'Предпросмотр · точек: ' + result.points.length +
+        ' · существующий маршрут ещё не изменён',
+        false
+      );
+    } catch (error) {
+      if (current === revision) showStatus(error.message, true);
+    } finally {
+      previewButton.disabled = !stageSelect.value;
+    }
+  });
+
+  confirmButton.addEventListener('click', async function() {
+    if (!preview || String(preview.stage_id) !== stageSelect.value) return;
+
+    var current = revision;
+    confirmButton.disabled = true;
+    previewButton.disabled = true;
+    stageSelect.disabled = true;
+    fileInput.disabled = true;
+
+    try {
+      var saved = await send('confirm', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({points: preview.points})
+      });
+
+      var btn = document.querySelector(
+        '.stage-btn[data-stage-id="' + saved.stage_id + '"]'
+      );
+
+      if (btn) {
+        btn.setAttribute('data-route', JSON.stringify(saved.points));
+      }
+
+      clearPreview();
+      stageSelect.disabled = false;
+
+      if (btn) btn.click();
+
+      showStatus('Маршрут сохранён · точек: ' + saved.points.length, false);
+    } catch (error) {
+      if (current === revision) showStatus(error.message, true);
+    } finally {
+      previewButton.disabled = !stageSelect.value;
+      stageSelect.disabled = false;
+      fileInput.disabled = false;
+      confirmButton.disabled = !preview;
+    }
+  });
+
+  if (typeof ymaps === 'undefined') return;
+
+  ymaps.ready(function(){
+    map = new ymaps.Map('routeMap', {
+      center: [53.0, 158.7],
+      zoom: 7,
+      controls: ['zoomControl', 'fullscreenControl']
+    });
+
+    function applyStage(btn) {
+      if (routeLayer) map.geoObjects.remove(routeLayer);
+      if (cpLayer) map.geoObjects.remove(cpLayer);
+
+      document.getElementById('cpBody').innerHTML = '';
+      var cpHtml = '', bounds = [];
+
+      // Маршрут выбранного этапа
+      try {
+        var routeData = JSON.parse(btn.getAttribute('data-route') || '[]');
+
+        if (routeData.length) {
+          var coords = routeData.map(function(p) {
+            return [p.lat, p.lon];
+          });
+
+          routeLayer = new ymaps.Polyline(coords, {}, {
+            strokeColor: '#005A9C',
+            strokeWidth: 4,
+            strokeOpacity: 0.8
+          });
+
+          map.geoObjects.add(routeLayer);
+          bounds = bounds.concat(coords);
+        }
+      } catch (error) {
+        console.error('Ошибка чтения маршрута', error);
+      }
+
+      // Контрольные пункты выбранного этапа
+      try {
+        var cpData = JSON.parse(btn.getAttribute('data-checkpoints') || '[]');
+        cpLayer = new ymaps.GeoObjectCollection();
+
+        cpData.forEach(function(cp) {
+          var pt = [cp.lat, cp.lon];
+          bounds.push(pt);
+
+          var color = cp.kind === 'start'
+            ? '#2fb344'
+            : cp.kind === 'finish'
+              ? '#d63939'
+              : '#f59f00';
+
+          var pm = new ymaps.Placemark(pt, {
+            hintContent: escapeHtml(cp.code + ' — ' + cp.name)
+          }, {
+            preset: 'islands#circleDotIcon',
+            iconColor: color
+          });
+
+          cpLayer.add(pm);
+
+          cpHtml +=
+            '<tr><td><span class="badge text-white fw-bold" style="background:' +
+            color + ';">' + escapeHtml(cp.code) +
+            '</span></td><td class="text-body fw-medium">' +
+            escapeHtml(cp.name) + '</td></tr>';
+        });
+
+        map.geoObjects.add(cpLayer);
+        document.getElementById('cpBody').innerHTML = cpHtml;
+      } catch (error) {
+        console.error('Ошибка чтения контрольных пунктов', error);
+      }
+
+      if (bounds.length) {
+        // API принимает два угла области, а не произвольный массив точек линии
+        var area = bounds.reduce(function(result, point) {
+          result[0][0] = Math.min(result[0][0], point[0]);
+          result[0][1] = Math.min(result[0][1], point[1]);
+          result[1][0] = Math.max(result[1][0], point[0]);
+          result[1][1] = Math.max(result[1][1], point[1]);
+          return result;
+        }, [[Infinity, Infinity], [-Infinity, -Infinity]]);
+        map.setBounds(area, {
+          checkZoomRange: true,
+          zoomMargin: 40
+        });
+      }
+    }
+
+    var btns = document.querySelectorAll('.stage-btn');
+
+    btns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (stageSelect.disabled) return;
+
+        stageSelect.value = btn.getAttribute('data-stage-id');
+        clearPreview();
+
+        btns.forEach(function(other) {
+          other.classList.remove('active', 'bg-primary-lt');
+        });
+
+        btn.classList.add('active', 'bg-primary-lt');
+        applyStage(btn);
+      });
+    });
+
+    if (btns.length) {
+      var initial = document.querySelector(
+        '.stage-btn[data-stage-id="' + stageSelect.value + '"]'
+      ) || btns[0];
+
+      initial.classList.add('active', 'bg-primary-lt');
+      applyStage(initial);
+    }
+
+    showPreview();
+    showFullPreview();
+  });
+})();
+</script>
+{% endblock %}

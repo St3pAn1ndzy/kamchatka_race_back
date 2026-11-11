@@ -1,0 +1,164 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+
+<!-- Метрики -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm shadow-sm border-0">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-bold text-uppercase">Болельщиков</span>
+          <i class="fa-solid fa-heart text-pink opacity-50"></i>
+        </div>
+        <div class="display-6 fw-bold text-pink">{{ stats.total_fans }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm shadow-sm border-0">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-bold text-uppercase">Участников</span>
+          <i class="fa-solid fa-users text-primary opacity-50"></i>
+        </div>
+        <div class="display-6 fw-bold text-primary">{{ stats.total_participants }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm shadow-sm border-0">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-bold text-uppercase">Точек трека</span>
+          <i class="fa-solid fa-map-location-dot text-success opacity-50"></i>
+        </div>
+        <div class="display-6 fw-bold text-success">{{ stats.total_track_points }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm shadow-sm border-0">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="text-muted small fw-bold text-uppercase" title="Среднее количество болельщиков на одного участника">Вовлеченность</span>
+          <i class="fa-solid fa-chart-line text-warning opacity-50"></i>
+        </div>
+        <div class="display-6 fw-bold text-warning">
+          {% if stats.total_participants > 0 %}
+            {{ (stats.total_fans / stats.total_participants)|round(1) }}
+          {% else %}
+            0
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- График и Таблица -->
+<div class="row g-3">
+  <!-- График -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header border-bottom-0 pb-0 pt-3">
+        <h4 class="card-title">Топ болельщиков</h4>
+      </div>
+      <div class="card-body">
+        <!-- Обертка с фиксированной высотой нужна для корректного рендера Chart.js -->
+        <div style="position: relative; height: 320px; width: 100%;">
+          <canvas id="topFansChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Таблица -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header border-bottom-0 pb-0 pt-3">
+        <h4 class="card-title">Топ-10 участников</h4>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-vcenter card-table">
+            <thead>
+              <tr>
+                <th class="w-1">#</th>
+                <th>Участник</th>
+                <th class="text-end">Болельщиков</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in stats.top_fans %}
+              <tr>
+                <td class="fw-bold text-muted">{{ t.participant_number }}</td>
+                <td class="fw-bold">{{ t.participant_name }}</td>
+                <td class="text-end">
+                  <span class="badge bg-pink">{{ t.fans_count }}</span>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="3" class="text-center text-muted py-4">Нет данных о болельщиках</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+  var data = {{ top_fans_data | tojson | safe }};
+  var labels = data.map(function(t){ return '№' + t.participant_number; });
+  var values = data.map(function(t){ return t.fans_count; });
+
+  var ctx = document.getElementById('topFansChart');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Болельщиков',
+        data: values,
+        backgroundColor: '#d63384', /* Фирменный розовый цвет */
+        borderRadius: 6,
+        barThickness: 'flex',
+        maxBarThickness: 40
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1 },
+          grid: { color: 'rgba(0,0,0,0.05)' }
+        },
+        x: {
+          grid: { display: false }
+        }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}
