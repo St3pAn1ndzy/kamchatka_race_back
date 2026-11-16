@@ -407,7 +407,8 @@ async def main(
                         discipline_id=discipline_ids[index % len(discipline_ids)],
                         photo_url=photo_url,
                         bio=f"Опытный каюр из региона {region}. Участник гонки «{SEASON_TITLE}».",
-                        dogs_count=rng.randint(4, 12),
+                        dogs_count_start=rng.randint(4, 12),
+                        dogs_count_finish=rng.randint(4, 12),
                         status=statuses[index],
                     )
                 )
