@@ -102,12 +102,18 @@ async def seed(session: AsyncSession, created: dict[str, int]) -> None:
         p_num = participant.number
         p_results = RESULTS_DATA.get(p_num, {})
 
+        # Количество собак: на старте 10, у DNF на финише меньше, у DNS — None
+        participant.dogs_count_start = 10
+        participant.dogs_count_finish = 10
+
         # Обновляем статус участника
         if p_results.get("s1") == "DNS":
-            participant.status = ParticipantStatus.REGISTERED.value
+            participant.status = ParticipantStatus.DNS.value
+            participant.dogs_count_finish = None
             continue
         elif p_results.get("s2") == "DNF":
-            participant.status = ParticipantStatus.WITHDRAWN.value
+            participant.status = ParticipantStatus.DNF.value
+            participant.dogs_count_finish = 8  # две собаки сошли
         else:
             participant.status = ParticipantStatus.FINISHED.value
 
