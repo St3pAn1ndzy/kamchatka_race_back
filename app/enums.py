@@ -7,6 +7,8 @@ class ParticipantStatus(StrEnum):
     FINISHED = "finished"
     WITHDRAWN = "withdrawn"
     DISQUALIFIED = "disqualified"
+    DNF = "dnf"  # Did Not Finish — стартовал, но не финишировал
+    DNS = "dns"  # Did Not Start — не вышел на старт
 
 
 class StageStatus(StrEnum):
