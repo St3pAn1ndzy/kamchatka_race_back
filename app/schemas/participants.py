@@ -15,7 +15,8 @@ class ParticipantListItem(BaseSchema):
     discipline: str | None = None
     photo_url: str | None = None
     status: ParticipantStatus
-    dogs_count: int | None = None
+    dogs_count_start: int | None = None
+    dogs_count_finish: int | None = None
     supporters_count: int = 0
 
 
@@ -30,7 +31,8 @@ class ParticipantDetail(BaseSchema):
     discipline: str | None = None
     photo_url: str | None = None
     status: ParticipantStatus
-    dogs_count: int | None = None
+    dogs_count_start: int | None = None
+    dogs_count_finish: int | None = None
     bio: str | None = None
     supporters_count: int = 0
 

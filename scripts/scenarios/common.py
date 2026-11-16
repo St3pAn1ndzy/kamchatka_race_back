@@ -121,7 +121,8 @@ async def seed_base(
                 discipline_id=disc_id,
                 photo_url=photo_url,
                 bio=f"Опытный каюр из региона {region}. Участник гонки «Авача 2027».",
-                dogs_count=random.Random(2027 + index).randint(4, 12),
+                dogs_count_start=random.Random(2027 + index).randint(4, 12),
+                dogs_count_finish=random.Random(2027 + index).randint(4, 12),
                 status=ParticipantStatus.REGISTERED.value,
             )
         )

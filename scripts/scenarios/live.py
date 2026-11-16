@@ -77,6 +77,11 @@ async def seed(session: AsyncSession, created: dict[str, int]) -> None:
     )
     for i, participant in enumerate(participants):
         participant.status = statuses[i]
+        # Заполняем количество собак для live-сценария
+        participant.dogs_count_start = 10
+        participant.dogs_count_finish = (
+            10 if participant.status != ParticipantStatus.WITHDRAWN.value else 9
+        )
 
     # Дорохов (№7) принудительно активен (на трассе)
     dorohov = next(p for p in participants if p.number == 7)

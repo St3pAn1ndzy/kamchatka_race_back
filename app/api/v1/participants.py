@@ -87,7 +87,8 @@ async def list_participants(
             discipline=p.discipline_ref.name if p.discipline_ref else None,
             photo_url=p.photo_url,
             status=p.status,
-            dogs_count=p.dogs_count,
+            dogs_count_start=p.dogs_count_start,
+            dogs_count_finish=p.dogs_count_finish,
             supporters_count=cnt,
         )
         for p, cnt in rows
@@ -119,7 +120,8 @@ async def get_participant(
         discipline=participant.discipline_ref.name if participant.discipline_ref else None,
         photo_url=participant.photo_url,
         status=participant.status,
-        dogs_count=participant.dogs_count,
+        dogs_count_start=participant.dogs_count_start,
+        dogs_count_finish=participant.dogs_count_finish,
         bio=participant.bio,
         supporters_count=cnt,
     )

@@ -143,6 +143,9 @@ class ResultService:
                     total_penalty_seconds=penalty_sec,
                     total_mandatory_stop_seconds=stop_sec,
                     final_time_seconds=final,
+                    status=participant.status,
+                    dogs_count_start=participant.dogs_count_start,
+                    dogs_count_finish=participant.dogs_count_finish,
                 )
             )
 
@@ -243,6 +246,9 @@ class ResultService:
                     total_mandatory_stop_seconds=total_stop,
                     final_time_seconds=total_final if stages_finished > 0 else None,
                     stages_finished=stages_finished,
+                    status=participant.status,
+                    dogs_count_start=participant.dogs_count_start,
+                    dogs_count_finish=participant.dogs_count_finish,
                 )
             )
 

@@ -29,7 +29,10 @@ class Participant(Base):
     )
     photo_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
-    dogs_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Количество собак на старте
+    dogs_count_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Количество собак на финише (может отличаться, если собака сошла)
+    dogs_count_finish: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(
         String(32),
         default=ParticipantStatus.REGISTERED.value,

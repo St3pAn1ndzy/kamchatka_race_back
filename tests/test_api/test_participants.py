@@ -30,7 +30,8 @@ def _participant(id: int = 5):
         discipline_ref=SimpleNamespace(name="Long"),
         photo_url=None,
         status=ParticipantStatus.REGISTERED,
-        dogs_count=8,
+        dogs_count_start=8,
+        dogs_count_finish=8,
         bio="Profile",
     )
 

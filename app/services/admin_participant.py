@@ -20,7 +20,8 @@ class ParticipantCard:
     region: str | None
     photo_url: str | None
     bio: str | None
-    dogs_count: int | None
+    dogs_count_start: int | None
+    dogs_count_finish: int | None
     status: str
     discipline_name: str | None
     device_id: int | None
@@ -65,7 +66,8 @@ class AdminParticipantService:
                     region=p.region,
                     photo_url=p.photo_url,
                     bio=p.bio,
-                    dogs_count=p.dogs_count,
+                    dogs_count_start=p.dogs_count_start,
+                    dogs_count_finish=p.dogs_count_finish,
                     status=p.status,
                     discipline_name=p.discipline_ref.name if p.discipline_ref else None,
                     device_id=d.id if d else None,

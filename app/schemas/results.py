@@ -34,6 +34,9 @@ class StageProtocolRow(BaseSchema):
     total_mandatory_stop_seconds: int = 0
     final_time_seconds: int | None = None
     position: int | None = None
+    status: str | None = None
+    dogs_count_start: int | None = None
+    dogs_count_finish: int | None = None
 
 
 class StageProtocol(BaseSchema):
@@ -59,6 +62,9 @@ class StandingRow(BaseSchema):
     final_time_seconds: int | None = None
     position: int | None = None
     stages_finished: int = 0
+    status: str | None = None
+    dogs_count_start: int | None = None
+    dogs_count_finish: int | None = None
 
 
 class RaceStandings(BaseSchema):
