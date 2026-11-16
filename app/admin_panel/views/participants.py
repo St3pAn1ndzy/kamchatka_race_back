@@ -29,6 +29,8 @@ _LABELS = {
     ParticipantStatus.FINISHED: "Финишировал",
     ParticipantStatus.WITHDRAWN: "Сошёл",
     ParticipantStatus.DISQUALIFIED: "Дисквалифицирован",
+    ParticipantStatus.DNF: "DNF (Не финишировал)",
+    ParticipantStatus.DNS: "DNS (Не стартовал)",
 }
 
 
@@ -256,7 +258,8 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
         Participant.region,
         Participant.discipline_ref,
         Participant.status,
-        Participant.dogs_count,
+        Participant.dogs_count_start,
+        Participant.dogs_count_finish,
     ]
     column_labels = {
         Participant.number: "№",
@@ -264,7 +267,8 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
         Participant.region: "Регион",
         Participant.discipline_ref: "Дисциплина",
         Participant.status: "Статус",
-        Participant.dogs_count: "Собак",
+        Participant.dogs_count_start: "Собак (старт)",
+        Participant.dogs_count_finish: "Собак (финиш)",
         Participant.bio: "Биография",
         Participant.photo_url: "Фото (URL)",
     }
@@ -337,7 +341,8 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
         Participant.region,
         Participant.discipline_ref,
         Participant.status,
-        Participant.dogs_count,
+        Participant.dogs_count_start,
+        Participant.dogs_count_finish,
         Participant.bio,
         Participant.photo_url,
         Participant.devices,
@@ -368,7 +373,8 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
         Participant.name,
         Participant.region,
         Participant.discipline_ref,
-        Participant.dogs_count,
+        Participant.dogs_count_start,
+        Participant.dogs_count_finish,
         Participant.status,
         Participant.bio,
         Participant.photo_url,
@@ -383,7 +389,8 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
         "photo_url": UploadImageField,
     }
     form_args = {
-        "dogs_count": {"validators": [NumberRange(min=1, max=20)]},
+        "dogs_count_start": {"validators": [NumberRange(min=1, max=20)]},
+        "dogs_count_finish": {"validators": [NumberRange(min=0, max=20)]},
         "number": {"validators": [NumberRange(min=1)]},
         "status": {"choices": [(s.value, _LABELS[s]) for s in ParticipantStatus]},
     }
@@ -394,7 +401,8 @@ class ParticipantAdmin(BaseAdminView, model=Participant):
         Participant.name,
         Participant.region,
         Participant.status,
-        Participant.dogs_count,
+        Participant.dogs_count_start,
+        Participant.dogs_count_finish,
     ]
 
     async def update_model(self, request, pk, data):
