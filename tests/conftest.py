@@ -324,7 +324,8 @@ async def create_participant(db_session):
             region=region,
             discipline_id=discipline_id,
             status=status,
-            dogs_count=8,
+            dogs_count_start=8,
+            dogs_count_finish=8,
         )
         db_session.add(participant)
         await db_session.flush()
