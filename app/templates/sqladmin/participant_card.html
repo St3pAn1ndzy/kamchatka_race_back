@@ -227,7 +227,7 @@
           document.getElementById('modalNumber').textContent = '№' + (p.number || '—');
           document.getElementById('modalRegion').textContent = p.region || '—';
           document.getElementById('modalDiscipline').textContent = p.discipline_name || '—';
-          document.getElementById('modalDogs').textContent = p.dogs_count || '—';
+          document.getElementById('modalDogs').textContent = (p.dogs_count_start || '—') + ' → ' + (p.dogs_count_finish || '—');
 
           var statusText = p.status;
           if (p.status === 'active') statusText = 'Активен';
